@@ -19,12 +19,13 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "includes.h"
-#include "lib/registry/registry.h"
-#include "gtk/common/gtk-smb.h"
-#include "lib/events/events.h"
-#include "lib/registry/reg_backend_rpc.h"
-#include "auth/credentials/credentials.h"
+#define _GNU_SOURCE
+#include <registry.h>
+#include <registry_rpc.h>
+#include <core/doserr.h>
+#include "common/gtk-smb.h"
+#include <events/events.h>
+#include <credentials.h>
 
 static GtkTreeStore *store_keys;
 static GtkListStore *store_vals;
@@ -348,7 +349,7 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 
 	switch(result) {
 	case GTK_RESPONSE_OK:
-		filename = strdup(gtk_file_selection_get_filename(GTK_FILE_SELECTION(openfilewin)));
+		filename = g_strdup(gtk_file_selection_get_filename(GTK_FILE_SELECTION(openfilewin)));
 		error = reg_open_hive(NULL, user_data, filename, NULL, NULL, &root);
 		if(!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while opening hive", error);
@@ -723,7 +724,7 @@ static GtkWidget* create_mainwindow(void)
 
 		g_signal_connect(open_nt4, "activate",
 				 G_CALLBACK (on_open_file_activate),
-				 discard_const_p(char, "nt4"));
+				 "nt4");
 	}
 
 	if(reg_has_backend("w95")) {
@@ -732,7 +733,7 @@ static GtkWidget* create_mainwindow(void)
 
 		g_signal_connect (open_w95, "activate",
 				  G_CALLBACK (on_open_file_activate),
-				  discard_const_p(char, "w95"));
+				  "w95");
 	}
 
 	if(reg_has_backend("gconf")) {
@@ -750,7 +751,7 @@ static GtkWidget* create_mainwindow(void)
 
 		g_signal_connect(open_ldb, "activate",
 				 G_CALLBACK (on_open_file_activate),
-				 discard_const_p(char, "ldb"));
+				 "ldb");
 	}
 
 	separatormenuitem1 = gtk_menu_item_new ();

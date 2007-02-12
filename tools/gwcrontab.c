@@ -19,11 +19,11 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "includes.h"
-#include "librpc/gen_ndr/ndr_atsvc_c.h"
-#include "gtk/common/gtk-smb.h"
-#include "gtk/common/select.h"
-#include "auth/credentials/credentials.h"
+#define _GNU_SOURCE
+#include <dcerpc/ndr_atsvc_c.h>
+#include "common/gtk-smb.h"
+#include "common/select.h"
+#include <credentials.h>
 
 static struct dcerpc_pipe *at_pipe = NULL;
 static GtkWidget *mainwin;

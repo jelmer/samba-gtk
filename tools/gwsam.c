@@ -19,11 +19,11 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "includes.h"
-#include "librpc/gen_ndr/ndr_samr_c.h"
-#include "gtk/common/select.h"
-#include "gtk/common/gtk-smb.h"
-#include "auth/credentials/credentials.h"
+#define _GNU_SOURCE
+#include <dcerpc/ndr_samr_c.h>
+#include "common/select.h"
+#include "common/gtk-smb.h"
+#include <credentials.h>
 
 struct policy_handle sam_handle;
 struct dcerpc_pipe *sam_pipe = NULL;

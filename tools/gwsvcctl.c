@@ -19,9 +19,10 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "librpc/gen_ndr/ndr_svcctl_c.h"
+#define _GNU_SOURCE
+#include <dcerpc/ndr_svcctl_c.h>
 #include "common/gtk-smb.h"
-#include "auth/credentials/credentials.h"
+#include <credentials.h>
 #include "common/select.h"
 
 static struct dcerpc_pipe *svcctl_pipe = NULL;

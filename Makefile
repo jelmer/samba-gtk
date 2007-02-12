@@ -18,6 +18,7 @@ install-doc::
 	$(INSTALL) -m 0644 $(MANPAGES) $(man1dir)
 
 configure: 
+	aclocal
 	autoconf -f
 
 Makefile.settings: configure

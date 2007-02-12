@@ -24,7 +24,6 @@ $(BINS): %: tools/%.o $(LIB)
 	$(CC) -o $@ $< -lsamba-gtk -L. $(LIBS)
 
 install::
-	$(INSTALL)
 
 clean::
 	rm -f $(BINS) $(LIB) *.so */*.o
@@ -35,3 +34,13 @@ distclean:: clean
 	rm -f Makefile.settings
 
 dist:: configure distclean
+
+doc:: man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
+
+DOCBOOK_MANPAGE_URL = http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl
+
+.SUFFIXES: .1 .1.xml
+
+.1.xml.1:
+	$(XSLTPROC) -o $@ $(DOCBOOK_MANPAGE_URL) $<
+

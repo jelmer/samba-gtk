@@ -25,6 +25,7 @@
 #define GTK_DISABLE_DEPRECATED
 #include <gtk/gtk.h>
 #include <talloc.h>
+#include <core.h>
 
 typedef struct _GtkRpcBindingDialog GtkRpcBindingDialog;
 

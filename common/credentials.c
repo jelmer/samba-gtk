@@ -18,9 +18,10 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "includes.h"
-#include "gtk/common/gtk-smb.h"
-#include "auth/credentials/credentials.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include "common/gtk-smb.h"
+#include <credentials.h>
 
 static void gtk_get_credentials(struct cli_credentials *credentials)
 {

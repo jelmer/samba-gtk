@@ -22,11 +22,18 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "includes.h"
-#include "lib/events/events.h"
-#include "lib/events/events_internal.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <sys/time.h>
+#include <core.h>
+#include <util.h>
+#include <events/events.h>
+#include <events/events_internal.h>
 
-#include "gtk/common/select.h"
+#include "common/select.h"
 
 /* as gtk_main() doesn't take a parameter nor return one,
    we need to have a global event context structure for our
@@ -50,8 +57,8 @@ static int gtk_event_context_init(struct event_context *ev)
 }
 
 struct gtk_fd_event {
-	BOOL running;
-	BOOL free_after_run;
+	bool running;
+	bool free_after_run;
 	GIOChannel *channel;
 	guint fd_id;
 };
@@ -68,9 +75,9 @@ static gboolean gtk_event_fd_handler(GIOChannel *source, GIOCondition condition,
 	if (condition & G_IO_OUT)
 		flags |= EVENT_FD_WRITE;
 
-	gtk_fd->running = True;
+	gtk_fd->running = true;
 	fde->handler(fde->event_ctx, fde, flags, fde->private_data);
-	gtk_fd->running = False;
+	gtk_fd->running = false;
 
 	if (gtk_fd->free_after_run) {
 		talloc_free(fde);
@@ -92,7 +99,7 @@ static int gtk_event_fd_destructor(struct fd_event *fde)
 		/* the event is running reject the talloc_free()
 		   as it's done by the gtk_event_timed_handler()
 		 */
-		gtk_fd->free_after_run = True;
+		gtk_fd->free_after_run = true;
 		return -1;
 	}
 
@@ -156,8 +163,8 @@ static struct fd_event *gtk_event_add_fd(struct event_context *ev, TALLOC_CTX *m
 		fd_id = g_io_add_watch(channel, condition, gtk_event_fd_handler, fde);
 	}
 
-	gtk_fd->running		= False;
-	gtk_fd->free_after_run	= False;
+	gtk_fd->running		= false;
+	gtk_fd->free_after_run	= false;
 	gtk_fd->channel		= channel;
 	gtk_fd->fd_id		= fd_id;
 

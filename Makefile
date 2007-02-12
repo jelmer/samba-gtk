@@ -1,11 +1,21 @@
 include Makefile.settings
 
 BINS = gepdump gregedit gwcrontab gwsam gwsvcctl
-CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) -I.
-LIBS = $(GTK_LIBS) $(TALLOC_LIBS)
+CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I.
+LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) 
+
 LIB = libsamba-gtk.so.0.0.1
+MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
 
 all: $(BINS) $(LIB)
+
+install:: $(BINS) $(LIB)
+	$(INSTALL) -d $(bindir) $(libdir) $(man1dir)
+	$(INSTALL) -m 0755 $(BINS) $(bindir)
+	$(INSTALL) -m 0755 $(LIBDIR) $(libdir)
+
+install-doc::
+	$(INSTALL) -m 0644 $(MANPAGES) $(man1dir)
 
 configure: 
 	autoconf -f
@@ -18,7 +28,7 @@ $(LIB): $(patsubst %.c, %.o, $(wildcard common/*.c))
 	ln -s $(LIB) libsamba-gtk.so 
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -o $@ -c $<
 
 $(BINS): %: tools/%.o $(LIB)
 	$(CC) -o $@ $< -lsamba-gtk -L. $(LIBS)
@@ -35,7 +45,7 @@ distclean:: clean
 
 dist:: configure distclean
 
-doc:: man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
+doc:: $(MANPAGES)
 
 DOCBOOK_MANPAGE_URL = http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl
 

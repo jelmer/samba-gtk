@@ -19,12 +19,17 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "includes.h"
-#include "gtk/common/gtk-smb.h"
-#include "gtk/common/select.h"
-#include "version.h"
-#include "librpc/rpc/dcerpc.h"
-#include "auth/credentials/credentials.h"
+#define _GNU_SOURCE
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <core.h>
+#include <samba/version.h>
+#include "common/gtk-smb.h"
+#include "common/select.h"
+#include <dcerpc.h>
+#include <credentials.h>
 
 /** 
  * Dialog error showing a WERROR

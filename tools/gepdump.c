@@ -19,11 +19,19 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "librpc/gen_ndr/ndr_epmapper_c.h"
-#include "librpc/gen_ndr/ndr_mgmt_c.h"
+#define _GNU_SOURCE
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <dcerpc.h>
+#include <dcerpc/ndr_mgmt_c.h>
+#include <dcerpc/ndr_epmapper_c.h>
 #include "common/gtk-smb.h"
 #include "common/select.h"
-#include "auth/gensec/gensec.h"
+#include <gensec.h>
 #include <stdbool.h>
 
 /* 

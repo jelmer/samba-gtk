@@ -6,3 +6,4 @@ config.status
 configure
 gtksamba.pc
 man/*.1
+libsamba-gtk.so.0.0.1

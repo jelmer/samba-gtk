@@ -19,6 +19,8 @@ install:: $(BINS) $(LIB)
 	$(INSTALL) -m 0755 $(BINS) $(bindir)
 	$(INSTALL) -m 0755 $(LIB) $(libdir)
 	$(INSTALL) -m 0644 gtksamba.pc $(pcdir)
+	$(INSTALL) -d $(appdir)
+	$(INSTALL) -m 0644 meta/* $(appdir)
 
 install-doc::
 	$(INSTALL) -m 0644 $(MANPAGES) $(man1dir)
@@ -27,8 +29,12 @@ configure: configure.ac
 	aclocal
 	autoconf -f
 
-test::
-	# No tests yet, sorry
+check:: test
+
+%.desktop-validate: %.desktop
+	$(DESKTOP_VALIDATE) $<
+
+test:: $(patsubst %.desktop,%.desktop-validate,$(wildcard meta/*.desktop))
 
 Makefile.settings: configure
 	./configure

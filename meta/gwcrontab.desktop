@@ -1,10 +1,9 @@
 [Desktop Entry]
 Encoding=UTF-8
 Name=Windows Job Scheduler
-Comment=Windows Job Scheduler
+Comment=View and plan jobs on remote Windows hosts
 Exec=gwcrontab
-#Icon=media-player-48.png
 Terminal=false
 Type=Application
-Categories=GNOME;GTK;Application;Crontab;At;Samba;
+Categories=GNOME;GTK;RemoteAccess;
 StartupNotify=true

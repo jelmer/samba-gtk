@@ -37,5 +37,8 @@ pcdir = $(libdir)/pkgconfig
 datarootdir = @datarootdir@
 mandir = @mandir@
 man1dir = $(mandir)/man1
+appdir = $(datarootdir)/applications
 
 INSTALL = @INSTALL@
+
+DESKTOP_VALIDATE = @DESKTOP_VALIDATE@

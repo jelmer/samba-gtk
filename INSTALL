@@ -5,12 +5,9 @@ To build, you will need to have the following tools installed:
  * the GTK+ 2.0 libraries, including development files
  * Samba 4 libraries, including development files
 
-You can optionally build with a Samba4 build tree 
-(in other words, without installing it). To do this,
-point PKG_CONFIG_PATH at the .pc files in the source 
-directory, for example:
+Make sure to point pkg-config at the right path, for example if samba is installed in /usr/local/samba/:
 
-$ export PKG_CONFIG_PATH=/home/jelmer/bzr.samba/SAMBA_4_0/source/bin/pkgconfig
+$ export PKG_CONFIG_PATH=/usr/local/samba/lib/pkgconfig
 
 To build, simply run make:
 

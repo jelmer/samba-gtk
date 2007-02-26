@@ -1,0 +1,10 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Windows User Manager
+Comment=Manage user, group and aliases on a remote Windows machine
+Exec=gwsam
+#Icon=media-player-48.png
+Type=Application
+Terminal=false
+Categories=GNOME;GTK;RemoteAccess;System;
+StartupNotify=true

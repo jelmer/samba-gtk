@@ -21,6 +21,9 @@ configure:
 	aclocal
 	autoconf -f
 
+test::
+	# No tests yet, sorry
+
 Makefile.settings: configure
 	./configure
 

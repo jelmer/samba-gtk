@@ -2,6 +2,8 @@ This directory contains files for SMB-related Gtk Widgets
 and helper functions and utilities (frontends) for various SMB 
 things.
 
+See the file INSTALL for information on how to build and install.
+
 Common code at the moment:
 GtkRpcBindingDialog - Gtk Dialog Window for obtaining user credentials and a RPC binding string
 GtkSelectDomainDialog - Gtk Dialog for selecting a domain
@@ -17,3 +19,4 @@ gwcrontab - View and edit 'cron/at'-like jobs using the atsvc service (needs a b
 Ideas for future utilities:
 - SAM editor
 - Eventlog viewer
+- policy editor

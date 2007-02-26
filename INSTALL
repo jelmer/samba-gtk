@@ -1,0 +1,23 @@
+To build, you will need to have the following tools installed:
+
+ * GNU make
+ * A C99-compatible C compiler, preferably GCC
+ * the GTK+ 2.0 libraries, including development files
+ * Samba 4 libraries, including development files
+
+You can optionally build with a Samba4 build tree 
+(in other words, without installing it). To do this,
+point PKG_CONFIG_PATH at the .pc files in the source 
+directory, for example:
+
+$ export PKG_CONFIG_PATH=/home/jelmer/bzr.samba/SAMBA_4_0/source/bin/pkgconfig
+
+To build, simply run make:
+
+$ make
+
+This will take care of running the configure script as well, if necessary.
+
+To install, run "make install":
+
+$ make install

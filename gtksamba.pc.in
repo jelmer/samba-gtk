@@ -2,7 +2,6 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
-modulesdir=${prefix}/modules/gtksamba
 
 Name: gtksamba
 Description: Common Samba-related widgets for GTK+ applications

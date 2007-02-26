@@ -17,7 +17,8 @@ Makefile: Makefile.settings
 install:: $(BINS) $(LIB)
 	$(INSTALL) -d $(bindir) $(libdir) $(man1dir)
 	$(INSTALL) -m 0755 $(BINS) $(bindir)
-	$(INSTALL) -m 0755 $(LIBDIR) $(libdir)
+	$(INSTALL) -m 0755 $(LIB) $(libdir)
+	$(INSTALL) -m 0644 gtksamba.pc $(pcdir)
 
 install-doc::
 	$(INSTALL) -m 0644 $(MANPAGES) $(man1dir)
@@ -33,7 +34,7 @@ Makefile.settings: configure
 	./configure
 
 $(LIB): $(patsubst %.c, %.o, $(wildcard common/*.c))
-	$(CC) -shared -o $@ $^ $(LIBS)
+	$(CC) -Wl,-soname=libsamba-gtk.so.0 -shared -o $@ $^ $(LIBS)
 
 libsamba-gtk.so: $(LIB)
 	ln -fs $< $@
@@ -41,8 +42,8 @@ libsamba-gtk.so: $(LIB)
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-$(BINS): %: tools/%.o libsamba-gtk.so
-	$(CC) -o $@ $< -lsamba-gtk -L. $(LIBS) $($*_LIBS)
+$(BINS): %: tools/%.o $(LIB)
+	$(CC) -o $@ $< $(LIB) $(LIBS) $($*_LIBS)
 
 install::
 

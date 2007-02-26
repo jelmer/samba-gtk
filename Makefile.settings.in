@@ -32,7 +32,10 @@ exec_prefix = @exec_prefix@
 
 bindir = @bindir@
 libdir = @libdir@
+pcdir = $(libdir)/pkgconfig
 
 datarootdir = @datarootdir@
 mandir = @mandir@
 man1dir = $(mandir)/man1
+
+INSTALL = @INSTALL@

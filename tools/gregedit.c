@@ -21,7 +21,6 @@
 
 #define _GNU_SOURCE
 #include <registry.h>
-#include <registry_rpc.h>
 #include <core/doserr.h>
 #include "common/gtk-smb.h"
 #include <events/events.h>

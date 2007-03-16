@@ -22,7 +22,7 @@ install:: $(BINS) $(LIB)
 	$(INSTALL) -d $(DESTDIR)$(appdir)
 	$(INSTALL) -m 0644 meta/* $(DESTDIR)$(appdir)
 
-install-doc::
+install-doc:: doc
 	$(INSTALL) -m 0644 $(MANPAGES) $(DESTDIR)$(man1dir)
 
 configure: configure.ac

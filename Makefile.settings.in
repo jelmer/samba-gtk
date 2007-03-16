@@ -38,6 +38,7 @@ datarootdir = @datarootdir@
 mandir = @mandir@
 man1dir = $(mandir)/man1
 appdir = $(datarootdir)/applications
+includedir = @includedir@/samba-4.0/gtk
 
 INSTALL = @INSTALL@
 

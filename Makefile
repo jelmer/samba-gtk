@@ -9,6 +9,7 @@ LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LI
 
 LIB = libsamba-gtk.so.0.0.1
 MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
+HEADERS = $(wildcard common/*.h)
 
 all: $(BINS) $(LIB)
 
@@ -22,6 +23,8 @@ install:: $(BINS) $(LIB)
 	$(INSTALL) -m 0644 gtksamba.pc $(DESTDIR)$(pcdir)
 	$(INSTALL) -d $(DESTDIR)$(appdir)
 	$(INSTALL) -m 0644 meta/* $(DESTDIR)$(appdir)
+	$(INSTALL) -d $(DESTDIR)$(includedir)
+	$(INSTALL) -m 0644 $(HEADERS) $(DESTDIR)$(includedir)
 
 install-doc:: doc
 	$(INSTALL) -m 0644 $(MANPAGES) $(DESTDIR)$(man1dir)

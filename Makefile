@@ -15,15 +15,15 @@ all: $(BINS) $(LIB)
 Makefile: Makefile.settings
 
 install:: $(BINS) $(LIB)
-	$(INSTALL) -d $(bindir) $(libdir) $(man1dir)
-	$(INSTALL) -m 0755 $(BINS) $(bindir)
-	$(INSTALL) -m 0755 $(LIB) $(libdir)
-	$(INSTALL) -m 0644 gtksamba.pc $(pcdir)
-	$(INSTALL) -d $(appdir)
-	$(INSTALL) -m 0644 meta/* $(appdir)
+	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(man1dir)
+	$(INSTALL) -m 0755 $(BINS) $(DESTDIR)$(bindir)
+	$(INSTALL) -m 0755 $(LIB) $(DESTDIR)$(libdir)
+	$(INSTALL) -m 0644 gtksamba.pc $(DESTDIR)$(pcdir)
+	$(INSTALL) -d $(DESTDIR)$(appdir)
+	$(INSTALL) -m 0644 meta/* $(DESTDIR)$(appdir)
 
 install-doc::
-	$(INSTALL) -m 0644 $(MANPAGES) $(man1dir)
+	$(INSTALL) -m 0644 $(MANPAGES) $(DESTDIR)$(man1dir)
 
 configure: configure.ac
 	aclocal

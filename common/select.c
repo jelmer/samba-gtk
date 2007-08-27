@@ -70,7 +70,7 @@ static void gtk_select_domain_dialog_init (GtkSelectDomainDialog *select_domain_
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Name");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, TRUE);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(select_domain_dialog->list_domains), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0);
 

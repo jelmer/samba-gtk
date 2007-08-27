@@ -20,6 +20,7 @@
 */
 
 #define _GNU_SOURCE
+#include <stdbool.h>
 #include <dcerpc/ndr_atsvc_c.h>
 #include "common/gtk-smb.h"
 #include "common/select.h"
@@ -82,7 +83,8 @@ static void on_job_select(GtkTreeSelection *sel, gpointer data)
 
 static void on_connect_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
-	at_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), &dcerpc_table_atsvc);
+	at_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), 
+										&ndr_table_atsvc);
 
 	if (!at_pipe)
 		return;
@@ -260,35 +262,35 @@ static GtkWidget* create_mainwindow (void)
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Status");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tasks), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0);
 
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "ID");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tasks), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1);
 
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Day");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tasks), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 2);
 
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Time");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tasks), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 3);
 
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Command Line");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tasks), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 4);
 

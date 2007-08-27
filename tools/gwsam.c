@@ -20,6 +20,7 @@
 */
 
 #define _GNU_SOURCE
+#include <stdbool.h>
 #include <dcerpc/ndr_samr_c.h>
 #include "common/select.h"
 #include "common/gtk-smb.h"
@@ -82,7 +83,7 @@ static void update_userlist(void)
 		/* FIXME: Query user info */
 
 		//		if (!test_OpenUser(sam_pipe, mem_ctx, &sam_handle, r.out.sam->entries[i].idx)) {
-		//			ret = False;
+		//			ret = false;
 		//		}
 	}
 	talloc_free(mem_ctx);
@@ -122,7 +123,8 @@ static void connect_sam(void)
 
 	mem_ctx = talloc_init("gwsam_connect");
 
-	sam_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), &dcerpc_table_samr);
+	sam_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), 
+										 &ndr_table_samr);
 
 	if (!sam_pipe)
 		return;
@@ -335,21 +337,21 @@ static GtkWidget* create_mainwindow (void)
 	curcol = gtk_tree_view_column_new();
 	gtk_tree_view_column_set_title(curcol, "Name");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(user_list), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0);
 
 	curcol = gtk_tree_view_column_new();
 	gtk_tree_view_column_set_title(curcol, "Description");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(user_list), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1);
 
 	curcol = gtk_tree_view_column_new();
 	gtk_tree_view_column_set_title(curcol, "RID");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(user_list), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1);
 
@@ -365,21 +367,21 @@ static GtkWidget* create_mainwindow (void)
 	curcol = gtk_tree_view_column_new();
 	gtk_tree_view_column_set_title(curcol, "Name");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(group_list), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0);
 
 	curcol = gtk_tree_view_column_new();
 	gtk_tree_view_column_set_title(curcol, "Description");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(group_list), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1);
 
 	curcol = gtk_tree_view_column_new();
 	gtk_tree_view_column_set_title(curcol, "RID");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, true);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(group_list), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1);
 

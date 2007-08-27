@@ -20,7 +20,8 @@
 */
 
 #define _GNU_SOURCE
-#include <registry.h>
+#include <stdbool.h>
+#include <registry/registry.h>
 #include <core/doserr.h>
 #include "common/gtk-smb.h"
 #include <events/events.h>
@@ -288,11 +289,11 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 						sub,
 						-1);
 		
-		if(W_ERROR_IS_OK(reg_key_num_subkeys(sub, &count)) && count > 0) 
+		if (W_ERROR_IS_OK(reg_key_num_subkeys(sub, &count)) && count > 0) 
 			gtk_tree_store_append(store_keys, &tmpiter, &iter);
 	}
 
-	if(!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) { 
+	if (!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) { 
 		gtk_show_werror(mainwin, "While enumerating subkeys", error);
 	}
 }
@@ -313,15 +314,15 @@ static void registry_load_hive(struct registry_key *root)
 
 	gtk_tree_store_append(store_keys, &tmpiter, &iter);
 
-  	gtk_widget_set_sensitive( save, True );
-  	gtk_widget_set_sensitive( save_as, True );
+  	gtk_widget_set_sensitive( save, TRUE );
+  	gtk_widget_set_sensitive( save_as, TRUE );
 }
 
 static void registry_load_root(void) 
 {
 	struct registry_key *root;
 	uint32_t i = 0;
-	if(!registry) return;
+	if (!registry) return;
 
 	gtk_list_store_clear(store_vals);
 	gtk_tree_store_clear(store_keys);
@@ -350,7 +351,7 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 	case GTK_RESPONSE_OK:
 		filename = g_strdup(gtk_file_selection_get_filename(GTK_FILE_SELECTION(openfilewin)));
 		error = reg_open_hive(NULL, user_data, filename, NULL, NULL, &root);
-		if(!W_ERROR_IS_OK(error)) {
+		if (!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while opening hive", error);
 			break;
 		}
@@ -372,7 +373,7 @@ static void on_open_gconf_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
 	struct registry_key *root;
 	WERROR error = reg_open_hive(NULL, "gconf", NULL, NULL, NULL, &root);
-	if(!W_ERROR_IS_OK(error)) {
+	if (!W_ERROR_IS_OK(error)) {
 		gtk_show_werror(mainwin, "Error while opening GConf", error);
 		return;
 	}
@@ -386,7 +387,7 @@ static void on_open_gconf_activate(GtkMenuItem *menuitem, gpointer user_data)
 static void on_open_local_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
 	WERROR error = reg_open_local(NULL, &registry, NULL, NULL);
-	if(!W_ERROR_IS_OK(error)) {
+	if (!W_ERROR_IS_OK(error)) {
 		gtk_show_werror(mainwin, "Error while opening local registry", error);
 		return;
 	}
@@ -401,8 +402,7 @@ static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
 	WERROR error;
 	struct cli_credentials *creds;
 	
-	if(result != GTK_RESPONSE_ACCEPT)
-	{
+	if (result != GTK_RESPONSE_ACCEPT) {
 		gtk_widget_destroy(rpcwin);
 		return;
 	}
@@ -417,7 +417,7 @@ static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
 				gtk_rpc_binding_dialog_get_binding_string(GTK_RPC_BINDING_DIALOG(rpcwin), mem_ctx),
 				NULL);
 
-	if(!W_ERROR_IS_OK(error)) {
+	if (!W_ERROR_IS_OK(error)) {
 		gtk_show_werror(mainwin, "Error while opening remote registry", error);
 		gtk_widget_destroy(rpcwin);
 		return;
@@ -443,7 +443,7 @@ static void on_save_as_activate(GtkMenuItem *menuitem, gpointer user_data)
 	switch(result) {
 	case GTK_RESPONSE_OK:
 	/* FIXME:		error = reg_dump(registry, gtk_file_selection_get_filename(GTK_FILE_SELECTION(savefilewin))); */
-		if(!W_ERROR_IS_OK(error)) {
+		if (!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while saving as", error);
 		}
 		break;
@@ -616,7 +616,7 @@ static gboolean on_key_activate(GtkTreeSelection *selection,
 	gtk_widget_set_sensitive(mnu_del_value, !path_currently_selected);
 	gtk_widget_set_sensitive(mnu_find, !path_currently_selected);
 
-	if(path_currently_selected) { 
+	if (path_currently_selected) { 
 		current_key = NULL; 
 		return TRUE; 
 	}
@@ -646,7 +646,7 @@ static gboolean on_key_activate(GtkTreeSelection *selection,
 						-1);
 	}
 
-	if(!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) {
+	if (!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) {
 		 gtk_show_werror(mainwin, "Error while enumerating values",  error);
 		 return FALSE;
 	}
@@ -703,7 +703,7 @@ static GtkWidget* create_mainwindow(void)
 	g_signal_connect ((gpointer) open_local, "activate",
 					  	  G_CALLBACK (on_open_local_activate), NULL);
 
-	if(reg_has_backend("rpc")) {
+	if (reg_has_backend("rpc")) {
 		open_remote = gtk_menu_item_new_with_mnemonic ("Open _Remote");
 		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_remote);
 
@@ -717,7 +717,7 @@ static GtkWidget* create_mainwindow(void)
 	gtk_widget_set_sensitive (separatormenuitem1, FALSE);
 
 
-	if(reg_has_backend("nt4")) {
+	if (reg_has_backend("nt4")) {
 		open_nt4 = gtk_image_menu_item_new_with_mnemonic("Open _NT4 file");
 		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_nt4);
 
@@ -758,11 +758,11 @@ static GtkWidget* create_mainwindow(void)
 	gtk_widget_set_sensitive (separatormenuitem1, FALSE);
 
 	save = gtk_image_menu_item_new_from_stock ("gtk-save", accel_group);
-	gtk_widget_set_sensitive( save, False );
+	gtk_widget_set_sensitive( save, FALSE );
 	gtk_container_add (GTK_CONTAINER (menu_file_menu), save);
 
 	save_as = gtk_image_menu_item_new_from_stock ("gtk-save-as", accel_group);
-	gtk_widget_set_sensitive( save_as, False );
+	gtk_widget_set_sensitive( save_as, FALSE );
 	gtk_container_add (GTK_CONTAINER (menu_file_menu), save_as);
 
 	separatormenuitem1 = gtk_menu_item_new ();
@@ -781,25 +781,25 @@ static GtkWidget* create_mainwindow(void)
 	mnu_add_key = gtk_image_menu_item_new_with_mnemonic("Add _Subkey");
 	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_add_key), gtk_image_new_from_stock ("gtk-add", GTK_ICON_SIZE_MENU));
 
-	gtk_widget_set_sensitive(mnu_add_key, False);
+	gtk_widget_set_sensitive(mnu_add_key, FALSE);
 	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_add_key);
 
 	mnu_set_value = gtk_image_menu_item_new_with_mnemonic("Set _Value");
-	gtk_widget_set_sensitive(mnu_set_value, False);
+	gtk_widget_set_sensitive(mnu_set_value, FALSE);
 	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_set_value), gtk_image_new_from_stock ("gtk-add", GTK_ICON_SIZE_MENU));
 	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_set_value);
 
 	mnu_find = gtk_image_menu_item_new_from_stock ("gtk-find", accel_group);
-	gtk_widget_set_sensitive(mnu_find, False);
+	gtk_widget_set_sensitive(mnu_find, FALSE);
 	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_find);
 
 	mnu_del_key = gtk_image_menu_item_new_with_mnemonic ("Delete Key"); 
-	gtk_widget_set_sensitive(mnu_del_key, False);
+	gtk_widget_set_sensitive(mnu_del_key, FALSE);
 	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_del_value), gtk_image_new_from_stock ("gtk-delete", GTK_ICON_SIZE_MENU));
 	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_del_key);
 
 	mnu_del_value = gtk_image_menu_item_new_with_mnemonic ("Delete Value"); 
-	gtk_widget_set_sensitive(mnu_del_value, False);
+	gtk_widget_set_sensitive(mnu_del_value, FALSE);
 	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_del_value), gtk_image_new_from_stock ("gtk-delete", GTK_ICON_SIZE_MENU));
 	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_del_value);
 
@@ -825,7 +825,7 @@ static GtkWidget* create_mainwindow(void)
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Name");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, TRUE);
 
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_keys), curcol);
 
@@ -851,21 +851,21 @@ static GtkWidget* create_mainwindow(void)
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Name");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, TRUE);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_vals), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0);
 
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Type");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, TRUE);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_vals), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1);
 
 	curcol = gtk_tree_view_column_new ();
 	gtk_tree_view_column_set_title(curcol, "Value");
 	renderer = gtk_cell_renderer_text_new();
-	gtk_tree_view_column_pack_start(curcol, renderer, True);
+	gtk_tree_view_column_pack_start(curcol, renderer, TRUE);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_vals), curcol);
 	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 2);
 

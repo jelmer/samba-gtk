@@ -106,7 +106,7 @@ static void add_epm_entry(TALLOC_CTX *mem_ctx, const char *annotation, struct ep
 
 	for (i = 0; i < t->num_floors; i++) {
 		const char *data;
-		struct dcerpc_syntax_id syntax;
+		struct ndr_syntax_id syntax;
 		GtkTreeIter iter;
 		gtk_tree_store_append(store_eps, &iter, &toweriter);
 
@@ -180,7 +180,7 @@ static void on_connect_clicked(GtkButton *btn, gpointer user_data)
 	NTSTATUS status;
 	TALLOC_CTX *mem_ctx = talloc_init("connect");
 
-	epmapper_pipe = gtk_connect_rpc_interface(mem_ctx, &dcerpc_table_epmapper);
+	epmapper_pipe = gtk_connect_rpc_interface(mem_ctx, &ndr_table_epmapper);
 	if (epmapper_pipe == NULL)
 		return;
 	
@@ -188,7 +188,7 @@ static void on_connect_clicked(GtkButton *btn, gpointer user_data)
 
 	refresh_eps();
 
-	status = dcerpc_secondary_context(epmapper_pipe, &mgmt_pipe, &dcerpc_table_mgmt);
+	status = dcerpc_secondary_context(epmapper_pipe, &mgmt_pipe, &ndr_table_mgmt);
 
 	if (NT_STATUS_IS_ERR(status)) {
 		mgmt_pipe = NULL;

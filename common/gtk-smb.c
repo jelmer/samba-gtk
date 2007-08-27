@@ -303,10 +303,10 @@ GtkWidget *create_gtk_samba_about_dialog (const char *appname)
 	label2 = gtk_label_new (SAMBA_VERSION_STRING);
 	gtk_box_pack_start (GTK_BOX (dialog_vbox1), label2, FALSE, FALSE, 0);
 
-	label3 = gtk_label_new_with_mnemonic ("Part of Samba <http://www.samba.org/>");
+	label3 = gtk_label_new_with_mnemonic ("Part of Samba-GTK <http://wiki.samba.org/index.php/SambaGtk>");
 	gtk_box_pack_start (GTK_BOX (dialog_vbox1), label3, FALSE, FALSE, 0);
 
-	label4 = gtk_label_new ("\302\251 1992-2006 The Samba Team");
+	label4 = gtk_label_new ("\302\251 2004-2007 Jelmer Vernooij");
 	gtk_box_pack_start (GTK_BOX (dialog_vbox1), label4, FALSE, FALSE, 0);
 
 	dialog_action_area1 = GTK_DIALOG (samba_about_dialog)->action_area;

@@ -253,6 +253,7 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 {
 	GtkTreeIter firstiter, iter, tmpiter;
 	struct registry_key *k, *sub;
+	const char *subname;
 	char *name;
 	WERROR error;
 	int i;
@@ -270,8 +271,16 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 
 	g_assert(k);
 	
-	for(i = 0; W_ERROR_IS_OK(error = reg_key_get_subkey_by_index(mem_ctx, k, i, &sub)); i++) {
+	for(i = 0; W_ERROR_IS_OK(error = reg_key_get_subkey_by_index(mem_ctx, k, i, &subname, NULL, NULL)); i++) {
 		uint32_t count;
+
+		error = reg_open_key(mem_ctx, k, subname, &sub);
+
+		if (!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) { 
+			gtk_show_werror(mainwin, "While enumerating subkeys", error);
+			return;
+		}
+
 		/* Replace the blank child with the first directory entry
            You may be tempted to remove the blank child node and then 
            append a new one.  Don't.  If you remove the blank child 
@@ -283,11 +292,12 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 			gtk_tree_store_append(store_keys, &iter, parent);
 		}
 		gtk_tree_store_set(store_keys, &iter, 
-						0, sub->name,
+						0, subname,
 						1, sub,
 						-1);
 		
-		if (W_ERROR_IS_OK(reg_key_num_subkeys(sub, &count)) && count > 0) 
+		if (W_ERROR_IS_OK(reg_key_get_info(mem_ctx, sub, NULL, 
+										   &count, NULL, NULL)) && count > 0) 
 			gtk_tree_store_append(store_keys, &tmpiter, &iter);
 	}
 
@@ -296,14 +306,14 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 	}
 }
 
-static void registry_load_hive(struct registry_key *root)
+static void registry_load_hive(struct registry_key *root, const char *name)
 {
 	GtkTreeIter iter, tmpiter;
 	gtk_list_store_clear(store_vals);
 	/* Add the root */
 	gtk_tree_store_append(store_keys, &iter, NULL);
 	gtk_tree_store_set (store_keys, &iter, 
-					0, root->name?root->name:"",
+					0, name != NULL?name:"",
 					1, root,
 					-1);
 
@@ -326,7 +336,7 @@ static void registry_load_root(void)
 	{
 		if (!W_ERROR_IS_OK(reg_get_predefined_key(registry, i, &root))) { continue; }
 
-		registry_load_hive(root);
+		registry_load_hive(root, reg_get_predef_name(i));
 	}
 }
 
@@ -335,7 +345,8 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 	GtkWidget *openfilewin;
 	gint result;
 	char *filename, *tmp;
-	struct registry_key *root;
+	struct hive_key *hive_root;
+	struct registry_key *reg_root;
 	WERROR error;
 
 	openfilewin = create_openfilewin();
@@ -345,38 +356,25 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 	switch(result) {
 	case GTK_RESPONSE_OK:
 		filename = g_strdup(gtk_file_selection_get_filename(GTK_FILE_SELECTION(openfilewin)));
-		error = reg_open_hive(NULL, user_data, filename, NULL, NULL, &root);
+		error = reg_open_hive(NULL, filename, NULL, NULL, &hive_root);
 		if (!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while opening hive", error);
 			break;
 		}
 
+		reg_root = reg_import_hive_key(registry, hive_root, -1, NULL);
+
 		tmp = g_strdup_printf("Registry Editor - %s", filename);
 		gtk_window_set_title (GTK_WINDOW (mainwin), tmp);
 		g_free(tmp);
 		gtk_tree_store_clear(store_keys);
-		registry_load_hive(root);
+		registry_load_hive(reg_root, filename);
 		break;
 	default:
 		break;
 	}
 
 	gtk_widget_destroy(openfilewin);
-}
-
-static void on_open_gconf_activate(GtkMenuItem *menuitem, gpointer user_data)
-{
-	struct registry_key *root;
-	WERROR error = reg_open_hive(NULL, "gconf", NULL, NULL, NULL, &root);
-	if (!W_ERROR_IS_OK(error)) {
-		gtk_show_werror(mainwin, "Error while opening GConf", error);
-		return;
-	}
-
-	gtk_window_set_title (GTK_WINDOW (mainwin), "Registry Editor - GConf");
-
-	gtk_tree_store_clear(store_keys);
-	registry_load_hive(root);
 }
 
 static void on_open_local_activate(GtkMenuItem *menuitem, gpointer user_data)
@@ -494,7 +492,8 @@ static void on_delete_key_activate(GtkMenuItem *menuitem, gpointer user_data)
 	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), &parentiter, 1, 
 					   &parent_key, -1);
 	
-	error = reg_key_del(parent_key, current_key->name);
+	/* FIXME 
+	error = reg_key_del(parent_key, current_key->name); */
 
 	if (!W_ERROR_IS_OK(error)) {
 		gtk_show_werror(NULL, "Error while deleting key", error);
@@ -527,18 +526,20 @@ static void on_value_activate(GtkTreeView *treeview, GtkTreePath *arg1,
 	GtkWidget *entry_name, *entry_type, *entry_value;
 	GtkDialog *addwin = GTK_DIALOG(create_SetValueDialog(&entry_name, &entry_type, &entry_value));
 	GtkTreeIter iter;
-	struct registry_value *value;
+	uint32_t valtype;
+	const char *valdesc, *valname;
 	gint result;
 
 	gtk_tree_model_get_iter(GTK_TREE_MODEL(store_vals), &iter, arg1);
 
-	gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 3, &value, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 0, &valname, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 2, &valdesc, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 3, &valtype, -1);
 
 	gtk_widget_set_sensitive(entry_name, FALSE);
-	gtk_entry_set_text(GTK_ENTRY(entry_name), value->name);
-	gtk_entry_set_text(GTK_ENTRY(entry_value), 
-					   reg_val_data_string(mem_ctx, value->data_type, &value->data));
-	gtk_combo_box_set_active(GTK_COMBO_BOX(entry_type), value->data_type);
+	gtk_entry_set_text(GTK_ENTRY(entry_name), valname);
+	gtk_entry_set_text(GTK_ENTRY(entry_value), valdesc);
+	gtk_combo_box_set_active(GTK_COMBO_BOX(entry_type), valtype);
 	
 	result = gtk_dialog_run(addwin);
 	if (result == GTK_RESPONSE_OK) 
@@ -603,7 +604,9 @@ static gboolean on_key_activate(GtkTreeSelection *selection,
 {
 	int i;
 	struct registry_key *k;
-	struct registry_value *val;
+	const char *valname;
+	uint32_t valtype;
+	DATA_BLOB valdata;
 	WERROR error;
 	GtkTreeIter parent;
 
@@ -628,14 +631,14 @@ static gboolean on_key_activate(GtkTreeSelection *selection,
 
 	gtk_list_store_clear(store_vals);
 
-	for(i = 0; W_ERROR_IS_OK(error = reg_key_get_value_by_index(mem_ctx, k, i, &val)); i++) {
+	for(i = 0; W_ERROR_IS_OK(error = reg_key_get_value_by_index(mem_ctx, k, i, &valname, &valtype, &valdata)); i++) {
 		GtkTreeIter iter;
 		gtk_list_store_append(store_vals, &iter);
 		gtk_list_store_set (store_vals, &iter, 
-				0, val->name,
-				1, str_regtype(val->data_type),
-				2, reg_val_data_string(mem_ctx, val->data_type, &val->data),
-				3, val,
+				0, valname,
+				1, str_regtype(valtype),
+				2, reg_val_data_string(mem_ctx, valtype, valdata),
+				3, valtype,
 				-1);
 	}
 
@@ -652,10 +655,7 @@ static GtkWidget* create_mainwindow(void)
 	GtkWidget *menubar;
 	GtkWidget *menu_file;
 	GtkWidget *menu_file_menu;
-	GtkWidget *open_nt4;
-	GtkWidget *open_ldb;
-	GtkWidget *open_w95;
-	GtkWidget *open_gconf;
+	GtkWidget *open_file;
 	GtkWidget *open_remote;
 	GtkWidget *open_local;
 	GtkWidget *separatormenuitem1;
@@ -696,55 +696,23 @@ static GtkWidget* create_mainwindow(void)
 	g_signal_connect ((gpointer) open_local, "activate",
 					  	  G_CALLBACK (on_open_local_activate), NULL);
 
-	if (reg_has_backend("rpc")) {
-		open_remote = gtk_menu_item_new_with_mnemonic ("Open _Remote");
-		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_remote);
+	open_remote = gtk_menu_item_new_with_mnemonic ("Open _Remote");
+	gtk_container_add (GTK_CONTAINER (menu_file_menu), open_remote);
 
-		g_signal_connect ((gpointer) open_remote, "activate",
-						  G_CALLBACK (on_open_remote_activate),
-						  NULL);
-	}
+	g_signal_connect ((gpointer) open_remote, "activate",
+					  G_CALLBACK (on_open_remote_activate),
+					  NULL);
 
 	separatormenuitem1 = gtk_menu_item_new ();
 	gtk_container_add (GTK_CONTAINER (menu_file_menu), separatormenuitem1);
 	gtk_widget_set_sensitive (separatormenuitem1, FALSE);
 
+	open_file = gtk_image_menu_item_new_with_mnemonic("Open _Hive File");
+	gtk_container_add (GTK_CONTAINER (menu_file_menu), open_file);
 
-	if (reg_has_backend("nt4")) {
-		open_nt4 = gtk_image_menu_item_new_with_mnemonic("Open _NT4 file");
-		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_nt4);
-
-		g_signal_connect(open_nt4, "activate",
-				 G_CALLBACK (on_open_file_activate),
-				 "nt4");
-	}
-
-	if(reg_has_backend("w95")) {
-		open_w95 = gtk_image_menu_item_new_with_mnemonic("Open Win_9x file");
-		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_w95);
-
-		g_signal_connect (open_w95, "activate",
-				  G_CALLBACK (on_open_file_activate),
-				  "w95");
-	}
-
-	if(reg_has_backend("gconf")) {
-		open_gconf = gtk_image_menu_item_new_with_mnemonic ("Open _GConf");
-		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_gconf);
-
-		g_signal_connect ((gpointer) open_gconf, "activate",
-						  G_CALLBACK (on_open_gconf_activate),
-						  NULL);
-	}
-
-	if(reg_has_backend("ldb")) {
-		open_ldb = gtk_image_menu_item_new_with_mnemonic("Open _LDB file");
-		gtk_container_add (GTK_CONTAINER (menu_file_menu), open_ldb);
-
-		g_signal_connect(open_ldb, "activate",
-				 G_CALLBACK (on_open_file_activate),
-				 "ldb");
-	}
+	g_signal_connect(open_file, "activate",
+			 G_CALLBACK (on_open_file_activate),
+			 NULL);
 
 	separatormenuitem1 = gtk_menu_item_new ();
 	gtk_container_add (GTK_CONTAINER (menu_file_menu), separatormenuitem1);
@@ -865,7 +833,7 @@ static GtkWidget* create_mainwindow(void)
 
 	gtk_container_add (GTK_CONTAINER (scrolledwindow2), tree_vals);
 
-	store_vals = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
+	store_vals = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
 	gtk_tree_view_set_model(GTK_TREE_VIEW(tree_vals), GTK_TREE_MODEL(store_vals));
 	g_object_unref(store_vals);
 
@@ -963,8 +931,6 @@ int main(int argc, char *argv[])
 	lp_load();
 
 	mem_ctx = talloc_init("gregedit");
-
-	registry_init();
 
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();

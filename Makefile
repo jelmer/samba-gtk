@@ -76,3 +76,5 @@ DOCBOOK_MANPAGE_URL = http://docbook.sourceforge.net/release/xsl/current/manpage
 .1.xml.1:
 	$(XSLTPROC) -o $@ $(DOCBOOK_MANPAGE_URL) $<
 
+ctags:
+	ctags -R .

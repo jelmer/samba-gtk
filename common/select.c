@@ -270,7 +270,8 @@ GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe)
  * Connect to a specific interface, but ask the user 
  * for information not specified
  */
-struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, const struct dcerpc_interface_table *table)
+struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
+											  const struct ndr_interface_table *table)
 {
 	GtkRpcBindingDialog *d;
 	NTSTATUS status;

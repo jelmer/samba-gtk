@@ -24,7 +24,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <core.h>
 #include <samba/version.h>
 #include "common/gtk-smb.h"
 #include "common/select.h"

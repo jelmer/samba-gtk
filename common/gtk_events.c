@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/time.h>
-#include <core.h>
 #include <util.h>
 #include <events/events.h>
 #include <events/events_internal.h>

@@ -263,7 +263,8 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
        	   If not, read the directory contents */
 	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), &firstiter, 0, &name, -1);
 
-	if(name) return;
+	if (name != NULL)
+		return;
 
 	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), parent, 1, &k, -1);
 
@@ -281,12 +282,9 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 		} else {
 			gtk_tree_store_append(store_keys, &iter, parent);
 		}
-		gtk_tree_store_set (store_keys,
-					    &iter, 
-						0,
-						sub->name,
-						1, 
-						sub,
+		gtk_tree_store_set(store_keys, &iter, 
+						0, sub->name,
+						1, sub,
 						-1);
 		
 		if (W_ERROR_IS_OK(reg_key_num_subkeys(sub, &count)) && count > 0) 
@@ -304,12 +302,9 @@ static void registry_load_hive(struct registry_key *root)
 	gtk_list_store_clear(store_vals);
 	/* Add the root */
 	gtk_tree_store_append(store_keys, &iter, NULL);
-	gtk_tree_store_set (store_keys,
-				    &iter, 
-					0,
-					root->name?root->name:"",
-					1,
-					root,
+	gtk_tree_store_set (store_keys, &iter, 
+					0, root->name?root->name:"",
+					1, root,
 					-1);
 
 	gtk_tree_store_append(store_keys, &tmpiter, &iter);
@@ -496,7 +491,8 @@ static void on_delete_key_activate(GtkMenuItem *menuitem, gpointer user_data)
 		return;
 	}
 	
-	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), &parentiter, 1, &parent_key, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), &parentiter, 1, 
+					   &parent_key, -1);
 	
 	error = reg_key_del(parent_key, current_key->name);
 
@@ -540,7 +536,8 @@ static void on_value_activate(GtkTreeView *treeview, GtkTreePath *arg1,
 
 	gtk_widget_set_sensitive(entry_name, FALSE);
 	gtk_entry_set_text(GTK_ENTRY(entry_name), value->name);
-	gtk_entry_set_text(GTK_ENTRY(entry_value), reg_val_data_string(mem_ctx, value->data_type, &value->data));
+	gtk_entry_set_text(GTK_ENTRY(entry_value), 
+					   reg_val_data_string(mem_ctx, value->data_type, &value->data));
 	gtk_combo_box_set_active(GTK_COMBO_BOX(entry_type), value->data_type);
 	
 	result = gtk_dialog_run(addwin);
@@ -626,24 +623,20 @@ static gboolean on_key_activate(GtkTreeSelection *selection,
 
 	current_key = k;
 
-	if (!k) return FALSE;
+	if (k == NULL) 
+		return FALSE;
 
 	gtk_list_store_clear(store_vals);
 
 	for(i = 0; W_ERROR_IS_OK(error = reg_key_get_value_by_index(mem_ctx, k, i, &val)); i++) {
 		GtkTreeIter iter;
 		gtk_list_store_append(store_vals, &iter);
-		gtk_list_store_set (store_vals,
-					    &iter, 
-						0,
-						val->name,
-						1,
-						str_regtype(val->data_type),
-						2,
-						reg_val_data_string(mem_ctx, val->data_type, &val->data),
-						3, 
-						val,
-						-1);
+		gtk_list_store_set (store_vals, &iter, 
+				0, val->name,
+				1, str_regtype(val->data_type),
+				2, reg_val_data_string(mem_ctx, val->data_type, &val->data),
+				3, val,
+				-1);
 	}
 
 	if (!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) {

@@ -43,8 +43,14 @@ test:: $(patsubst %.desktop,%.desktop-validate,$(wildcard meta/*.desktop))
 Makefile.settings: configure
 	./configure
 
+SOVERSION = 0
+SONAME = libsamba-gtk.so.$(SOVERSION)
+
 $(LIB): $(patsubst %.c, %.o, $(wildcard common/*.c))
-	$(CC) -Wl,-soname=libsamba-gtk.so.0 -shared -o $@ $^ $(LIBS)
+	$(CC) -Wl,-soname=$(SONAME) -shared -o $@ $^ $(LIBS)
+
+$(SONAME): $(LIB)
+	ln -fs $< $@
 
 libsamba-gtk.so: $(LIB)
 	ln -fs $< $@

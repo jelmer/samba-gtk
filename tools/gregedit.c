@@ -21,11 +21,13 @@
 
 #define _GNU_SOURCE
 #include <stdbool.h>
-#include <registry/registry.h>
+#include <registry.h>
 #include <core/doserr.h>
 #include "common/gtk-smb.h"
-#include <events/events.h>
+#include <events.h>
 #include <credentials.h>
+#include <gtk/gtk.h>
+#include <gtk/gtkfilesel.h>
 
 static GtkTreeStore *store_keys;
 static GtkListStore *store_vals;
@@ -37,10 +39,12 @@ static TALLOC_CTX *mem_ctx; /* FIXME: Split up */
 
 static GtkWidget *save;
 static GtkWidget *save_as;
-static GtkWidget* create_openfilewin (void);
-static GtkWidget* create_savefilewin (void);
+static GtkWidget* create_openfilewin (GtkWindow *parent);
+static GtkWidget* create_savefilewin (GtkWindow *parent);
 struct registry_context *registry = NULL;
 struct registry_key *current_key = NULL;
+struct loadparm_context *lp_ctx;
+struct smb_iconv_convenience *iconv_convenience = NULL;
 
 static GtkWidget* create_FindDialog (void)
 {
@@ -296,8 +300,7 @@ static void expand_key(GtkTreeView *treeview, GtkTreeIter *parent, GtkTreePath *
 						1, sub,
 						-1);
 		
-		if (W_ERROR_IS_OK(reg_key_get_info(mem_ctx, sub, NULL, 
-										   &count, NULL, NULL)) && count > 0) 
+		if (W_ERROR_IS_OK(reg_key_get_info(mem_ctx, sub, NULL, &count, NULL, NULL, NULL, NULL, NULL)) && count > 0) 
 			gtk_tree_store_append(store_keys, &tmpiter, &iter);
 	}
 
@@ -349,14 +352,14 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 	struct registry_key *reg_root;
 	WERROR error;
 
-	openfilewin = create_openfilewin();
+	openfilewin = create_openfilewin(NULL);
 
 	result = gtk_dialog_run(GTK_DIALOG(openfilewin));
 
 	switch(result) {
-	case GTK_RESPONSE_OK:
-		filename = g_strdup(gtk_file_selection_get_filename(GTK_FILE_SELECTION(openfilewin)));
-		error = reg_open_hive(NULL, filename, NULL, NULL, &hive_root);
+	case GTK_RESPONSE_ACCEPT:
+		filename = g_strdup(gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(openfilewin)));
+		error = reg_open_hive(NULL, filename, NULL, NULL, lp_ctx, &hive_root);
 		if (!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while opening hive", error);
 			break;
@@ -401,12 +404,13 @@ static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
 	}
 
 	creds = cli_credentials_init(mem_ctx);
-	cli_credentials_guess(creds);
+	cli_credentials_guess(creds, lp_ctx);
 	cli_credentials_set_gtk_callbacks(creds);
 
 	error = reg_open_remote(&registry, 
 				NULL,
 				creds,
+				lp_ctx, 
 				gtk_rpc_binding_dialog_get_binding_string(GTK_RPC_BINDING_DIALOG(rpcwin), mem_ctx),
 				NULL);
 
@@ -431,10 +435,10 @@ static void on_save_as_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
 	gint result;
 	WERROR error = WERR_OK;
-	GtkWidget *savefilewin = create_savefilewin();
+	GtkWidget *savefilewin = create_savefilewin(NULL);
 	result = gtk_dialog_run(GTK_DIALOG(savefilewin));
 	switch(result) {
-	case GTK_RESPONSE_OK:
+	case GTK_RESPONSE_ACCEPT:
 	/* FIXME:		error = reg_dump(registry, gtk_file_selection_get_filename(GTK_FILE_SELECTION(savefilewin))); */
 		if (!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while saving as", error);
@@ -548,7 +552,7 @@ static void on_value_activate(GtkTreeView *treeview, GtkTreePath *arg1,
 		DATA_BLOB data;
 		uint32_t data_type;
 		
-		reg_string_to_val(mem_ctx,str_regtype(gtk_combo_box_get_active(GTK_COMBO_BOX(entry_type))), gtk_entry_get_text(GTK_ENTRY(entry_value)), &data_type, &data);
+		reg_string_to_val(mem_ctx, iconv_convenience, str_regtype(gtk_combo_box_get_active(GTK_COMBO_BOX(entry_type))), gtk_entry_get_text(GTK_ENTRY(entry_value)), &data_type, &data);
 		
 		error = reg_val_set(current_key, gtk_entry_get_text(GTK_ENTRY(entry_name)), data_type, data);
 
@@ -570,7 +574,7 @@ static void on_set_value_activate(GtkMenuItem *menuitem, gpointer user_data)
 		uint32_t data_type;
 		DATA_BLOB data;
 		
-		reg_string_to_val(mem_ctx,str_regtype(gtk_combo_box_get_active(GTK_COMBO_BOX(entry_type))), gtk_entry_get_text(GTK_ENTRY(entry_value)), &data_type, &data);
+		reg_string_to_val(mem_ctx, iconv_convenience, str_regtype(gtk_combo_box_get_active(GTK_COMBO_BOX(entry_type))), gtk_entry_get_text(GTK_ENTRY(entry_value)), &data_type, &data);
 		
 		error = reg_val_set(current_key, gtk_entry_get_text(GTK_ENTRY(entry_name)), data_type, data);
 
@@ -637,7 +641,7 @@ static gboolean on_key_activate(GtkTreeSelection *selection,
 		gtk_list_store_set (store_vals, &iter, 
 				0, valname,
 				1, str_regtype(valtype),
-				2, reg_val_data_string(mem_ctx, valtype, valdata),
+				2, reg_val_data_string(mem_ctx, iconv_convenience, valtype, valdata),
 				3, valtype,
 				-1);
 	}
@@ -876,38 +880,33 @@ static GtkWidget* create_mainwindow(void)
 	return mainwin;
 }
 
-static GtkWidget* create_openfilewin (void)
+static GtkWidget* create_openfilewin (GtkWindow *parent)
 {
 	GtkWidget *openfilewin;
 	GtkWidget *ok_button;
 	GtkWidget *cancel_button;
 
-	openfilewin = gtk_file_selection_new ("Select File");
+	openfilewin = gtk_file_chooser_dialog_new ("Select File", parent, GTK_FILE_CHOOSER_ACTION_OPEN,
+						   GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+						   GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
+						   NULL);
 	gtk_container_set_border_width (GTK_CONTAINER (openfilewin), 10);
-
-	ok_button = GTK_FILE_SELECTION (openfilewin)->ok_button;
-	GTK_WIDGET_SET_FLAGS (ok_button, GTK_CAN_DEFAULT);
-
-	cancel_button = GTK_FILE_SELECTION (openfilewin)->cancel_button;
-	GTK_WIDGET_SET_FLAGS (cancel_button, GTK_CAN_DEFAULT);
 
 	return openfilewin;
 }
 
-static GtkWidget* create_savefilewin (void)
+static GtkWidget* create_savefilewin (GtkWindow *parent)
 {
 	GtkWidget *savefilewin;
 	GtkWidget *ok_button;
 	GtkWidget *cancel_button;
 
-	savefilewin = gtk_file_selection_new ("Select File");
+	savefilewin = gtk_file_selection_new ("Select File", parent, GTK_FILE_CHOOSER_ACTION_SAVE,
+						   GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+						   GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+						   NULL);
+
 	gtk_container_set_border_width (GTK_CONTAINER (savefilewin), 10);
-
-	ok_button = GTK_FILE_SELECTION (savefilewin)->ok_button;
-	GTK_WIDGET_SET_FLAGS (ok_button, GTK_CAN_DEFAULT);
-
-	cancel_button = GTK_FILE_SELECTION (savefilewin)->cancel_button;
-	GTK_WIDGET_SET_FLAGS (cancel_button, GTK_CAN_DEFAULT);
 
 	return savefilewin;
 }

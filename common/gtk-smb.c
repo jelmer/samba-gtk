@@ -29,6 +29,7 @@
 #include "common/select.h"
 #include <dcerpc.h>
 #include <credentials.h>
+#include <charset.h>
 
 /** 
  * Dialog error showing a WERROR

@@ -78,7 +78,10 @@ GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe);
 const char *gtk_select_host_dialog_get_host (GtkSelectHostDialog *d);
 GType gtk_select_host_dialog_get_type (void);
 
-struct dcerpc_interface_table;
-struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, const struct ndr_interface_table *table);
+struct ndr_interface_table;
+struct loadparm_context;
+struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
+					      struct loadparm_context *lp_ctx,
+					      const struct ndr_interface_table *table);
 
 #endif

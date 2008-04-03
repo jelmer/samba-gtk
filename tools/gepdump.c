@@ -27,8 +27,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <dcerpc.h>
-#include <dcerpc/ndr_mgmt_c.h>
-#include <dcerpc/ndr_epmapper_c.h>
+#include <gen_ndr/ndr_mgmt_c.h>
+#include <gen_ndr/ndr_epmapper_c.h>
 #include "common/gtk-smb.h"
 #include "common/select.h"
 #include <gensec.h>
@@ -51,6 +51,7 @@ static GtkListStore *store_princ_names;
 static GtkWidget *mnu_refresh;
 TALLOC_CTX *eps_ctx = NULL;
 TALLOC_CTX *conn_ctx = NULL;
+struct loadparm_context *lp_ctx = NULL;
 
 static struct dcerpc_pipe *epmapper_pipe;
 static struct dcerpc_pipe *mgmt_pipe;
@@ -180,7 +181,7 @@ static void on_connect_clicked(GtkButton *btn, gpointer user_data)
 	NTSTATUS status;
 	TALLOC_CTX *mem_ctx = talloc_init("connect");
 
-	epmapper_pipe = gtk_connect_rpc_interface(mem_ctx, &ndr_table_epmapper);
+	epmapper_pipe = gtk_connect_rpc_interface(mem_ctx, lp_ctx, &ndr_table_epmapper);
 	if (epmapper_pipe == NULL)
 		return;
 	

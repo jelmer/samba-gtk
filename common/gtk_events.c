@@ -29,8 +29,8 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <util.h>
-#include <events/events.h>
-#include <events/events_internal.h>
+#include <events.h>
+#include <events_internal.h>
 
 #include "common/select.h"
 

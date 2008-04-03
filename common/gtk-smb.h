@@ -26,6 +26,7 @@
 #include <gtk/gtk.h>
 #include <talloc.h>
 #include <core/ntstatus.h>
+#include <core/werror.h>
 
 typedef struct _GtkRpcBindingDialog GtkRpcBindingDialog;
 

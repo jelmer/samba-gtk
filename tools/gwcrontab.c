@@ -21,7 +21,7 @@
 
 #define _GNU_SOURCE
 #include <stdbool.h>
-#include <dcerpc/ndr_atsvc_c.h>
+#include <gen_ndr/ndr_atsvc_c.h>
 #include "common/gtk-smb.h"
 #include "common/select.h"
 #include <credentials.h>
@@ -35,6 +35,7 @@ static GtkWidget *entry_cmd;
 static GtkWidget *entry_repeat_weekly;
 static GtkWidget *entry_repeat_monthly;
 static GtkWidget *delete;
+struct loadparm_context *lp_ctx = NULL;
 
 static void update_joblist(void)
 {
@@ -83,8 +84,7 @@ static void on_job_select(GtkTreeSelection *sel, gpointer data)
 
 static void on_connect_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
-	at_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), 
-										&ndr_table_atsvc);
+	at_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), lp_ctx, &ndr_table_atsvc);
 
 	if (!at_pipe)
 		return;

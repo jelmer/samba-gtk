@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <dcerpc/ndr_samr_c.h>
+#include <gen_ndr/ndr_samr_c.h>
 #include "common/select.h"
 #include "common/gtk-smb.h"
 #include <credentials.h>
@@ -271,7 +271,8 @@ GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe)
  * for information not specified
  */
 struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
-											  const struct ndr_interface_table *table)
+					      struct loadparm_context *lp_ctx,
+					      const struct ndr_interface_table *table)
 {
 	GtkRpcBindingDialog *d;
 	NTSTATUS status;
@@ -288,12 +289,12 @@ struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx,
 	}
 
 	cred = cli_credentials_init(mem_ctx);
-	cli_credentials_guess(cred);
+	cli_credentials_guess(cred, lp_ctx);
 	cli_credentials_set_gtk_callbacks(cred);
 
 	status = dcerpc_pipe_connect_b(mem_ctx, &pipe,
 				       gtk_rpc_binding_dialog_get_binding(d, mem_ctx),
-				       table, cred, NULL);
+				       table, cred, NULL, lp_ctx);
 
 	if(!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "While connecting to interface", status);

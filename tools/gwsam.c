@@ -21,7 +21,7 @@
 
 #define _GNU_SOURCE
 #include <stdbool.h>
-#include <dcerpc/ndr_samr_c.h>
+#include <gen_ndr/ndr_samr_c.h>
 #include "common/select.h"
 #include "common/gtk-smb.h"
 #include <credentials.h>
@@ -34,6 +34,7 @@ GtkWidget *seldomain;
 GtkListStore *store_users;
 GtkListStore *store_groups;
 static GtkWidget *mnu_disconnect;
+struct loadparm_context *lp_ctx;
 
 static void update_grouplist(void)
 {
@@ -123,8 +124,7 @@ static void connect_sam(void)
 
 	mem_ctx = talloc_init("gwsam_connect");
 
-	sam_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), 
-										 &ndr_table_samr);
+	sam_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), lp_ctx, &ndr_table_samr);
 
 	if (!sam_pipe)
 		return;

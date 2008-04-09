@@ -22,6 +22,10 @@
 #include <stdint.h>
 #include "common/gtk-smb.h"
 #include <credentials.h>
+#include "config.h"
+#ifndef HAVE_GNOME_KEYRING
+#include <gnome-keyring.h>
+#endif
 
 static void gtk_get_credentials(struct cli_credentials *credentials)
 {
@@ -60,6 +64,7 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
 		gtk_entry_set_text(GTK_ENTRY(entry_username), username);
 	}
 
+#ifndef HAVE_GNOME_KEYRING
 	label = gtk_label_new ("Password:");
 
 	gtk_table_attach(GTK_TABLE(table),label,0,1,3,4,GTK_FILL,0,0,0);
@@ -76,6 +81,7 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
 
 	anonymous = gtk_check_button_new_with_mnemonic("_Anonymous");
 	gtk_table_attach(GTK_TABLE(table),anonymous,0,2,4,5,GTK_FILL,0,0,0);
+#endif
 
 	dialog_action_area1 = GTK_DIALOG (dialog)->action_area;
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (dialog_action_area1), GTK_BUTTONBOX_END);
@@ -93,7 +99,9 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
     switch (gtk_dialog_run (GTK_DIALOG (dialog))) {
 	case GTK_RESPONSE_OK:
 		cli_credentials_parse_string(credentials, gtk_entry_get_text(GTK_ENTRY(entry_username)), CRED_CALLBACK_RESULT);
+#ifndef HAVE_GNOME_KEYRING
 		cli_credentials_set_password(credentials, gtk_entry_get_text(GTK_ENTRY(entry_password)), CRED_CALLBACK_RESULT);
+#endif
 
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(anonymous))) {
 			cli_credentials_set_anonymous(credentials);
@@ -125,9 +133,19 @@ static const char *gtk_get_domain(struct cli_credentials *credentials)
 	return credentials->domain;
 }
 
+#ifdef HAVE_GNOME_KEYRING
+static const char *keyring_get_password(struct cli_credentials *credentials)
+{
+	return NULL;
+}
+#endif
+
 void cli_credentials_set_gtk_callbacks(struct cli_credentials *cred)
 {
 	cli_credentials_set_username_callback(cred, gtk_get_username);
 	cli_credentials_set_domain_callback(cred, gtk_get_domain);
 	cli_credentials_set_password_callback(cred, gtk_get_userpassword);
+#ifdef HAVE_GNOME_KEYRING
+	cli_credentials_set_password_callback(cred, keyring_get_password);
+#endif
 }

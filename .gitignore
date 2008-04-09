@@ -15,3 +15,5 @@ gwsvcctl
 Makefile.settings
 config.status
 *.pyc
+config.h
+config.h.in

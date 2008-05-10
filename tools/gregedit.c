@@ -359,7 +359,7 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 	switch(result) {
 	case GTK_RESPONSE_ACCEPT:
 		filename = g_strdup(gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(openfilewin)));
-		error = reg_open_hive(NULL, filename, NULL, NULL, lp_ctx, &hive_root);
+		error = reg_open_hive(NULL, filename, NULL, NULL, gtk_event_context(), lp_ctx, &hive_root);
 		if (!W_ERROR_IS_OK(error)) {
 			gtk_show_werror(mainwin, "Error while opening hive", error);
 			break;
@@ -382,7 +382,7 @@ static void on_open_file_activate (GtkMenuItem *menuitem, gpointer user_data)
 
 static void on_open_local_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
-	WERROR error = reg_open_local(NULL, &registry, NULL, NULL);
+	WERROR error = reg_open_local(NULL, &registry);
 	if (!W_ERROR_IS_OK(error)) {
 		gtk_show_werror(mainwin, "Error while opening local registry", error);
 		return;
@@ -913,7 +913,7 @@ static GtkWidget* create_savefilewin (GtkWindow *parent)
 
 static int gregedit_load_defaults(void)
 {
-	WERROR error = reg_open_local(NULL, &registry, NULL, NULL);
+	WERROR error = reg_open_local(NULL, &registry);
 	if(!W_ERROR_IS_OK(error)) {
 		gtk_show_werror(mainwin, "Error while loading local registry", error);
 		return -1;

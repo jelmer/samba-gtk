@@ -36,7 +36,7 @@
 
 /* as gtk_main() doesn't take a parameter nor return one,
    we need to have a global event context structure for our
-   gtk-bases tools
+   gtk-based tools
  */
 static struct event_context *gtk_event_context_global;
 

@@ -10,8 +10,10 @@ LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LI
 LIB = libsamba-gtk.so.0.0.1
 MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
 HEADERS = $(wildcard common/*.h)
+SOVERSION = 0
+SONAME = libsamba-gtk.so.$(SOVERSION)
 
-all: $(BINS) $(LIB)
+all:: $(BINS) $(LIB) $(SONAME)
 
 Makefile: Makefile.settings
 
@@ -19,6 +21,7 @@ install:: $(BINS) $(LIB)
 	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(man1dir)
 	$(INSTALL) -m 0755 $(BINS) $(DESTDIR)$(bindir)
 	$(INSTALL) -m 0755 $(LIB) $(DESTDIR)$(libdir)
+	ln -fs $(LIB) $(DESTDIR)$(libdir)/$(SONAME)
 	$(INSTALL) -d $(DESTDIR)$(pcdir)
 	$(INSTALL) -m 0644 gtksamba.pc $(DESTDIR)$(pcdir)
 	$(INSTALL) -d $(DESTDIR)$(appdir)
@@ -42,9 +45,6 @@ test:: $(patsubst %.desktop,%.desktop-validate,$(wildcard meta/*.desktop))
 
 Makefile.settings: configure
 	./configure
-
-SOVERSION = 0
-SONAME = libsamba-gtk.so.$(SOVERSION)
 
 $(LIB): $(patsubst %.c, %.o, $(wildcard common/*.c))
 	$(CC) -Wl,-soname=$(SONAME) -shared -o $@ $^ $(LIBS)

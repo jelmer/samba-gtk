@@ -6,14 +6,15 @@ gregedit_LIBS = $(REGISTRY_LIBS)
 gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)
 CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I.
 LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LIBS)
+SHLIBEXT = so # Should be determined by configure...
 
-LIB = libsamba-gtk.so.0.0.1
+LIB = libsamba-gtk.$(SHLIBEXT).0.0.1
 MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
 HEADERS = $(wildcard common/*.h)
 SOVERSION = 0
-SONAME = libsamba-gtk.so.$(SOVERSION)
+SONAME = libsamba-gtk.$(SHLIBEXT).$(SOVERSION)
 
-all:: $(BINS) $(LIB) $(SONAME)
+all:: $(BINS) $(LIB) $(SONAME) libsamba-gtk.$(SHLIBEXT)
 
 Makefile: Makefile.settings
 
@@ -21,7 +22,7 @@ install:: $(BINS) $(LIB)
 	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(man1dir)
 	$(INSTALL) -m 0755 $(BINS) $(DESTDIR)$(bindir)
 	$(INSTALL) -m 0755 $(LIB) $(DESTDIR)$(libdir)
-	ln -fs $(LIB) $(DESTDIR)$(libdir)/$(SONAME)
+	ln -fs $(LIB) $(DESTDIR)$(libdir)/libsamba-gtk.$(SHLIBEXT)
 	$(INSTALL) -d $(DESTDIR)$(pcdir)
 	$(INSTALL) -m 0644 gtksamba.pc $(DESTDIR)$(pcdir)
 	$(INSTALL) -d $(DESTDIR)$(appdir)
@@ -52,7 +53,7 @@ $(LIB): $(patsubst %.c, %.o, $(wildcard common/*.c))
 $(SONAME): $(LIB)
 	ln -fs $< $@
 
-libsamba-gtk.so: $(LIB)
+libsamba-gtk.$(SHLIBEXT): $(LIB)
 	ln -fs $< $@
 
 %.o: %.c
@@ -64,7 +65,7 @@ $(BINS): %: tools/%.o $(LIB)
 install::
 
 clean::
-	rm -f $(BINS) $(LIB) *.so */*.o
+	rm -f $(BINS) $(LIB) *.$(SHLIBEXT) */*.o
 
 distclean:: clean
 	rm -rf autom4te.cache

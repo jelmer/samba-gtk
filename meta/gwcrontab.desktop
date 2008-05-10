@@ -5,5 +5,5 @@ Comment=View and plan jobs on remote Windows hosts
 Exec=gwcrontab
 Terminal=false
 Type=Application
-Categories=GNOME;GTK;RemoteAccess;
+Categories=GNOME;GTK;RemoteAccess;Utility;
 StartupNotify=true

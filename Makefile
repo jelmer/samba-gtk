@@ -6,7 +6,8 @@ gregedit_LIBS = $(REGISTRY_LIBS)
 gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)
 CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I.
 LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LIBS)
-SHLIBEXT = so # Should be determined by configure...
+# Should be determined by configure...
+SHLIBEXT = so
 
 LIB = libsamba-gtk.$(SHLIBEXT).0.0.1
 MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
@@ -47,7 +48,7 @@ test:: $(patsubst %.desktop,%.desktop-validate,$(wildcard meta/*.desktop))
 Makefile.settings: configure
 	./configure
 
-$(LIB): $(patsubst %.c, %.o, $(wildcard common/*.c))
+$(LIB): $(patsubst %.c, %.po, $(wildcard common/*.c))
 	$(CC) -Wl,-soname=$(SONAME) -shared -o $@ $^ $(LIBS)
 
 $(SONAME): $(LIB)
@@ -59,13 +60,16 @@ libsamba-gtk.$(SHLIBEXT): $(LIB)
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
+%.po: %.c
+	$(CC) $(CFLAGS) -fPIC -o $@ -c $<
+
 $(BINS): %: tools/%.o $(LIB)
 	$(CC) -o $@ $< $(LIB) $(LIBS) $($*_LIBS)
 
 install::
 
 clean::
-	rm -f $(BINS) $(LIB) *.$(SHLIBEXT) */*.o
+	rm -f $(BINS) $(LIB) *.$(SHLIBEXT) */*.o *.o */*.po *.po
 
 distclean:: clean
 	rm -rf autom4te.cache

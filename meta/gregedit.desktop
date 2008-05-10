@@ -6,5 +6,5 @@ Exec=gregedit
 #Icon=media-player-48.png
 Terminal=false
 Type=Application
-Categories=GNOME;GTK;RemoteAccess;
+Categories=GNOME;GTK;RemoteAccess;Utility;
 StartupNotify=true

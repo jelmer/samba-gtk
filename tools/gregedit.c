@@ -25,6 +25,7 @@
 #include <core/doserr.h>
 #include "common/gtk-smb.h"
 #include <events.h>
+#include <param.h>
 #include <credentials.h>
 #include <gtk/gtk.h>
 #include <gtk/gtkfilesel.h>
@@ -883,8 +884,6 @@ static GtkWidget* create_mainwindow(void)
 static GtkWidget* create_openfilewin (GtkWindow *parent)
 {
 	GtkWidget *openfilewin;
-	GtkWidget *ok_button;
-	GtkWidget *cancel_button;
 
 	openfilewin = gtk_file_chooser_dialog_new ("Select File", parent, GTK_FILE_CHOOSER_ACTION_OPEN,
 						   GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
@@ -898,8 +897,6 @@ static GtkWidget* create_openfilewin (GtkWindow *parent)
 static GtkWidget* create_savefilewin (GtkWindow *parent)
 {
 	GtkWidget *savefilewin;
-	GtkWidget *ok_button;
-	GtkWidget *cancel_button;
 
 	savefilewin = gtk_file_selection_new ("Select File", parent, GTK_FILE_CHOOSER_ACTION_SAVE,
 						   GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
@@ -927,9 +924,10 @@ int main(int argc, char *argv[])
 {
 	int ret;
 
-	lp_load();
-
 	mem_ctx = talloc_init("gregedit");
+
+	lp_ctx = loadparm_init(mem_ctx);
+	lp_load_default(lp_ctx);
 
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();

@@ -25,6 +25,7 @@
 #include "common/select.h"
 #include "common/gtk-smb.h"
 #include <credentials.h>
+#include <param.h>
 
 struct policy_handle sam_handle;
 struct dcerpc_pipe *sam_pipe = NULL;
@@ -432,7 +433,8 @@ static GtkWidget* create_mainwindow (void)
 
 int main(int argc, char **argv)
 {
-	lp_load();
+	lp_ctx = loadparm_init(NULL);
+	lp_load_default(lp_ctx);
 	setup_logging(argv[0], DEBUG_STDERR);
 
 	dcerpc_init();

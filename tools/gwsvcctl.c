@@ -26,6 +26,7 @@
 #include <credentials.h>
 #include "common/select.h"
 #include <samba/popt.h>
+#include <param.h>
 
 static struct dcerpc_pipe *svcctl_pipe = NULL;
 static GtkWidget *mainwin;
@@ -207,7 +208,8 @@ static GtkWidget* create_mainwindow (void)
 
 int main(int argc, char **argv)
 {
-	lp_load();
+	lp_ctx = loadparm_init(NULL);
+	lp_load_default(lp_ctx);
 	setup_logging(argv[0], DEBUG_STDERR);
 
 	dcerpc_init();

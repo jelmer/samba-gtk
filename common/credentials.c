@@ -34,7 +34,6 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
 	GtkWidget *label;
 	GtkWidget *table;
 	GtkWidget *entry_username;
-	GtkWidget *entry_password;
 	GtkWidget *dialog_action_area1;
 	GtkWidget *cancelbutton1;
 	GtkWidget *okbutton1;

@@ -4,7 +4,7 @@ BINS = gepdump gregedit gwcrontab gwsam gwsvcctl
 gepdump_LIBS = $(DCERPC_LIBS)
 gregedit_LIBS = $(REGISTRY_LIBS)
 gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)
-CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I.
+CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I. -Wall
 LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LIBS)
 # Should be determined by configure...
 SHLIBEXT = so

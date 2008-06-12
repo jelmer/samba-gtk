@@ -1,6 +1,7 @@
 include Makefile.settings
 
-BINS = gepdump gregedit gwcrontab gwsam gwsvcctl gtkldb
+BINS = gepdump gregedit gwcrontab gwsam gwsvcctl 
+SCRIPTS = gtkldb
 gepdump_LIBS = $(DCERPC_LIBS)
 gregedit_LIBS = $(REGISTRY_LIBS)
 gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)
@@ -21,7 +22,7 @@ Makefile: Makefile.settings
 
 install:: $(BINS) $(LIB)
 	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(man1dir)
-	$(INSTALL) -m 0755 $(BINS) $(DESTDIR)$(bindir)
+	$(INSTALL) -m 0755 $(BINS) $(SCRIPTS) $(DESTDIR)$(bindir)
 	$(INSTALL) -m 0755 $(LIB) $(DESTDIR)$(libdir)
 	ln -fs $(LIB) $(DESTDIR)$(libdir)/libsamba-gtk.$(SHLIBEXT)
 	$(INSTALL) -d $(DESTDIR)$(pcdir)

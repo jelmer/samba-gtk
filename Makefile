@@ -1,6 +1,6 @@
 include Makefile.settings
 
-BINS = gepdump gregedit gwcrontab gwsam gwsvcctl
+BINS = gepdump gregedit gwcrontab gwsam gwsvcctl gtkldb
 gepdump_LIBS = $(DCERPC_LIBS)
 gregedit_LIBS = $(REGISTRY_LIBS)
 gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)

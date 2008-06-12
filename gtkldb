@@ -123,8 +123,9 @@ class LdbBrowser(gtk.Window):
         dn = model.get_value(iter, 1)
         self.attributemodel.clear()
         msg = self.ldb.search(dn, ldb.SCOPE_BASE)[0]
-        for name in msg:
-            el = msg[name]
+        for name, el in msg.iteritems():
+            if name == "dn":
+                continue
             for val in set(el):
                 self.attributemodel.append([name, val, el])
 

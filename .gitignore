@@ -7,7 +7,6 @@ configure
 tags
 libsamba-gtk.so.*
 gtksamba.pc
-gepdump
 gregedit
 gwcrontab
 gwsam

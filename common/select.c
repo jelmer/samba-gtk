@@ -280,7 +280,7 @@ struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx,
 	struct cli_credentials *cred;
 	gint result;
 
-	d = GTK_RPC_BINDING_DIALOG(gtk_rpc_binding_dialog_new(NULL));
+	d = SAMBAGTK_RPC_BINDING_DIALOG(gtk_rpc_binding_dialog_new(NULL));
 	result = gtk_dialog_run(GTK_DIALOG(d));
 
 	if (result != GTK_RESPONSE_ACCEPT) {

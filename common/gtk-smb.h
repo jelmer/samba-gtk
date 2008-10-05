@@ -55,9 +55,11 @@ struct _GtkRpcBindingDialogClass
 	GtkDialogClass parent_class;
 };
 
-#define GTK_RPC_BINDING_DIALOG(obj)          GTK_CHECK_CAST (obj, gtk_rpc_binding_dialog_get_type (), GtkRpcBindingDialog)
-#define GTK_RPC_BINDING_DIALOG_CLASS(klass)  GTK_CHECK_CLASS_CAST (klass, gtk_rpc_binding_dialog_class_get_type (), GtkRpcBindingDialogClass)
-#define IS_GTK_RPC_BINDING_DIALOG(obj)       GTK_CHECK_TYPE (obj, gtk_rpc_binding_dialog_get_type ())
+#define SAMBAGTK_TYPE_RPC_BINDING_DIALOG gtk_rpc_binding_dialog_get_type()
+
+#define SAMBAGTK_RPC_BINDING_DIALOG(obj)          GTK_CHECK_CAST (obj, gtk_rpc_binding_dialog_get_type (), GtkRpcBindingDialog)
+#define SAMBAGTK_RPC_BINDING_DIALOG_CLASS(klass)  GTK_CHECK_CLASS_CAST (klass, gtk_rpc_binding_dialog_class_get_type (), GtkRpcBindingDialogClass)
+#define IS_SAMBAGTK_RPC_BINDING_DIALOG(obj)       GTK_CHECK_TYPE (obj, gtk_rpc_binding_dialog_get_type ())
 
 /* subsystem prototypes */
 GtkWidget *create_gtk_samba_about_dialog (const char *appname);
@@ -66,7 +68,7 @@ GtkWidget *gtk_rpc_binding_dialog_new (struct dcerpc_pipe *sam_pipe);
 GType gtk_rpc_binding_dialog_get_type (void);
 struct dcerpc_binding *gtk_rpc_binding_dialog_get_binding(GtkRpcBindingDialog *d, TALLOC_CTX *mem_ctx);
 void gtk_show_werror(GtkWidget *win, const char *, WERROR err);
-const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d, TALLOC_CTX *mem_ctx);
+const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d);
 const char *gtk_rpc_binding_dialog_get_host(GtkRpcBindingDialog *d);
 
 int gtk_event_loop(void);

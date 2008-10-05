@@ -8,6 +8,9 @@ void initsambagtk(void)
 {
 	PyObject *m, *d;
 
+	init_pygobject();
+
+
 	m = Py_InitModule("sambagtk", sambagtk_functions);
 	d = PyModule_GetDict(m);
 

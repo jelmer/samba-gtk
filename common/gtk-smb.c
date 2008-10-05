@@ -230,7 +230,7 @@ GType gtk_rpc_binding_dialog_get_type (void)
  */
 GtkWidget *gtk_rpc_binding_dialog_new (struct dcerpc_pipe *sam_pipe)
 {
-	GtkRpcBindingDialog *d = GTK_RPC_BINDING_DIALOG ( g_object_new (gtk_rpc_binding_dialog_get_type (), NULL));
+	GtkRpcBindingDialog *d = SAMBAGTK_RPC_BINDING_DIALOG ( g_object_new (gtk_rpc_binding_dialog_get_type (), NULL));
 	d->sam_pipe = sam_pipe;
 	return GTK_WIDGET(d);
 }
@@ -273,9 +273,15 @@ struct dcerpc_binding *gtk_rpc_binding_dialog_get_binding(GtkRpcBindingDialog *d
 	return binding;
 }
 
-const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d, TALLOC_CTX *mem_ctx)
+const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d)
 {
-	return dcerpc_binding_string(mem_ctx, gtk_rpc_binding_dialog_get_binding(d, mem_ctx));
+	char *talloc_ret;
+	char *ret;
+	TALLOC_CTX *mem_ctx = talloc_init("");
+	talloc_ret = dcerpc_binding_string(mem_ctx, gtk_rpc_binding_dialog_get_binding(d, mem_ctx));
+	ret = g_strdup(talloc_ret);
+	talloc_free(mem_ctx);
+	return ret;
 }
 
 GtkWidget *create_gtk_samba_about_dialog (const char *appname)

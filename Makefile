@@ -85,6 +85,7 @@ install::
 
 clean::
 	rm -f $(BINS) $(LIB) *.$(SHLIBEXT) */*.o *.o */*.po *.po
+	rm -f python/sambagtk.c
 
 distclean:: clean
 	rm -rf autom4te.cache

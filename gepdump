@@ -28,7 +28,7 @@
 #
 
 import gtk
-import samba.gtk
+import sambagtk
 from samba.dcerpc import mgmt, epmapper
 
 protocol_names = {
@@ -54,7 +54,7 @@ class EndpointBrowser(gtk.Window):
         gtk.main_quit()
 
     def on_about1_activate(self, menuitem):
-        aboutwin = samba.gtk.AboutDialog("gepdump")
+        aboutwin = sambagtk.AboutDialog("gepdump")
         aboutwin.run()
 
     def add_epm_entry(self, annotation, t):
@@ -86,7 +86,7 @@ class EndpointBrowser(gtk.Window):
         self.refresh_eps()
 
     def on_connect_clicked(self, btn):
-        self._epmapper_pipe = gtk_connect_rpc_interface(lp_ctx, epmapper.epmapper)
+        self._epmapper_pipe = sambagtk.RpcConnectDialog(lp_ctx, epmapper.epmapper)
 
         mnu_refresh.set_sensitive(True)
 

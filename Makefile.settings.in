@@ -40,3 +40,6 @@ includedir = @includedir@/samba-4.0/gtk
 INSTALL = @INSTALL@
 
 DESKTOP_VALIDATE = @DESKTOP_VALIDATE@
+
+pythondir = @pythondir@
+PYTHON_CONFIG = @PYTHON_CONFIG@

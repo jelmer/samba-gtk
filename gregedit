@@ -21,14 +21,14 @@
 #
 
 import gtk
-import samba.gtk
+import sambagtk
 from samba import registry
 
 class FindDialog(gtk.Dialog):
 	def _create(self):
-		gtk_window_set_title (GTK_WINDOW (FindDialog), "Find Key or Value")
-		gtk_window_set_resizable (GTK_WINDOW (FindDialog), False)
-		gtk_window_set_type_hint (GTK_WINDOW (FindDialog), GDK_WINDOW_TYPE_HINT_DIALOG)
+		self.set_title("Find Key or Value")
+		self.set_resizable(False)
+		self.set_type_hint(GDK_WINDOW_TYPE_HINT_DIALOG)
 
 		dialog_vbox2 = GTK_DIALOG (FindDialog).vbox
 
@@ -474,7 +474,7 @@ static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
 		# gtk_widget_destroy(GTK_WIDGET(findwin))
 
 	def on_about_activate(self, menuitem):
-		aboutwin = samba.gtk.AboutDialog("gregedit")
+		aboutwin = sambagtk.AboutDialog("gregedit")
 		aboutwin.run()
 		gtk_widget_destroy(GTK_WIDGET(aboutwin))
 

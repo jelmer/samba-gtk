@@ -15,5 +15,31 @@ PKG_CHECK_MODULES(REGISTRY, [registry])
 PKG_CHECK_MODULES(KEYRING, [gnome-keyring-1],
 				  [ AC_DEFINE(HAVE_GNOME_KEYRING, 1, [Whether GNOME keyring is available]) ])
 
+AC_ARG_VAR([PYTHON_VERSION],[The installed Python
+	version to use, for example '2.3'. This string 
+	will be appended to the Python interpreter
+	canonical name.])
+
+AC_PATH_PROG([PYTHON],[python[$PYTHON_VERSION]])
+if test -z "$PYTHON"; then
+	AC_MSG_WARN([No python found])
+fi
+
+if test -z "$PYTHON_VERSION"; then 
+	AC_PATH_PROGS([PYTHON_CONFIG], [python2.6-config python2.5-config python2.4-config python-config])
+else 
+	AC_PATH_PROG([PYTHON_CONFIG], [python[$PYTHON_VERSION]-config])
+fi
+
+if test -z "$PYTHON_CONFIG"; then
+	AC_MSG_WARN([No python-config found])
+fi
+
+AC_MSG_CHECKING(python library directory)
+pythondir=`$PYTHON -c "from distutils import sysconfig; print sysconfig.get_python_lib(1, 0, '\\${prefix}')"`
+AC_MSG_RESULT($pythondir)
+
+AC_SUBST(pythondir)
+
 AC_CONFIG_FILES([Makefile.settings gtksamba.pc])
 AC_OUTPUT

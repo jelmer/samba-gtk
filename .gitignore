@@ -18,3 +18,4 @@ config.h.in
 *.po
 *.so
 man/*.1
+python/sambagtk.c

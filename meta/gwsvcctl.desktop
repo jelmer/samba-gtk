@@ -1,5 +1,4 @@
 [Desktop Entry]
-Encoding=UTF-8
 Name=Control Windows Services
 Comment=Stop, start and view status of services on a remote Windows host
 Exec=gwsvcctl

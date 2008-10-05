@@ -1,5 +1,4 @@
 [Desktop Entry]
-Encoding=UTF-8
 Name=Registry Editor
 Comment=Edit Windows-Style Registry files
 Exec=gregedit

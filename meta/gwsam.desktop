@@ -1,5 +1,4 @@
 [Desktop Entry]
-Encoding=UTF-8
 Name=Windows User Manager
 Comment=Manage user, group and aliases on a remote Windows machine
 Exec=gwsam

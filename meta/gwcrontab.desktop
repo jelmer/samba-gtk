@@ -1,5 +1,4 @@
 [Desktop Entry]
-Encoding=UTF-8
 Name=Windows Job Scheduler
 Comment=View and plan jobs on remote Windows hosts
 Exec=gwcrontab

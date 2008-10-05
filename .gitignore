@@ -7,7 +7,6 @@ configure
 tags
 libsamba-gtk.so.*
 gtksamba.pc
-gregedit
 gwcrontab
 gwsam
 gwsvcctl

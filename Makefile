@@ -1,8 +1,7 @@
 include Makefile.settings
 
-BINS = gregedit gwcrontab gwsam gwsvcctl 
-SCRIPTS = gtkldb gepdump
-gregedit_LIBS = $(REGISTRY_LIBS)
+BINS = gwcrontab gwsam gwsvcctl 
+SCRIPTS = gtkldb gepdump gregedit
 gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)
 CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I. -Wall
 LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LIBS)

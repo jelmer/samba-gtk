@@ -19,3 +19,4 @@ config.h
 config.h.in
 *.po
 *.so
+man/*.1

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE refentry PUBLIC "-//Samba-Team//DTD DocBook V4.2-Based Variant V1.0//EN" "http://www.samba.org/samba/DTD/samba-doc">
+				  
+<refentry id="gtkldb.1">
+
+<refmeta>
+	<refentrytitle>gtkldb</refentrytitle>
+	<manvolnum>1</manvolnum>
+</refmeta>
+
+
+<refnamediv>
+	<refname>gtkldb</refname>
+	<refpurpose>GTK+ browser for LDB databases</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv>
+	<cmdsynopsis>
+		<command>gtkldb</command>
+		<arg choice="opt">--help</arg>
+	</cmdsynopsis>
+</refsynopsisdiv>
+
+<refsect1>
+	<title>DESCRIPTION</title>
+
+	<para>gtkldb is a simple LDB database browser for GTK+. LDB is a 
+		lightweight database library with an API similar to LDAP. 
+	</para>
+
+</refsect1>
+
+
+<refsect1>
+	<title>OPTIONS</title>
+
+	<variablelist>
+		<varlistentry>
+		<term>--help</term>
+		<listitem><para>
+		Show list of available options.</para></listitem>
+		</varlistentry>
+	</variablelist>
+</refsect1>
+
+<refsect1>
+	<title>SEE ALSO</title>
+
+</refsect1>
+
+<refsect1>
+	<title>AUTHOR</title>
+
+	<para>LDB was written by Andrew Tridgell, Simo Sorce and others. The Python 
+		bindings for LDB and gtkldb were written by Jelmer Vernooij.</para>
+	
+</refsect1>
+
+</refentry>

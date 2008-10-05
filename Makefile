@@ -11,7 +11,7 @@ LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LI
 SHLIBEXT = so
 
 LIB = libsamba-gtk.$(SHLIBEXT).0.0.1
-MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1
+MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1 man/gtkldb.1
 HEADERS = $(wildcard common/*.h)
 SOVERSION = 0
 SONAME = libsamba-gtk.$(SHLIBEXT).$(SOVERSION)

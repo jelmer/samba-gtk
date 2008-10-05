@@ -1,0 +1,8 @@
+;; vim: ft=scheme 
+; object definitions ...
+(define-object RpcConnectDialog
+  (in-module "SambaGtk")
+  (parent "GtkDialog")
+  (c-name "GtkRpcBindingDialog")
+  (gtype-id "gtk_rpc_binding_dialog_get_type()")
+)

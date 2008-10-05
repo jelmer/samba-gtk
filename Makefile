@@ -58,9 +58,18 @@ $(SONAME): $(LIB)
 libsamba-gtk.$(SHLIBEXT): $(LIB)
 	ln -fs $< $@
 
-pysambagtk.po: CFLAGS+=`$(PYTHON_CONFIG) --cflags` $(PYGTK_CFLAGS)
+DEFS = `pkg-config --variable=defsdir pygtk-2.0`
 
-sambagtk.$(SHLIBEXT): pysambagtk.po $(LIB)
+python/sambagtk.c: python/sambagtk.defs python/sambagtk.override
+	pygtk-codegen-2.0 --prefix sambagtk \
+		--register $(DEFS)/gdk-types.defs \
+		--register $(DEFS)/gtk-types.defs \
+		--override python/sambagtk.override \
+		$< > $@
+
+python/%.po: CFLAGS+=`$(PYTHON_CONFIG) --cflags` $(PYGTK_CFLAGS)
+
+sambagtk.$(SHLIBEXT): python/sambagtk.po python/module.po $(LIB)
 	$(CC) -shared -o $@ $^ `$(PYTHON_CONFIG) --libs` $(PYGTK_LIBS)
 
 %.o: %.c

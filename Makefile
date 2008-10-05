@@ -58,11 +58,10 @@ $(SONAME): $(LIB)
 libsamba-gtk.$(SHLIBEXT): $(LIB)
 	ln -fs $< $@
 
-pysambagtk.po: CFLAGS+=`$(PYTHON_CONFIG) --cflags`
+pysambagtk.po: CFLAGS+=`$(PYTHON_CONFIG) --cflags` $(PYGTK_CFLAGS)
 
 sambagtk.$(SHLIBEXT): pysambagtk.po $(LIB)
-	$(CC) -shared -o $@ $^ `$(PYTHON_CONFIG) --libs`
-
+	$(CC) -shared -o $@ $^ `$(PYTHON_CONFIG) --libs` $(PYGTK_LIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<

@@ -19,6 +19,9 @@
 
 #include <Python.h>
 
+/* RpcConnectDialog */
+/* AboutDialog */
+
 void initsambagtk(void)
 {
 	PyObject *mod;

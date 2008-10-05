@@ -12,6 +12,7 @@ PKG_CHECK_MODULES(GENSEC, [gensec])
 PKG_CHECK_MODULES(DCERPC_SAMR, [dcerpc_samr])
 PKG_CHECK_MODULES(DCERPC_ATSVC, [dcerpc_atsvc])
 PKG_CHECK_MODULES(REGISTRY, [registry])
+PKG_CHECK_MODULES(PYGTK, [pygtk-2.0])
 PKG_CHECK_MODULES(KEYRING, [gnome-keyring-1],
 				  [ AC_DEFINE(HAVE_GNOME_KEYRING, 1, [Whether GNOME keyring is available]) ])
 

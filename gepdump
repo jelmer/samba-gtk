@@ -152,7 +152,7 @@ class EndpointBrowser(gtk.Window):
         menuitem1_menu.add(mnu_refresh)
         mnu_refresh.set_sensitive(False)
 
-        quit1 = gtk.MenuItem("gtk-quit")
+        quit1 = gtk.ImageMenuItem(gtk.STOCK_QUIT, accel_group)
         menuitem1_menu.add(quit1)
 
         menuitem4 = gtk.MenuItem ("_Help")

@@ -35,10 +35,10 @@ class FindDialog(gtk.Dialog):
 		vbox1 = gtk_vbox_new (False, 0)
 		gtk_box_pack_start (GTK_BOX (dialog_vbox2), vbox1, True, True, 0)
 
-		hbox1 = gtk_hbox_new (False, 0)
+		hbox1 = gtk.HBox(False, 0)
 		gtk_box_pack_start (GTK_BOX (vbox1), hbox1, True, True, 0)
 
-		label6 = gtk_label_new ("Find String")
+		label6 = gtk.Label("Find String")
 		gtk_box_pack_start (GTK_BOX (hbox1), label6, False, False, 0)
 
 		entry_pattern = gtk_entry_new ()
@@ -64,7 +64,7 @@ class FindDialog(gtk.Dialog):
 		checkbutton3 = gtk_check_button_new_with_mnemonic ("Value _Data")
 		gtk_box_pack_start (GTK_BOX (vbox2), checkbutton3, False, False, 0)
 
-		label7 = gtk_label_new ("<b>Search in</b>")
+		label7 = gtk.Label("<b>Search in</b>")
 		gtk_frame_set_label_widget (GTK_FRAME (frame3), label7)
 		gtk_label_set_use_markup (GTK_LABEL (label7), True)
 
@@ -85,139 +85,124 @@ class FindDialog(gtk.Dialog):
 
 
 class SetValueDialog(gtk.Dialog):
-		SetValueDialog = gtk_dialog_new ()
-		gtk_window_set_title (GTK_WINDOW (SetValueDialog), "Set Registry Value")
-		gtk_window_set_position (GTK_WINDOW (SetValueDialog), GTK_WIN_POS_CENTER)
-		gtk_window_set_resizable (GTK_WINDOW (SetValueDialog), False)
-		gtk_window_set_type_hint (GTK_WINDOW (SetValueDialog), GDK_WINDOW_TYPE_HINT_DIALOG)
 
-		dialog_vbox1 = GTK_DIALOG (SetValueDialog).vbox
+	def __init__(self):
+		super(SetValueDialog, self).__init__()
+		SetValueDialog = gtk_dialog_new ()
+		self.set_title("Set Registry Value")
+		self.set_position(GTK_WIN_POS_CENTER)
+		self.set_resizable(False)
+		self.set_type_hint(GDK_WINDOW_TYPE_HINT_DIALOG)
 
 		table1 = gtk_table_new (3, 2, False)
-		gtk_box_pack_start (GTK_BOX (dialog_vbox1), table1, True, True, 0)
+		self.vbox.pack_start(table1, True, True, 0)
 
-		label3 = gtk_label_new ("Value name:")
-		gtk_table_attach (GTK_TABLE (table1), label3, 0, 1, 0, 1,
-						(GtkAttachOptions) (GTK_FILL),
-						(GtkAttachOptions) (0), 0, 0)
-		gtk_misc_set_alignment (GTK_MISC (label3), 0, 0.5)
+		label3 = gtk.Label("Value name:")
+		table1.attach (label3, 0, 1, 0, 1,
+						GTK_FILL,
+						0, 0, 0)
+		label3.set_alignment (0, 0.5)
 
-		label4 = gtk_label_new ("Data Type:")
-		gtk_table_attach (GTK_TABLE (table1), label4, 0, 1, 1, 2,
-						(GtkAttachOptions) (GTK_FILL),
-						(GtkAttachOptions) (0), 0, 0)
-		gtk_misc_set_alignment (GTK_MISC (label4), 0, 0.5)
+		label4 = gtk.Label("Data Type:")
+		table1.attach (label4, 0, 1, 1, 2,
+						GTK_FILL, 0, 0, 0)
+		label4.set_alignment(0, 0.5)
 
-		label5 = gtk_label_new ("Data:")
-		gtk_table_attach (GTK_TABLE (table1), label5, 0, 1, 2, 3,
-						(GtkAttachOptions) (GTK_FILL),
-						(GtkAttachOptions) (0), 0, 0)
-		gtk_misc_set_alignment (GTK_MISC (label5), 0, 0.5)
+		label5 = gtk.Label("Data:")
+		table1.attach (label5, 0, 1, 2, 3,
+						GTK_FILL,
+						0, 0, 0)
+		label5.set_alignment(0, 0.5)
 
-		*entry_name = entry_value_name = gtk_entry_new ()
-		gtk_table_attach (GTK_TABLE (table1), entry_value_name, 1, 2, 0, 1,
-						(GtkAttachOptions) (GTK_EXPAND | GTK_FILL),
-						(GtkAttachOptions) (0), 0, 0)
+		entry_name = entry_value_name = gtk.Entry()
+		table1.attach (entry_value_name, 1, 2, 0, 1,
+						GTK_EXPAND | GTK_FILL,
+						0, 0, 0)
 
-		*entry_data = value_data = gtk_entry_new ()
-		gtk_table_attach (GTK_TABLE (table1), value_data, 1, 2, 2, 3,
-						(GtkAttachOptions) (GTK_EXPAND | GTK_FILL),
-						(GtkAttachOptions) (0), 0, 0)
+		entry_data = value_data = gtk_entry_new ()
+		table1.attach (value_data, 1, 2, 2, 3,
+						GTK_EXPAND | GTK_FILL,
+						0, 0, 0)
 
-		*entry_type = combo_data_type = gtk_combo_box_new_text ()
+		entry_type = combo_data_type = gtk.ComboBox()
 
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo_data_type), "REG_NONE")
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo_data_type), "REG_SZ")
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo_data_type), "REG_EXPAND_SZ")
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo_data_type), "REG_BINARY")
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo_data_type), "REG_DWORD_LE")
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo_data_type), "REG_DWORD_BE")
+		gtk_combo_box_append_text((combo_data_type), "REG_NONE")
+		gtk_combo_box_append_text((combo_data_type), "REG_SZ")
+		gtk_combo_box_append_text((combo_data_type), "REG_EXPAND_SZ")
+		gtk_combo_box_append_text((combo_data_type), "REG_BINARY")
+		gtk_combo_box_append_text((combo_data_type), "REG_DWORD_LE")
+		gtk_combo_box_append_text((combo_data_type), "REG_DWORD_BE")
 
-		gtk_table_attach (GTK_TABLE (table1), combo_data_type, 1, 2, 1, 2,
-						(GtkAttachOptions) (GTK_FILL),
-						(GtkAttachOptions) (GTK_FILL), 0, 0)
+		table1.attach (combo_data_type, 1, 2, 1, 2,
+						GTK_FILL,
+						GTK_FILL, 0, 0)
 
-		dialog_action_area1 = GTK_DIALOG (SetValueDialog).action_area
-		gtk_button_box_set_layout (GTK_BUTTON_BOX (dialog_action_area1), GTK_BUTTONBOX_END)
+		dialog_action_area1 = self.action_area
+		dialog_action_area1.set_layout(GTK_BUTTONBOX_END)
 
 		cancelbutton1 = gtk_button_new_from_stock ("gtk-cancel")
 		gtk_dialog_add_action_widget (GTK_DIALOG (SetValueDialog), cancelbutton1, GTK_RESPONSE_CANCEL)
-		GTK_WIDGET_SET_FLAGS (cancelbutton1, GTK_CAN_DEFAULT)
+		cancelbutton1.set_flags(GTK_CAN_DEFAULT)
 
 		okbutton1 = gtk_button_new_from_stock ("gtk-ok")
-		gtk_dialog_add_action_widget (GTK_DIALOG (SetValueDialog), okbutton1, GTK_RESPONSE_OK)
-		GTK_WIDGET_SET_FLAGS (okbutton1, GTK_CAN_DEFAULT)
+		self.add_action_widget(okbutton1, GTK_RESPONSE_OK)
+		okbutton1.set_flags(GTK_CAN_DEFAULT)
 
-		gtk_widget_show_all (dialog_vbox1)
+		gtk_widget_show_all(self.vbox)
 
 
 
 class NewKeyDialog(gtk.Dialog):
-	def _create(self):
-		NewKeyDialog = gtk_dialog_new ()
-		gtk_window_set_title (GTK_WINDOW (NewKeyDialog), "New Registry Key")
-		gtk_window_set_position (GTK_WINDOW (NewKeyDialog), GTK_WIN_POS_CENTER)
-		gtk_window_set_resizable (GTK_WINDOW (NewKeyDialog), False)
-		gtk_window_set_type_hint (GTK_WINDOW (NewKeyDialog), GDK_WINDOW_TYPE_HINT_DIALOG)
+	def __init__(self):
+		super(NewKeyDialog, self).__init__()
+		self.set_title("New Registry Key")
+		self.set_position(GTK_WIN_POS_CENTER)
+		self.set_resizable(False)
+		self.set_type_hint(GDK_WINDOW_TYPE_HINT_DIALOG)
 
-		dialog_vbox2 = GTK_DIALOG (NewKeyDialog).vbox
+		dialog_vbox2 = self.vbox
 
-		hbox1 = gtk_hbox_new (False, 0)
-		gtk_box_pack_start (GTK_BOX (dialog_vbox2), hbox1, True, True, 0)
+		hbox1 = gtk.HBox(False, 0)
+		dialog_vbox2.pack_start(hbox1, True, True, 0)
 
-		label6 = gtk_label_new ("Name:")
-		gtk_box_pack_start (GTK_BOX (hbox1), label6, False, False, 0)
+		label6 = gtk.Label("Name:")
+		hbox1.pack_start(label6, False, False, 0)
 
-		entry_key_name = gtk_entry_new ()
-		gtk_box_pack_start (GTK_BOX (hbox1), entry_key_name, True, True, 0)
+		entry_key_name = gtk.Entry()
+		hbox1.pack_start (entry_key_name, True, True, 0)
 
-		dialog_action_area2 = GTK_DIALOG (NewKeyDialog).action_area
-		gtk_button_box_set_layout (GTK_BUTTON_BOX (dialog_action_area2), GTK_BUTTONBOX_END)
+		dialog_action_area2 = self.action_area
+		dialog_action_area2.set_layout(GTK_BUTTONBOX_END)
 
-		*name_entry = entry_key_name
+		name_entry = entry_key_name
 
 		cancelbutton2 = gtk_button_new_from_stock ("gtk-cancel")
-		gtk_dialog_add_action_widget (GTK_DIALOG (NewKeyDialog), cancelbutton2, GTK_RESPONSE_CANCEL)
-		GTK_WIDGET_SET_FLAGS (cancelbutton2, GTK_CAN_DEFAULT)
+		self.add_action_widget (cancelbutton2, GTK_RESPONSE_CANCEL)
+		cancelbutton2.set_flags(GTK_CAN_DEFAULT)
 
 		okbutton2 = gtk_button_new_from_stock ("gtk-ok")
-		gtk_dialog_add_action_widget (GTK_DIALOG (NewKeyDialog), okbutton2, GTK_RESPONSE_OK)
-		GTK_WIDGET_SET_FLAGS (okbutton2, GTK_CAN_DEFAULT)
+		self.add_action_widget (okbutton2, GTK_RESPONSE_OK)
+		okbutton2.set_flags(GTK_CAN_DEFAULT)
 
-		gtk_widget_show_all (dialog_vbox2)
+		dialog_vbox2.show_all()
 
-		return NewKeyDialog
 
 def expand_key(treeview, parent, arg2):
-	GtkTreeIter firstiter, iter, tmpiter
-	struct registry_key *k, *sub
-	const char *subname
-	char *name
-	WERROR error
-	int i
-
-	gtk_tree_model_iter_children(GTK_TREE_MODEL(store_keys), &firstiter, parent)
+	firstiter = store_keys.iter_children(parent)
 
 	# See if this row has ever had a name gtk_tree_store_set()'ed to it.
     #   	   If not, read the directory contents 
-	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), &firstiter, 0, &name, -1)
+	name = store_keys.get(firsiter, 0)
 
-	if (name != NULL)
+	if name is not None:
 		return
 
-	gtk_tree_model_get(GTK_TREE_MODEL(store_keys), parent, 1, &k, -1)
+	k = store_keys.get(parent, 1)
 
-	g_assert(k)
-	
 	for(i = 0; W_ERROR_IS_OK(error = reg_key_get_subkey_by_index( k, i, &subname, NULL, NULL)); i++) {
 		uint32_t count
 
-		error = reg_open_key(k, subname, &sub)
-
-		if (!W_ERROR_EQUAL(error, WERR_NO_MORE_ITEMS)) { 
-			gtk_show_werror(mainwin, "While enumerating subkeys", error)
-			return
-		}
+		reg_open_key(k, subname, &sub)
 
 		# Replace the blank child with the first directory entry
         # You may be tempted to remove the blank child node and then 
@@ -256,137 +241,77 @@ def expand_key(treeview, parent, arg2):
 		store_vals.clear()
 		store_keys.clear()
 
-		for(i = HKEY_CLASSES_ROOT; i <= HKEY_PERFORMANCE_NLSTEXT; i++) 
-		{
+		for (i = HKEY_CLASSES_ROOT; i <= HKEY_PERFORMANCE_NLSTEXT; i++):
 			if (!W_ERROR_IS_OK(reg_get_predefined_key(registry, i, &root))) { continue; }
 
 			self.load_hive(root, reg_get_predef_name(i))
-		}
 
 	def on_open_file_activate (self, menuitem):
-	{
-		GtkWidget *openfilewin
-		gint result
-		char *filename, *tmp
-		struct hive_key *hive_root
-		struct registry_key *reg_root
-		WERROR error
-
 		openfilewin = create_openfilewin(NULL)
 
-		result = gtk_dialog_run(GTK_DIALOG(openfilewin))
+		result = openfilewin.run()
 
-		switch(result) {
-		case GTK_RESPONSE_ACCEPT:
-			filename = g_strdup(gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(openfilewin)))
+		if result == GTK_RESPONSE_ACCEPT:
+			filename = openfilewin.get_filename()
 			error = reg_open_hive(NULL, filename, NULL, NULL, gtk_event_context(), lp_ctx, &hive_root)
-			if (!W_ERROR_IS_OK(error)) {
-				gtk_show_werror(mainwin, "Error while opening hive", error)
-				break
-			}
 
 			reg_root = reg_import_hive_key(registry, hive_root, -1, NULL)
 
-			tmp = "Registry Editor - %s" % filename
-			gtk_window_set_title (GTK_WINDOW (mainwin), tmp)
-			gtk_tree_store_clear(store_keys)
+			mainwin.set_title("Registry Editor - %s" % filename)
+			store_keys.clear()
 			self.load_hive(reg_root, filename)
-			break
-		default:
-			break
-		}
 
-		gtk_widget_destroy(openfilewin)
+		openfilewin.destroy()
 
 	def on_open_local_activate(self, menuitem):
 		registry = samba.registry.open_local()
-		if (!W_ERROR_IS_OK(error)) {
-			gtk_show_werror(mainwin, "Error while opening local registry", error)
+		self.load_root()
+
+	def on_open_remote_activate(self, menuitem):
+		rpcwin = RpcConnectDialog()
+		result = rpcwin.run()
+		
+		if result != GTK_RESPONSE_ACCEPT:
+			rpcwin.destroy()
 			return
-		}
-		registry_load_root()
 
-static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
-{
-	char *tmp
-	GtkWidget *rpcwin = GTK_WIDGET(gtk_rpc_binding_dialog_new(NULL))
-	gint result = gtk_dialog_run(GTK_DIALOG(rpcwin))
-	WERROR error
-	struct cli_credentials *creds
-	
-	if (result != GTK_RESPONSE_ACCEPT) {
-		gtk_widget_destroy(rpcwin)
-		return
-	}
+		creds = Credentials()
+		creds.guess(lp_ctx)
+		cli_credentials_set_gtk_callbacks(creds)
 
-	creds = cli_credentials_init()
-	cli_credentials_guess(creds, lp_ctx)
-	cli_credentials_set_gtk_callbacks(creds)
+		registry = samba.registry.open_remote(creds, lp_ctx, 
+					rpcwin.get_binding_string())
 
-	error = reg_open_remote(&registry, 
-				NULL,
-				creds,
-				lp_ctx, 
-				gtk_rpc_binding_dialog_get_binding_string(GTK_RPC_BINDING_DIALOG(rpcwin)),
-				NULL)
+		tmp = "Registry Editor - Remote Registry at %s" % rpcwin.get_host()
+		self.set_title (tmp)
 
-	if (!W_ERROR_IS_OK(error)) {
-		gtk_show_werror(mainwin, "Error while opening remote registry", error)
-		gtk_widget_destroy(rpcwin)
-		return
-	}
+		self.load_root()
 
-	tmp = "Registry Editor - Remote Registry at %s" % gtk_rpc_binding_dialog_get_host(GTK_RPC_BINDING_DIALOG(rpcwin))
-	gtk_window_set_title (GTK_WINDOW (mainwin), tmp)
-
-	self.load_root()
-
-
-	gtk_widget_destroy(rpcwin)
-}
-
+		rpcwin.destroy()
 
 	def on_save_as_activate(self, menuitem):
 		error = WERR_OK
 		savefilewin = create_savefilewin(NULL)
-		result = gtk_dialog_run(GTK_DIALOG(savefilewin))
-		switch(result) {
-		case GTK_RESPONSE_ACCEPT:
-		/* FIXME:		error = reg_dump(registry, gtk_file_selection_get_filename(GTK_FILE_SELECTION(savefilewin))); */
+		result = savefilewin.run()
+		if result == GTK_RESPONSE_ACCEPT:
+		# FIXME:		error = reg_dump(registry, gtk_file_selection_get_filename(GTK_FILE_SELECTION(savefilewin))); 
 			if (!W_ERROR_IS_OK(error)) {
 				gtk_show_werror(mainwin, "Error while saving as", error)
 			}
-			break
-
-		default:
-			break
-
-		}
-		gtk_widget_destroy(savefilewin)
-	}
-
+		savefilewin.destroy()
 
 	def on_quit_activate(self, menuitem):
-		gtk_main_quit()
-
+		gtk.main_quit()
 
 	def on_delete_value_activate(self, menuitem):
-		if (!gtk_tree_selection_get_selected (gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_vals)), NULL, &iter)) {
+		if tree_vals.get_selected() is None:
 			return
-		}
 
-		gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 0, &value, -1)
+		gtk_tree_model_get(store_vals, &iter, 0, &value, -1)
 		
-		error = reg_del_value(current_key, value)
-
-		if (!W_ERROR_IS_OK(error)) {
-			gtk_show_werror(NULL, "Error while deleting value", error)
-			return
+		reg_del_value(current_key, value)
 
 	def on_delete_key_activate(self, menuitem):
-		WERROR error
-		GtkTreeIter iter, parentiter
-		struct registry_key *parent_key
 
 		if (!gtk_tree_selection_get_selected (gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_keys)), NULL, &iter)) {
 			return
@@ -399,84 +324,58 @@ static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
 		gtk_tree_model_get(GTK_TREE_MODEL(store_keys), &parentiter, 1, 
 						   &parent_key, -1)
 		
-		/* FIXME 
-		error = reg_key_del(parent_key, current_key->name); */
-
-		if (!W_ERROR_IS_OK(error)) {
-			gtk_show_werror(NULL, "Error while deleting key", error)
-			return
+		# FIXME 
+		# reg_key_del(parent_key, current_key->name); 
 
 	def on_add_key_activate(self, menuitem, user_data):
-		addwin = GTK_DIALOG(create_NewKeyDialog(&entry))
-		result = gtk_dialog_run(addwin)
+		addwin = NewKeyDialog()
+		result = addwin.run()
 
-		if (result == GTK_RESPONSE_OK)
-		{
-			struct registry_key *newkey
-			WERROR error = reg_key_add_name(current_key, gtk_entry_get_text(GTK_ENTRY(entry)), 0, NULL, &newkey)
+		if result == GTK_RESPONSE_OK:
+			newkey = reg_key_add_name(current_key, entry.get_text())
 
-			if (!W_ERROR_IS_OK(error)) {
-				gtk_show_werror(NULL, "Error while adding key", error)
-			}
-		}
-
-		gtk_widget_destroy(GTK_WIDGET(addwin))
+		addwin.destroy()
 
 	def on_value_activate(self, treeview, arg1, arg2):
-		addwin = SetValueDialog(&entry_name, &entry_type, &entry_value)
+		addwin = SetValueDialog(&entry_type, &entry_value)
 
-		gtk_tree_model_get_iter(GTK_TREE_MODEL(store_vals), &iter, arg1)
+		iter = store_vals.get_iter(arg1)
 
-		gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 0, &valname, -1)
-		gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 2, &valdesc, -1)
-		gtk_tree_model_get(GTK_TREE_MODEL(store_vals), &iter, 3, &valtype, -1)
+		valname = store_vals.get(iter, 0)
+		valdesc = store_vals.get(iter, 2)
+		valtype = store_vals.get(iter, 3)
 
-		gtk_widget_set_sensitive(entry_name, False)
-		gtk_entry_set_text(GTK_ENTRY(entry_name), valname)
-		gtk_entry_set_text(GTK_ENTRY(entry_value), valdesc)
-		gtk_combo_box_set_active(GTK_COMBO_BOX(entry_type), valtype)
+		addwin.entry_name.set_sensitive(False)
+		entry_name.set_text(valname)
+		entry_value.set_text(valdesc)
+		addwin.entry_type.set_active(valtype)
 		
-		result = gtk_dialog_run(addwin)
-		if (result == GTK_RESPONSE_OK) 
-		{
-			WERROR error
-			DATA_BLOB data
-			uint32_t data_type
+		result = addwin.run()
+		if result == GTK_RESPONSE_OK):
+			(data_type, data) = reg_string_to_val(str_regtype(entry_type.get_active(), entry_value.get_text())
 			
-			reg_string_to_val(iconv_convenience, str_regtype(gtk_combo_box_get_active(GTK_COMBO_BOX(entry_type))), gtk_entry_get_text(GTK_ENTRY(entry_value)), &data_type, &data)
-			
-			error = reg_val_set(current_key, gtk_entry_get_text(GTK_ENTRY(entry_name)), data_type, data)
-
-			if (!W_ERROR_IS_OK(error)) {
-				gtk_show_werror(NULL, "Error while setting value", error)
-			}
-		}
-		gtk_widget_destroy(GTK_WIDGET(addwin))
+			reg_val_set(current_key, entry_name.get_text(), data_type, data)
+		addwin.destroy()
 
 	def on_set_value_activate(self, menuitem, user_data):
-		addwin = GTK_DIALOG(create_SetValueDialog(&entry_name, &entry_type, &entry_value))
-		gint result = gtk_dialog_run(addwin)
+		addwin = SetValueDialog()
+		result = addwin.run()
 		if result == GTK_RESPONSE_OK:
-			reg_string_to_val(iconv_convenience, str_regtype(gtk_combo_box_get_active(GTK_COMBO_BOX(entry_type))), gtk_entry_get_text(GTK_ENTRY(entry_value)), &data_type, &data)
+			(data_type, data) = reg_string_to_val(str_regtype(entry_type.get_active()), entry_value.get_text())
 			
-			error = reg_val_set(current_key, gtk_entry_get_text(GTK_ENTRY(entry_name)), data_type, data)
-
-			if (!W_ERROR_IS_OK(error)) {
-				gtk_show_werror(NULL, "Error while setting value", error)
-			}
-		}
-		gtk_widget_destroy(GTK_WIDGET(addwin))
+			reg_val_set(current_key, entry_name.get_text(), data_type, data)
+		addwin.destroy()
 
 	def on_find_activate(self, menuitem, user_data):
 		findwin = FindDialog()
-		# /*gint result = gtk_dialog_run(findwin)
-		# FIXME */
+		# gint result = gtk_dialog_run(findwin)
+		# FIXME 
 		# gtk_widget_destroy(GTK_WIDGET(findwin))
 
 	def on_about_activate(self, menuitem):
 		aboutwin = sambagtk.AboutDialog("gregedit")
 		aboutwin.run()
-		gtk_widget_destroy(GTK_WIDGET(aboutwin))
+		aboutwin.destroy()
 
 	def on_key_activate(self, selection, model, path, path_currently_selected, data):
 		mnu_add_key.set_sensitive(!path_currently_selected)
@@ -519,168 +418,159 @@ static void on_open_remote_activate(GtkMenuItem *menuitem, gpointer user_data)
 def create_mainwindow():
 	accel_group = gtk.AccelGroup()
 
-	mainwin = gtk_window_new (GTK_WINDOW_TOPLEVEL)
-	gtk_window_set_title (GTK_WINDOW (mainwin), "Registry editor")
-	gtk_window_set_default_size (GTK_WINDOW (mainwin), 642, 562)
+	mainwin = gtk_window_new (gtk.WINDOW_TOPLEVEL)
+	mainwin.set_title ("Registry editor")
+	mainwin.set_default_size (642, 562)
 
 	vbox1 = gtk_vbox_new (False, 0)
-	gtk_container_add (GTK_CONTAINER (mainwin), vbox1)
+	mainwin.add(vbox1)
 
 	menubar = gtk_menu_bar_new ()
-	gtk_box_pack_start (GTK_BOX (vbox1), menubar, False, False, 0)
+	vbox1.pack_start(menubar, False, False, 0)
 
 	menu_file = gtk_menu_item_new_with_mnemonic ("_File")
-	gtk_container_add (GTK_CONTAINER (menubar), menu_file)
+	menubar.add(menu_file)
 
 	menu_file_menu = gtk_menu_new ()
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (menu_file), menu_file_menu)
+	menu_file.set_submenu (menu_file_menu)
 
 	open_local = gtk_menu_item_new_with_mnemonic ("Open _Local")
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), open_local)
-	g_signal_connect ((gpointer) open_local, "activate",
-					  	  G_CALLBACK (on_open_local_activate), NULL)
+	menu_file_menu.add( open_local)
+	open_local.connect("activate", self.on_open_local_activate)
 
 	open_remote = gtk_menu_item_new_with_mnemonic ("Open _Remote")
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), open_remote)
+	menu_file_menu.add(open_remote)
 
-	g_signal_connect ((gpointer) open_remote, "activate",
-					  G_CALLBACK (on_open_remote_activate),
-					  NULL)
+	open_remote.connect("activate", self.on_open_remote_activate)
 
 	separatormenuitem1 = gtk_menu_item_new ()
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), separatormenuitem1)
-	gtk_widget_set_sensitive (separatormenuitem1, False)
+	menu_file_menu.add(separatormenuitem1)
+	separatormenuitem1.set_sensitive(False)
 
 	open_file = gtk_image_menu_item_new_with_mnemonic("Open _Hive File")
 	menu_file_menu.add(open_file)
 
-	g_signal_connect(open_file, "activate",
-			 G_CALLBACK (on_open_file_activate),
-			 NULL)
+	open_file.connect("activate", self.on_open_file_activate)
 
 	separatormenuitem1 = gtk_menu_item_new ()
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), separatormenuitem1)
-	gtk_widget_set_sensitive (separatormenuitem1, False)
+	menu_file_menu.add(separatormenuitem1)
+	separatormenuitem1.set_sensitive(False)
 
 	save = gtk_image_menu_item_new_from_stock ("gtk-save", accel_group)
-	gtk_widget_set_sensitive( save, False )
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), save)
+	save.set_sensitive(False)
+	menu_file_menu.add(save)
 
 	save_as = gtk_image_menu_item_new_from_stock ("gtk-save-as", accel_group)
-	gtk_widget_set_sensitive( save_as, False )
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), save_as)
+	save_as.set_sensitive(False )
+	menu_file_menu.add(save_as)
 
 	separatormenuitem1 = gtk_menu_item_new ()
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), separatormenuitem1)
-	gtk_widget_set_sensitive (separatormenuitem1, False)
+	menu_file_menu.add(separatormenuitem1)
+	separatormenuitem1.set_sensitive(False)
 
 	quit = gtk_image_menu_item_new_from_stock ("gtk-quit", accel_group)
-	gtk_container_add (GTK_CONTAINER (menu_file_menu), quit)
+	menu_file_menu.add(quit)
 
 	men_key = gtk_menu_item_new_with_mnemonic ("_Key")
-	gtk_container_add (GTK_CONTAINER (menubar), men_key)
+	menubar.add(men_key)
 
 	men_key_menu = gtk_menu_new ()
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (men_key), men_key_menu)
+	men_key.set_submenu(men_key_menu)
 
 	mnu_add_key = gtk_image_menu_item_new_with_mnemonic("Add _Subkey")
-	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_add_key), gtk_image_new_from_stock ("gtk-add", GTK_ICON_SIZE_MENU))
+	mnu_add_key.set_image(gtk_image_new_from_stock("gtk-add", GTK_ICON_SIZE_MENU))
 
-	gtk_widget_set_sensitive(mnu_add_key, False)
-	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_add_key)
+	mnu_add_key.set_sensitive(False)
+	men_key_menu.add(mnu_add_key)
 
 	mnu_set_value = gtk_image_menu_item_new_with_mnemonic("Set _Value")
-	gtk_widget_set_sensitive(mnu_set_value, False)
-	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_set_value), gtk_image_new_from_stock ("gtk-add", GTK_ICON_SIZE_MENU))
-	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_set_value)
+	mnu_set_value.set_sensitive(False)
+	mnu_set_value.set_image(gtk_image_new_from_stock ("gtk-add", GTK_ICON_SIZE_MENU))
+	men_key_menu.add(mnu_set_value)
 
 	mnu_find = gtk_image_menu_item_new_from_stock ("gtk-find", accel_group)
-	gtk_widget_set_sensitive(mnu_find, False)
-	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_find)
+	mnu_find.set_sensitive(False)
+	men_key_menu.add(mnu_find)
 
 	mnu_del_key = gtk_image_menu_item_new_with_mnemonic ("Delete Key"); 
 	gtk_widget_set_sensitive(mnu_del_key, False)
-	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_del_value), gtk_image_new_from_stock ("gtk-delete", GTK_ICON_SIZE_MENU))
-	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_del_key)
+	mnu_del_value.set_image(gtk_image_new_from_stock ("gtk-delete", GTK_ICON_SIZE_MENU))
+	men_key_menu.add(mnu_del_key)
 
 	mnu_del_value = gtk_image_menu_item_new_with_mnemonic ("Delete Value"); 
-	gtk_widget_set_sensitive(mnu_del_value, False)
-	gtk_image_menu_item_set_image (GTK_IMAGE_MENU_ITEM (mnu_del_value), gtk_image_new_from_stock ("gtk-delete", GTK_ICON_SIZE_MENU))
-	gtk_container_add (GTK_CONTAINER (men_key_menu), mnu_del_value)
-
+	mnu_del_value.set_sensitive(False)
+	mnu_del_value.set_image(gtk_image_new_from_stock ("gtk-delete", GTK_ICON_SIZE_MENU))
+	men_key_menu.add(mnu_del_value)
 
 	help = gtk_menu_item_new_with_mnemonic ("_Help")
-	gtk_container_add (GTK_CONTAINER (menubar), help)
+	menubar.add(help)
 
 	help_menu = gtk_menu_new ()
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (help), help_menu)
+	help.set_submenu(help_menu)
 
 	about = gtk_menu_item_new_with_mnemonic ("_About")
-	gtk_container_add (GTK_CONTAINER (help_menu), about)
+	help_menu.add(about)
 
-	hbox1 = gtk_hbox_new (False, 0)
-	gtk_box_pack_start (GTK_BOX (vbox1), hbox1, True, True, 0)
+	hbox1 = gtk.HBox(False, 0)
+	vbox1.pack_start(hbox1, True, True, 0)
 
-	scrolledwindow1 = gtk_scrolled_window_new (NULL, NULL)
-	gtk_box_pack_start (GTK_BOX (hbox1), scrolledwindow1, True, True, 0)
+	scrolledwindow1 = gtk.ScrolledWindow(NULL, NULL)
+	hbox1.pack_start(scrolledwindow1, True, True, 0)
 
-	tree_keys = gtk_tree_view_new ()
+	tree_keys = gtk.TreeView()
 
 	# Column names
-	curcol = gtk_tree_view_column_new ()
-	gtk_tree_view_column_set_title(curcol, "Name")
-	renderer = gtk_cell_renderer_text_new()
-	gtk_tree_view_column_pack_start(curcol, renderer, True)
+	curcol = gtk.TreeViewColumn()
+	curcol.set_title("Name")
+	renderer = gtk.CellRendererText()
+	curcol.pack_start(renderer, True)
 
-	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_keys), curcol)
+	tree_keys.append_column(curcol)
 
-	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0)
-	gtk_container_add (GTK_CONTAINER (scrolledwindow1), tree_keys)
-	store_keys = gtk_tree_store_new(2, G_TYPE_STRING, G_TYPE_POINTER)
-	gtk_tree_view_set_model(GTK_TREE_VIEW(tree_keys), GTK_TREE_MODEL(store_keys))
+	curcol.add_attribute(renderer, "text", 0)
+	scrolledwindow1.add(tree_keys)
+	store_keys = gtk.TreeStore(gobject.TYPE_STRING, gobject.TYPE_POINTER)
+	tree_keys.set_model(store_keys)
 
-	gtk_tree_selection_set_select_function (gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_keys)), on_key_activate, NULL, NULL)
+	tree_keys.get_selection().set_select_function(on_key_activate)
 
-	g_signal_connect ((gpointer) tree_keys, "row-expanded",
-					  G_CALLBACK (expand_key),
-					  NULL)
+	tree_keys.connect("row-expanded", self.expand_key)
 
+	scrolledwindow2 = gtk.ScrolledWindow(None, None)
+	hbox1.pack_start(scrolledwindow2, True, True, 0)
 
-	scrolledwindow2 = gtk_scrolled_window_new (NULL, NULL)
-	gtk_box_pack_start (GTK_BOX (hbox1), scrolledwindow2, True, True, 0)
-
-	tree_vals = gtk_tree_view_new ()
+	tree_vals = gtk.TreeView()
 	# Column names
 
-	curcol = gtk_tree_view_column_new ()
-	gtk_tree_view_column_set_title(curcol, "Name")
-	renderer = gtk_cell_renderer_text_new()
-	gtk_tree_view_column_pack_start(curcol, renderer, True)
-	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_vals), curcol)
-	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 0)
+	curcol = gtk.TreeViewColumn()
+	curcol.set_title("Name")
+	renderer = gtk.CellRendererText()
+	curcol.pack_start(renderer, True)
+	tree_vals.append_column(curcol)
+	curcol.add_attribute(renderer, "text", 0)
 
-	curcol = gtk_tree_view_column_new ()
-	gtk_tree_view_column_set_title(curcol, "Type")
-	renderer = gtk_cell_renderer_text_new()
-	gtk_tree_view_column_pack_start(curcol, renderer, True)
-	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_vals), curcol)
-	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 1)
+	curcol = gtk.TreeViewColumn()
+	curcol.set_title("Type")
+	renderer = gtk.CellRendererText()
+	curcol.pack_start(renderer, True)
+	tree_vals.append_column(curcol)
+	curcol.add_attribute(renderer, "text", 1)
 
-	curcol = gtk_tree_view_column_new ()
-	gtk_tree_view_column_set_title(curcol, "Value")
-	renderer = gtk_cell_renderer_text_new()
-	gtk_tree_view_column_pack_start(curcol, renderer, True)
-	gtk_tree_view_append_column(GTK_TREE_VIEW(tree_vals), curcol)
-	gtk_tree_view_column_add_attribute(curcol, renderer, "text", 2)
+	curcol = gtk.TreeViewColumn()
+	curcol.set_title("Value")
+	renderer = gtk.CellRendererText()
+	curcol.pack_start(renderer, True)
+	tree_vals.append_column(curcol)
+	curcol.add_attribute(renderer, "text", 2)
 
 	scrolledwindow2.add(tree_vals)
 
-	store_vals = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT)
+	store_vals = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_INT)
 	tree_vals.set_model(store_vals)
 
-	statusbar = gtk_statusbar_new ()
-	gtk_box_pack_start (GTK_BOX (vbox1), statusbar, False, False, 0)
-	gtk_statusbar_set_has_resize_grip (GTK_STATUSBAR (statusbar), False)
+	statusbar = gtk.Statusbar()
+	vbox1.pack_start(statusbar, False, False, 0)
+	statusbar.set_has_resize_grip(False)
 
 	save_as.connect("activate", self.on_save_as_activate)
 	quit.connect("activate", self.on_quit_activate)

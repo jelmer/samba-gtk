@@ -56,6 +56,7 @@ class EndpointBrowser(gtk.Window):
     def _on_about1_activate(self, menuitem):
         aboutwin = sambagtk.AboutDialog("gepdump")
         aboutwin.run()
+        aboutwin.destroy()
 
     def add_epm_entry(self, annotation, t):
         bd = t.as_binding_string()
@@ -86,7 +87,7 @@ class EndpointBrowser(gtk.Window):
         self.refresh_eps()
 
     def _on_connect_clicked(self, btn):
-        self._epmapper_pipe = sambagtk.RpcConnectDialog(lp_ctx, epmapper.epmapper)
+        self._epmapper_pipe = sambagtk.RpcConnectDialog(epmapper.epmapper)
 
         mnu_refresh.set_sensitive(True)
 

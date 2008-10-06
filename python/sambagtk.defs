@@ -32,3 +32,12 @@
    '("const-char*" "appname")
   )
 )
+
+(define-function gtk_rpc_binding_dialog_new
+  (c-name "gtk_rpc_binding_dialog_new")
+  (is-constructor-of "GtkRpcBindingDialog")
+  (return-type "GtkRpcBindingDialog*")
+  (parameters
+    '("struct-dcerpc_pipe*" "samr_pipe")
+  )
+)

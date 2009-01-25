@@ -277,7 +277,7 @@ const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d)
 {
 	char *talloc_ret;
 	char *ret;
-	TALLOC_CTX *mem_ctx = talloc_init("");
+	TALLOC_CTX *mem_ctx = talloc_new(NULL);
 	talloc_ret = dcerpc_binding_string(mem_ctx, gtk_rpc_binding_dialog_get_binding(d, mem_ctx));
 	ret = g_strdup(talloc_ret);
 	talloc_free(mem_ctx);

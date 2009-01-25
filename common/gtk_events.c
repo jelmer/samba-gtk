@@ -6,6 +6,7 @@
    plugin for using a gtk application's event loop
 
    Copyright (C) Stefan Metzmacher 2005
+   Copyright (C) Jelmer Vernooij 2009
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,8 +30,8 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <util.h>
-#include <events.h>
-#include <events_internal.h>
+#include <tevent.h>
+#include <tevent_internal.h>
 
 #include "common/select.h"
 
@@ -38,9 +39,9 @@
    we need to have a global event context structure for our
    gtk-based tools
  */
-static struct event_context *gtk_event_context_global;
+static struct tevent_context *gtk_event_context_global;
 
-static int gtk_event_context_destructor(struct event_context *ev)
+static int gtk_event_context_destructor(struct tevent_context *ev)
 {
 	gtk_event_context_global = NULL;
 	return 0;
@@ -49,13 +50,13 @@ static int gtk_event_context_destructor(struct event_context *ev)
 /*
   create a gtk_event_context structure.
 */
-static int gtk_event_context_init(struct event_context *ev)
+static int gtk_event_context_init(struct tevent_context *ev)
 {
 	talloc_set_destructor(ev, gtk_event_context_destructor);
 	return 0;
 }
 
-struct gtk_fd_event {
+struct gtk_tevent_fd {
 	bool running;
 	bool free_after_run;
 	GIOChannel *channel;
@@ -64,15 +65,15 @@ struct gtk_fd_event {
 
 static gboolean gtk_event_fd_handler(GIOChannel *source, GIOCondition condition, gpointer data)
 {
-	struct fd_event *fde = talloc_get_type(data, struct fd_event);
-	struct gtk_fd_event *gtk_fd = talloc_get_type(fde->additional_data,
-						      struct gtk_fd_event);
+	struct tevent_fd *fde = talloc_get_type(data, struct tevent_fd);
+	struct gtk_tevent_fd *gtk_fd = talloc_get_type(fde->additional_data,
+						      struct gtk_tevent_fd);
 	int flags = 0;
 
 	if (condition & (G_IO_IN|G_IO_PRI|G_IO_ERR|G_IO_HUP))
-		flags |= EVENT_FD_READ;
+		flags |= TEVENT_FD_READ;
 	if (condition & G_IO_OUT)
-		flags |= EVENT_FD_WRITE;
+		flags |= TEVENT_FD_WRITE;
 
 	gtk_fd->running = true;
 	fde->handler(fde->event_ctx, fde, flags, fde->private_data);
@@ -87,12 +88,12 @@ static gboolean gtk_event_fd_handler(GIOChannel *source, GIOCondition condition,
 }
 
 /*
-  destroy an fd_event
+  destroy an tevent_fd
 */
-static int gtk_event_fd_destructor(struct fd_event *fde)
+static int gtk_event_fd_destructor(struct tevent_fd *fde)
 {
-	struct gtk_fd_event *gtk_fd = talloc_get_type(fde->additional_data,
-						      struct gtk_fd_event);
+	struct gtk_tevent_fd *gtk_fd = talloc_get_type(fde->additional_data,
+						      struct gtk_tevent_fd);
 
 	if (gtk_fd->running) {
 		/* the event is running reject the talloc_free()
@@ -115,21 +116,23 @@ static int gtk_event_fd_destructor(struct fd_event *fde)
   add a fd based event
   return NULL on failure (memory allocation error)
 */
-static struct fd_event *gtk_event_add_fd(struct event_context *ev, TALLOC_CTX *mem_ctx,
+static struct tevent_fd *gtk_event_add_fd(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
 				 	 int fd, uint16_t flags,
-				 	 event_fd_handler_t handler,
-				 	 void *private_data)
+				 	 tevent_fd_handler_t handler,
+				 	 void *private_data,
+					 const char *handler_location,
+					 const char *location)
 {
-	struct fd_event *fde;
-	struct gtk_fd_event *gtk_fd;
+	struct tevent_fd *fde;
+	struct gtk_tevent_fd *gtk_fd;
 	GIOChannel *channel;
 	guint fd_id = 0;
 	GIOCondition condition = 0;
 
-	fde = talloc(mem_ctx?mem_ctx:ev, struct fd_event);
+	fde = talloc(mem_ctx?mem_ctx:ev, struct tevent_fd);
 	if (!fde) return NULL;
 
-	gtk_fd = talloc(fde, struct gtk_fd_event);
+	gtk_fd = talloc(fde, struct gtk_tevent_fd);
 	if (gtk_fd == NULL) {
 		talloc_free(fde);
 		return NULL;
@@ -149,9 +152,9 @@ static struct fd_event *gtk_event_add_fd(struct event_context *ev, TALLOC_CTX *m
 		return NULL;
 	}
 
-	if (fde->flags & EVENT_FD_READ)
+	if (fde->flags & TEVENT_FD_READ)
 		condition |= (G_IO_IN | G_IO_ERR | G_IO_HUP);
-	if (fde->flags & EVENT_FD_WRITE)
+	if (fde->flags & TEVENT_FD_WRITE)
 		condition |= G_IO_OUT;
 
 	if (condition) {
@@ -175,7 +178,7 @@ static struct fd_event *gtk_event_add_fd(struct event_context *ev, TALLOC_CTX *m
 /*
   return the fd event flags
 */
-static uint16_t gtk_event_get_fd_flags(struct fd_event *fde)
+static uint16_t gtk_event_get_fd_flags(struct tevent_fd *fde)
 {
 	return fde->flags;
 }
@@ -183,17 +186,17 @@ static uint16_t gtk_event_get_fd_flags(struct fd_event *fde)
 /*
   set the fd event flags
 */
-static void gtk_event_set_fd_flags(struct fd_event *fde, uint16_t flags)
+static void gtk_event_set_fd_flags(struct tevent_fd *fde, uint16_t flags)
 {
-	struct gtk_fd_event *gtk_fd = talloc_get_type(fde->additional_data,
-						      struct gtk_fd_event);
+	struct gtk_tevent_fd *gtk_fd = talloc_get_type(fde->additional_data,
+						      struct gtk_tevent_fd);
 	GIOCondition condition = 0;
 
 	if (fde->flags == flags) return;
 
-	if (flags & EVENT_FD_READ)
+	if (flags & TEVENT_FD_READ)
 		condition |= (G_IO_IN | G_IO_ERR | G_IO_HUP);
-	if (flags & EVENT_FD_WRITE)
+	if (flags & TEVENT_FD_WRITE)
 		condition |= G_IO_OUT;
 
 	/* only register the event when at least one flag is set
@@ -210,31 +213,31 @@ static void gtk_event_set_fd_flags(struct fd_event *fde, uint16_t flags)
 	fde->flags = flags;
 }
 
-struct gtk_timed_event {
+struct gtk_tevent_timer {
 	guint te_id;
 };
 
 /*
   destroy a timed event
 */
-static int gtk_event_timed_destructor(struct timed_event *te)
+static int gtk_event_timed_destructor(struct tevent_timer *te)
 {
-	struct gtk_timed_event *gtk_te = talloc_get_type(te->additional_data,
-							 struct gtk_timed_event);
+	struct gtk_tevent_timer *gtk_te = talloc_get_type(te->additional_data,
+							 struct gtk_tevent_timer);
 
 	g_source_remove(gtk_te->te_id);
 
 	return 0;
 }
 
-static int gtk_event_timed_deny_destructor(struct timed_event *te)
+static int gtk_event_timed_deny_destructor(struct tevent_timer *te)
 {
 	return -1;
 }
 
 static gboolean gtk_event_timed_handler(gpointer data)
 {
-	struct timed_event *te = talloc_get_type(data, struct timed_event);
+	struct tevent_timer *te = talloc_get_type(data, struct tevent_timer);
 	struct timeval t = timeval_current();
 
 	/* deny the handler to free the event */
@@ -252,20 +255,22 @@ static gboolean gtk_event_timed_handler(gpointer data)
   add a timed event
   return NULL on failure (memory allocation error)
 */
-static struct timed_event *gtk_event_add_timed(struct event_context *ev, TALLOC_CTX *mem_ctx,
+static struct tevent_timer *gtk_event_add_timed(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
 					       struct timeval next_event, 
-					       event_timed_handler_t handler, 
-					       void *private_data) 
+					       tevent_timer_handler_t handler, 
+					       void *private_data,
+						   const char *handler_name,
+						   const char *location) 
 {
-	struct timed_event *te;
-	struct gtk_timed_event *gtk_te;
+	struct tevent_timer *te;
+	struct gtk_tevent_timer *gtk_te;
 	struct timeval cur_tv, diff_tv;
 	guint timeout;
 
-	te = talloc(mem_ctx?mem_ctx:ev, struct timed_event);
+	te = talloc(mem_ctx?mem_ctx:ev, struct tevent_timer);
 	if (te == NULL) return NULL;
 
-	gtk_te = talloc(te, struct gtk_timed_event);
+	gtk_te = talloc(te, struct gtk_tevent_timer);
 	if (gtk_te == NULL) {
 		talloc_free(te);
 		return NULL;
@@ -291,7 +296,7 @@ static struct timed_event *gtk_event_add_timed(struct event_context *ev, TALLOC_
 /*
   do a single event loop
 */
-static int gtk_event_loop_once(struct event_context *ev)
+static int gtk_event_loop_once(struct tevent_context *ev)
 {
 	/*
 	 * gtk_main_iteration ()
@@ -319,7 +324,7 @@ static int gtk_event_loop_once(struct event_context *ev)
 /*
   return with 0
 */
-static int gtk_event_loop_wait(struct event_context *ev)
+static int gtk_event_loop_wait(struct tevent_context *ev)
 {
 	/*
 	 * gtk_main ()
@@ -335,12 +340,12 @@ static int gtk_event_loop_wait(struct event_context *ev)
 	return 0;
 }
 
-static const struct event_ops gtk_event_ops = {
+static const struct tevent_ops gtk_event_ops = {
 	.context_init	= gtk_event_context_init,
 	.add_fd		= gtk_event_add_fd,
 	.get_fd_flags	= gtk_event_get_fd_flags,
 	.set_fd_flags	= gtk_event_set_fd_flags,
-	.add_timed	= gtk_event_add_timed,
+	.add_timer	= gtk_event_add_timed,
 	.loop_once	= gtk_event_loop_once,
 	.loop_wait	= gtk_event_loop_wait,
 };
@@ -349,19 +354,19 @@ int gtk_event_loop(void)
 {
 	int ret;
 
-	event_register_backend("gtk", &gtk_event_ops);
+	tevent_register_backend("gtk", &gtk_event_ops);
 
-	gtk_event_context_global = event_context_init_byname(NULL, "gtk");
+	gtk_event_context_global = tevent_context_init_byname(NULL, "gtk");
 	if (!gtk_event_context_global) return -1;
 
-	ret = event_loop_wait(gtk_event_context_global);
+	ret = tevent_loop_wait(gtk_event_context_global);
 
 	talloc_free(gtk_event_context_global);
 
 	return ret;
 }
 
-struct event_context *gtk_event_context(void)
+struct tevent_context *gtk_event_context(void)
 {
 	return gtk_event_context_global;
 }

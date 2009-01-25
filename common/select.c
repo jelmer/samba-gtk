@@ -159,7 +159,7 @@ GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe)
 	status = dcerpc_samr_EnumDomains(sam_pipe, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "Enumerating domains", status);
-	} else if (r.out.sam) {
+	} else if (r.out.sam != NULL) {
 		for (i=0;i<r.out.sam->count;i++) {
 			GtkTreeIter iter;
 			gtk_list_store_append(d->store_domains, &iter);

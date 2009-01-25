@@ -26,6 +26,7 @@
 #include "common/gtk-smb.h"
 #include <credentials.h>
 #include <param.h>
+#include <util/debug.h>
 
 struct policy_handle sam_handle;
 struct dcerpc_pipe *sam_pipe = NULL;
@@ -437,7 +438,7 @@ int main(int argc, char **argv)
 	lp_load_default(lp_ctx);
 	setup_logging(argv[0], DEBUG_STDERR);
 
-	dcerpc_init();
+	dcerpc_init(lp_ctx);
 
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();

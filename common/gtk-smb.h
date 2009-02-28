@@ -58,9 +58,9 @@ struct _GtkRpcBindingDialogClass
 
 #define SAMBAGTK_TYPE_RPC_BINDING_DIALOG gtk_rpc_binding_dialog_get_type()
 
-#define SAMBAGTK_RPC_BINDING_DIALOG(obj)          GTK_CHECK_CAST (obj, gtk_rpc_binding_dialog_get_type (), GtkRpcBindingDialog)
-#define SAMBAGTK_RPC_BINDING_DIALOG_CLASS(klass)  GTK_CHECK_CLASS_CAST (klass, gtk_rpc_binding_dialog_class_get_type (), GtkRpcBindingDialogClass)
-#define IS_SAMBAGTK_RPC_BINDING_DIALOG(obj)       GTK_CHECK_TYPE (obj, gtk_rpc_binding_dialog_get_type ())
+#define SAMBAGTK_RPC_BINDING_DIALOG(obj)          G_TYPE_CHECK_INSTANCE_CAST(obj, gtk_rpc_binding_dialog_get_type (), GtkRpcBindingDialog)
+#define SAMBAGTK_RPC_BINDING_DIALOG_CLASS(klass)  G_TYPE_CHECK_INSTANCE_CAST(klass, gtk_rpc_binding_dialog_class_get_type (), GtkRpcBindingDialogClass)
+#define IS_SAMBAGTK_RPC_BINDING_DIALOG(obj)       G_TYPE_CHECK_INSTANCE_CAST(obj, gtk_rpc_binding_dialog_get_type ())
 
 /* subsystem prototypes */
 GtkWidget *create_gtk_samba_about_dialog (const char *appname);

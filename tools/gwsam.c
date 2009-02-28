@@ -70,17 +70,17 @@ static void update_userlist(void)
 		return;
 	}
 
-	if (!r.out.sam || r.out.sam->count == 0) {
+	if (!*r.out.sam || (*r.out.sam)->count == 0) {
 		talloc_free(mem_ctx);
 		return;
 	}
 
-	for (i=0;i<r.out.sam->count;i++) {
+	for (i=0;i<(*r.out.sam)->count;i++) {
                 GtkTreeIter iter;
                 gtk_list_store_append(store_users, &iter);
                 gtk_list_store_set (store_users, &iter, 
-			0, r.out.sam->entries[i].name.string,
-			1, r.out.sam->entries[i].name.string,
+			0, (*r.out.sam)->entries[i].name.string,
+			1, (*r.out.sam)->entries[i].name.string,
 			2, 0, -1);
 
 		/* FIXME: Query user info */

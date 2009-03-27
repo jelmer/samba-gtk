@@ -22,6 +22,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
+#define TEVENT_COMPAT_DEFINES 1
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -29,8 +31,8 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <util.h>
-#include <events.h>
-#include <events_internal.h>
+#include <tevent.h>
+#include <tevent_internal.h>
 
 #include "common/select.h"
 
@@ -115,10 +117,13 @@ static int gtk_event_fd_destructor(struct fd_event *fde)
   add a fd based event
   return NULL on failure (memory allocation error)
 */
+
 static struct fd_event *gtk_event_add_fd(struct event_context *ev, TALLOC_CTX *mem_ctx,
 				 	 int fd, uint16_t flags,
 				 	 event_fd_handler_t handler,
-				 	 void *private_data)
+					 void *private_data,
+					 const char *handler_name,
+					 const char *location)
 {
 	struct fd_event *fde;
 	struct gtk_fd_event *gtk_fd;
@@ -252,10 +257,13 @@ static gboolean gtk_event_timed_handler(gpointer data)
   add a timed event
   return NULL on failure (memory allocation error)
 */
-static struct timed_event *gtk_event_add_timed(struct event_context *ev, TALLOC_CTX *mem_ctx,
+
+static struct timed_event *gtk_event_add_timer(struct event_context *ev, TALLOC_CTX *mem_ctx,
 					       struct timeval next_event, 
 					       event_timed_handler_t handler, 
-					       void *private_data) 
+					       void *private_data,
+					       const char *handler_name,
+					       const char *location)
 {
 	struct timed_event *te;
 	struct gtk_timed_event *gtk_te;
@@ -291,7 +299,9 @@ static struct timed_event *gtk_event_add_timed(struct event_context *ev, TALLOC_
 /*
   do a single event loop
 */
-static int gtk_event_loop_once(struct event_context *ev)
+
+static int gtk_event_loop_once(struct event_context *ev,
+			       const char *location)
 {
 	/*
 	 * gtk_main_iteration ()
@@ -319,7 +329,9 @@ static int gtk_event_loop_once(struct event_context *ev)
 /*
   return with 0
 */
-static int gtk_event_loop_wait(struct event_context *ev)
+
+static int gtk_event_loop_wait(struct event_context *ev,
+			       const char *location)
 {
 	/*
 	 * gtk_main ()
@@ -340,7 +352,7 @@ static const struct event_ops gtk_event_ops = {
 	.add_fd		= gtk_event_add_fd,
 	.get_fd_flags	= gtk_event_get_fd_flags,
 	.set_fd_flags	= gtk_event_set_fd_flags,
-	.add_timed	= gtk_event_add_timed,
+	.add_timer	= gtk_event_add_timer,
 	.loop_once	= gtk_event_loop_once,
 	.loop_wait	= gtk_event_loop_wait,
 };
@@ -349,7 +361,7 @@ int gtk_event_loop(void)
 {
 	int ret;
 
-	event_register_backend("gtk", &gtk_event_ops);
+	tevent_register_backend("gtk", &gtk_event_ops);
 
 	gtk_event_context_global = event_context_init_byname(NULL, "gtk");
 	if (!gtk_event_context_global) return -1;
@@ -361,7 +373,7 @@ int gtk_event_loop(void)
 	return ret;
 }
 
-struct event_context *gtk_event_context(void)
+struct tevent_context *gtk_event_context(void)
 {
 	return gtk_event_context_global;
 }

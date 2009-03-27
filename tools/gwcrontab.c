@@ -26,6 +26,7 @@
 #include "common/select.h"
 #include <credentials.h>
 #include <param.h>
+#include <util/debug.h>
 
 static struct dcerpc_pipe *at_pipe = NULL;
 static GtkWidget *mainwin;
@@ -457,7 +458,7 @@ int main(int argc, char **argv)
 
 	setup_logging(argv[0], DEBUG_STDERR);
 
-	dcerpc_init();
+	dcerpc_init(lp_ctx);
 
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();

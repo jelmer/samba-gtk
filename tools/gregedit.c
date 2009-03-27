@@ -24,7 +24,7 @@
 #include <registry.h>
 #include <core/doserr.h>
 #include "common/gtk-smb.h"
-#include <events.h>
+#include <tevent.h>
 #include <param.h>
 #include <credentials.h>
 #include <gtk/gtk.h>

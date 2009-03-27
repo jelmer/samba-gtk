@@ -55,6 +55,10 @@ struct _GtkRpcBindingDialogClass
 	GtkDialogClass parent_class;
 };
 
+#ifndef GTK_CHECK_CAST
+#define GTK_CHECK_CAST G_TYPE_CHECK_INSTANCE_CAST
+#endif
+
 #define GTK_RPC_BINDING_DIALOG(obj)          GTK_CHECK_CAST (obj, gtk_rpc_binding_dialog_get_type (), GtkRpcBindingDialog)
 #define GTK_RPC_BINDING_DIALOG_CLASS(klass)  GTK_CHECK_CLASS_CAST (klass, gtk_rpc_binding_dialog_class_get_type (), GtkRpcBindingDialogClass)
 #define IS_GTK_RPC_BINDING_DIALOG(obj)       GTK_CHECK_TYPE (obj, gtk_rpc_binding_dialog_get_type ())
@@ -70,8 +74,8 @@ const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d, TA
 const char *gtk_rpc_binding_dialog_get_host(GtkRpcBindingDialog *d);
 
 int gtk_event_loop(void);
-struct event_context;
-struct event_context *gtk_event_context(void);
+struct tevent_context;
+struct tevent_context *gtk_event_context(void);
 
 struct cli_credentials;
 void cli_credentials_set_gtk_callbacks(struct cli_credentials *creds);

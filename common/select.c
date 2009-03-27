@@ -131,10 +131,12 @@ GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe)
 	GtkSelectDomainDialog *d = g_object_new(gtk_select_domain_dialog_get_type (), NULL);
 	NTSTATUS status;
 	struct samr_EnumDomains r;
+	struct samr_SamArray *sam;
 	struct samr_Connect cr;
 	struct samr_Close dr;
 	struct policy_handle handle;
 	uint32_t resume_handle = 0;
+	uint32_t num_entries;
 	int i;
 	TALLOC_CTX *mem_ctx = talloc_init("gtk_select_domain_dialog_new");
 
@@ -155,15 +157,17 @@ GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe)
 	r.in.resume_handle = &resume_handle;
 	r.in.buf_size = (uint32_t)-1;
 	r.out.resume_handle = &resume_handle;
+	r.out.sam = &sam;
+	r.out.num_entries = &num_entries;
 
 	status = dcerpc_samr_EnumDomains(sam_pipe, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "Enumerating domains", status);
 	} else if (r.out.sam) {
-		for (i=0;i<r.out.sam->count;i++) {
+		for (i=0;i<sam->count;i++) {
 			GtkTreeIter iter;
 			gtk_list_store_append(d->store_domains, &iter);
-			gtk_list_store_set (d->store_domains, &iter, 0, r.out.sam->entries[i].name.string, -1);
+			gtk_list_store_set (d->store_domains, &iter, 0, sam->entries[i].name.string, -1);
 		}
 	}
 

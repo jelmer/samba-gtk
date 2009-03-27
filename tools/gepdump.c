@@ -33,6 +33,7 @@
 #include "common/select.h"
 #include <gensec.h>
 #include <param.h>
+#include <util/debug.h>
 
 /* 
  * Show: 
@@ -247,8 +248,9 @@ static gboolean on_eps_select(GtkTreeSelection *selection,
 				continue;
 			}
 			if (W_ERROR_IS_OK(r.out.result)) {
+				struct gensec_security *gensec_security = NULL;
 				GtkTreeIter iter;
-				const char *name = gensec_get_name_by_authtype(i);
+				const char *name = gensec_get_name_by_authtype(gensec_security, i);
 				char *protocol;
 				if (name) {
 					protocol = talloc_asprintf(mem_ctx, "%u (%s)", i, name);
@@ -443,7 +445,7 @@ int main(int argc, char **argv)
 	lp_load_default(lp_ctx);
 	setup_logging(argv[0], DEBUG_STDERR);
 
-	dcerpc_init();
+	dcerpc_init(lp_ctx);
 
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();

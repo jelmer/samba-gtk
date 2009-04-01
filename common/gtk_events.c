@@ -23,6 +23,8 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
+#define TEVENT_COMPAT_DEFINES 1
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -255,7 +257,7 @@ static gboolean gtk_event_timed_handler(gpointer data)
   add a timed event
   return NULL on failure (memory allocation error)
 */
-static struct tevent_timer *gtk_event_add_timed(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
+static struct tevent_timer *gtk_event_add_timer(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
 					       struct timeval next_event, 
 					       tevent_timer_handler_t handler, 
 					       void *private_data,
@@ -296,7 +298,9 @@ static struct tevent_timer *gtk_event_add_timed(struct tevent_context *ev, TALLO
 /*
   do a single event loop
 */
-static int gtk_event_loop_once(struct tevent_context *ev)
+
+static int gtk_event_loop_once(struct event_context *ev,
+			       const char *location)
 {
 	/*
 	 * gtk_main_iteration ()
@@ -324,7 +328,9 @@ static int gtk_event_loop_once(struct tevent_context *ev)
 /*
   return with 0
 */
-static int gtk_event_loop_wait(struct tevent_context *ev)
+
+static int gtk_event_loop_wait(struct event_context *ev,
+			       const char *location)
 {
 	/*
 	 * gtk_main ()
@@ -345,7 +351,7 @@ static const struct tevent_ops gtk_event_ops = {
 	.add_fd		= gtk_event_add_fd,
 	.get_fd_flags	= gtk_event_get_fd_flags,
 	.set_fd_flags	= gtk_event_set_fd_flags,
-	.add_timer	= gtk_event_add_timed,
+	.add_timer	= gtk_event_add_timer,
 	.loop_once	= gtk_event_loop_once,
 	.loop_wait	= gtk_event_loop_wait,
 };

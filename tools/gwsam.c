@@ -48,7 +48,9 @@ static void update_userlist(void)
 {
 	NTSTATUS status;
 	struct samr_EnumDomainUsers r;
+	struct samr_SamArray *sam;
 	uint32_t resume_handle=0;
+	uint32_t num_entries;
 	int i;
 	TALLOC_CTX *mem_ctx;
 
@@ -62,6 +64,8 @@ static void update_userlist(void)
 	r.in.acct_flags = 0;
 	r.in.max_size = (uint32_t)100;
 	r.out.resume_handle = &resume_handle;
+	r.out.sam = &sam;
+	r.out.num_entries = &num_entries;
 
 	status = dcerpc_samr_EnumDomainUsers(sam_pipe, mem_ctx, &r);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -70,22 +74,22 @@ static void update_userlist(void)
 		return;
 	}
 
-	if (!*r.out.sam || (*r.out.sam)->count == 0) {
+	if (!sam || sam->count == 0) {
 		talloc_free(mem_ctx);
 		return;
 	}
 
-	for (i=0;i<(*r.out.sam)->count;i++) {
+	for (i=0;i<sam->count;i++) {
                 GtkTreeIter iter;
                 gtk_list_store_append(store_users, &iter);
                 gtk_list_store_set (store_users, &iter, 
-			0, (*r.out.sam)->entries[i].name.string,
-			1, (*r.out.sam)->entries[i].name.string,
+			0, sam->entries[i].name.string,
+			1, sam->entries[i].name.string,
 			2, 0, -1);
 
 		/* FIXME: Query user info */
 
-		//		if (!test_OpenUser(sam_pipe, mem_ctx, &sam_handle, r.out.sam->entries[i].idx)) {
+		//		if (!test_OpenUser(sam_pipe, mem_ctx, &sam_handle, sam->entries[i].idx)) {
 		//			ret = false;
 		//		}
 	}

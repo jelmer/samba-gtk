@@ -56,6 +56,10 @@ struct _GtkRpcBindingDialogClass
 	GtkDialogClass parent_class;
 };
 
+#ifndef GTK_CHECK_CAST
+#define GTK_CHECK_CAST G_TYPE_CHECK_INSTANCE_CAST
+#endif
+
 #define SAMBAGTK_TYPE_RPC_BINDING_DIALOG gtk_rpc_binding_dialog_get_type()
 
 #define SAMBAGTK_RPC_BINDING_DIALOG(obj)          G_TYPE_CHECK_INSTANCE_CAST(obj, gtk_rpc_binding_dialog_get_type (), GtkRpcBindingDialog)
@@ -73,8 +77,8 @@ const char *gtk_rpc_binding_dialog_get_binding_string(GtkRpcBindingDialog *d);
 const char *gtk_rpc_binding_dialog_get_host(GtkRpcBindingDialog *d);
 
 int gtk_event_loop(void);
-struct event_context;
-struct event_context *gtk_event_context(void);
+struct tevent_context;
+struct tevent_context *gtk_event_context(void);
 
 struct cli_credentials;
 void cli_credentials_set_gtk_callbacks(struct cli_credentials *creds);

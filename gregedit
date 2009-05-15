@@ -25,6 +25,7 @@ import sambagtk
 from samba import registry
 
 class FindDialog(gtk.Dialog):
+
 	def _create(self):
 		self.set_title("Find Key or Value")
 		self.set_resizable(False)

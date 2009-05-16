@@ -19,7 +19,9 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <stdbool.h>
 #include <gen_ndr/ndr_samr_c.h>
 #include "common/select.h"

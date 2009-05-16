@@ -23,8 +23,6 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#define TEVENT_COMPAT_DEFINES 1
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

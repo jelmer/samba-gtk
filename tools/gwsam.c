@@ -28,6 +28,7 @@
 #include "common/gtk-smb.h"
 #include <credentials.h>
 #include <param.h>
+#include <tevent.h>
 #include <util/debug.h>
 
 struct policy_handle sam_handle;

@@ -28,6 +28,7 @@
 #include "common/select.h"
 #include <credentials.h>
 #include <param.h>
+#include <tevent.h>
 #include <util/debug.h>
 
 static struct dcerpc_pipe *at_pipe = NULL;

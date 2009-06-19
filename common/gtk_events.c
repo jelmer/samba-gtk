@@ -297,7 +297,7 @@ static struct tevent_timer *gtk_event_add_timer(struct tevent_context *ev, TALLO
   do a single event loop
 */
 
-static int gtk_event_loop_once(struct event_context *ev,
+static int gtk_event_loop_once(struct tevent_context *ev,
 			       const char *location)
 {
 	/*
@@ -327,7 +327,7 @@ static int gtk_event_loop_once(struct event_context *ev,
   return with 0
 */
 
-static int gtk_event_loop_wait(struct event_context *ev,
+static int gtk_event_loop_wait(struct tevent_context *ev,
 			       const char *location)
 {
 	/*

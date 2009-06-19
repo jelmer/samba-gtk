@@ -81,7 +81,8 @@ GType gtk_select_host_dialog_get_type (void);
 struct ndr_interface_table;
 struct loadparm_context;
 struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
-					      struct loadparm_context *lp_ctx,
-					      const struct ndr_interface_table *table);
+											  struct tevent_context *ev_ctx,
+											  struct loadparm_context *lp_ctx,
+											  const struct ndr_interface_table *table);
 
 #endif

@@ -277,6 +277,7 @@ GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe)
  * for information not specified
  */
 struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
+						  struct tevent_context *ev_ctx,
 					      struct loadparm_context *lp_ctx,
 					      const struct ndr_interface_table *table)
 {
@@ -300,7 +301,7 @@ struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx,
 
 	status = dcerpc_pipe_connect_b(mem_ctx, &pipe,
 				       gtk_rpc_binding_dialog_get_binding(d, mem_ctx),
-				       table, cred, NULL, lp_ctx);
+				       table, cred, ev_ctx, lp_ctx);
 
 	if(!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "While connecting to interface", status);

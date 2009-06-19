@@ -30,6 +30,7 @@
 #include <samba/popt.h>
 #include <param.h>
 #include <util/debug.h>
+#include <tevent.h>
 
 static struct dcerpc_pipe *svcctl_pipe = NULL;
 static GtkWidget *mainwin;
@@ -37,12 +38,13 @@ static GtkListStore *store_services;
 static GtkWidget *services;
 static GtkWidget *new_service, *delete_service, *edit_service, *start_service, *stop_service;
 static struct loadparm_context *lp_ctx = NULL;
+static struct tevent_context *ev_ctx = NULL;
 
 static void on_connect_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
 	TALLOC_CTX *mem_ctx = talloc_init("gwsvcctl_connect");
 
-	svcctl_pipe = gtk_connect_rpc_interface(mem_ctx, lp_ctx, &ndr_table_svcctl);
+	svcctl_pipe = gtk_connect_rpc_interface(mem_ctx, ev_ctx, lp_ctx, &ndr_table_svcctl);
 	if (svcctl_pipe == NULL)
 		return;
 
@@ -217,6 +219,7 @@ int main(int argc, char **argv)
 
 	dcerpc_init(lp_ctx);
 
+	ev_ctx = tevent_context_init(lp_ctx);
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();
 	gtk_widget_show_all(mainwin);

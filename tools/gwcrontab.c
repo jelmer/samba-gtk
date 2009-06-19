@@ -40,6 +40,7 @@ static GtkWidget *entry_repeat_weekly;
 static GtkWidget *entry_repeat_monthly;
 static GtkWidget *delete;
 struct loadparm_context *lp_ctx = NULL;
+struct tevent_context *ev_ctx;
 
 static void update_joblist(void)
 {
@@ -88,7 +89,8 @@ static void on_job_select(GtkTreeSelection *sel, gpointer data)
 
 static void on_connect_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
-	at_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), lp_ctx, &ndr_table_atsvc);
+	at_pipe = gtk_connect_rpc_interface(talloc_autofree_context(), ev_ctx, 
+										lp_ctx, &ndr_table_atsvc);
 
 	if (!at_pipe)
 		return;
@@ -462,6 +464,7 @@ int main(int argc, char **argv)
 
 	dcerpc_init(lp_ctx);
 
+	ev_ctx = tevent_context_init(lp_ctx);
 	gtk_init(&argc, &argv);
 	mainwin = create_mainwindow();
 	gtk_widget_show_all(mainwin);

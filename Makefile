@@ -30,6 +30,7 @@ install:: $(BINS) $(LIB) $(PYMODULES)
 	$(INSTALL) -m 0644 meta/* $(DESTDIR)$(appdir)
 	$(INSTALL) -d $(DESTDIR)$(includedir)
 	$(INSTALL) -m 0644 $(HEADERS) $(DESTDIR)$(includedir)
+	$(INSTALL) -d $(DESTDIR)$(pythondir)
 	$(INSTALL) -m 0755 sambagtk.$(SHLIBEXT) $(DESTDIR)$(pythondir)
 
 install-doc:: doc

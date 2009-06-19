@@ -1,4 +1,2 @@
 #!/bin/sh
-aclocal
-autoheader
-autoconf -f
+autoreconf -i

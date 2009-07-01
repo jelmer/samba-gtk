@@ -8,6 +8,9 @@ LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LI
 # Should be determined by configure...
 SHLIBEXT = so
 
+# workaround !!!
+CFLAGS+=-I/media/documents/projects/samba-master/ -I/media/documents/projects/samba-master/source4
+
 LIB = libsamba-gtk.$(SHLIBEXT).0.0.1
 MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1 man/gtkldb.1
 HEADERS = $(wildcard common/*.h)
@@ -61,16 +64,9 @@ libsamba-gtk.$(SHLIBEXT): $(LIB)
 
 DEFS = `pkg-config --variable=defsdir pygtk-2.0`
 
-python/sambagtk.c: python/sambagtk.defs python/sambagtk.override
-	pygtk-codegen-2.0 --prefix sambagtk \
-		--register $(DEFS)/gdk-types.defs \
-		--register $(DEFS)/gtk-types.defs \
-		--override python/sambagtk.override \
-		$< > $@
-
 python/%.po: CFLAGS+=`$(PYTHON_CONFIG) --cflags` $(PYGTK_CFLAGS)
 
-sambagtk.$(SHLIBEXT): python/sambagtk.po python/module.po $(LIB)
+sambagtk.$(SHLIBEXT): python/sambagtk.po $(LIB)
 	$(CC) -shared -o $@ $^ `$(PYTHON_CONFIG) --libs` $(PYGTK_LIBS)
 
 %.o: %.c
@@ -86,7 +82,6 @@ install::
 
 clean::
 	rm -f $(BINS) $(LIB) *.$(SHLIBEXT) */*.o *.o */*.po *.po
-	rm -f python/sambagtk.c
 
 distclean:: clean
 	rm -rf autom4te.cache
@@ -106,3 +101,4 @@ DOCBOOK_MANPAGE_URL = http://docbook.sourceforge.net/release/xsl/current/manpage
 
 ctags:
 	ctags -R .
+

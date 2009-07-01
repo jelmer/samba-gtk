@@ -176,11 +176,13 @@ static int gtk_select_domain_dialog_init(PyGObject *self, PyObject *args, PyObje
 
 static PyObject *_wrap_gtk_select_domain_dialog_get_handle(PyGObject *self)
 {
-    /*struct policy_handle ph;
+    /* FIXME: how can we implement this in fact?
+    struct policy_handle ph;
     
     ph = gtk_select_domain_dialog_get_handle(GTK_SELECT_DOMAIN_DIALOG(self->obj));
     
     return py_talloc_new(struct policy_handle, PyPolicy_Handle_Type);*/
+    Py_INCREF(Py_None);
     return Py_None;
 }
 

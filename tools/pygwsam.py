@@ -19,6 +19,9 @@ class UserEditDialog(gtk.Dialog):
         self.vbox.pack_start(notebook, True, True, 0)
         
         table = gtk.Table (10, 2, False)
+        table.set_border_width(5)
+        table.set_col_spacings(5)
+        table.set_row_spacings(5)
         notebook.add(table)
         
         label = gtk.Label("Username")
@@ -73,7 +76,7 @@ class UserEditDialog(gtk.Dialog):
 
         notebook.set_tab_label(notebook.get_nth_page(0), gtk.Label("Main"))
         
-        hbox = gtk.HBox(False, 0)
+        hbox = gtk.HBox(False, 5)
         notebook.add(hbox)
         
         scrolledwindow = gtk.ScrolledWindow(None, None)
@@ -103,16 +106,20 @@ class UserEditDialog(gtk.Dialog):
         notebook.add(vbox)
         
         frame = gtk.Frame("User Profiles")
+        frame.set_border_width(5)
         vbox.pack_start(frame, True, True, 0)
         
         table = gtk.Table(2, 2, False)
+        table.set_border_width(5)
+        table.set_col_spacings(5)
+        table.set_row_spacings(5)
         frame.add(table)
         
-        label = gtk.Label("User Profile Path:")
+        label = gtk.Label("User Profile Path")
         label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
 
-        label = gtk.Label("Logon Script Name:")
+        label = gtk.Label("Logon Script Name")
         label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
 
@@ -123,9 +130,13 @@ class UserEditDialog(gtk.Dialog):
         table.attach(self.script_name_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
         frame = gtk.Frame("Home Directory")
+        frame.set_border_width(5)
         vbox.pack_start(frame, True, True, 0)
 
         table = gtk.Table(2, 2, False)
+        table.set_border_width(5)
+        table.set_col_spacings(5)
+        table.set_row_spacings(5)
         frame.add(table)
 
         label = gtk.Label("Path")
@@ -160,6 +171,26 @@ class UserEditDialog(gtk.Dialog):
         self.ok_button.set_flags(gtk.CAN_DEFAULT)
         self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
 
+
+class SAM:
+    
+    def __init__(self):
+        self.connection = sambagtk.gtk_connect_rpc_interface("samr")
+        
+    def close(self):
+        self.connection.close()
+        
+    def get_user_list(self):
+        dummy = [("ccrisan", "Calin Crisan", "The one and only user", 0x3ED),
+                 ("garbage", "The Garbage", "The second user", 0x3EE)]
+        
+        return dummy
+
+    def get_group_list(self):
+        dummy = [("Administrators", "They have complete power!", 0x3ED),
+                 ("Users", "Simple users", 0x3EE)]
+        
+        return dummy
 
 class SAMWindow(gtk.Window):
 
@@ -250,10 +281,6 @@ class SAMWindow(gtk.Window):
         policies_menu = gtk.Menu()
         self.policies_item.set_submenu(policies_menu)
         
-        self.account_item = gtk.MenuItem("_Account...")
-        self.account_item.set_sensitive(False)
-        policies_menu.add(self.account_item)
-        
         self.user_rights_item = gtk.MenuItem("_User Rights...")
         self.user_rights_item.set_sensitive(False)
         policies_menu.add(self.user_rights_item)
@@ -287,6 +314,7 @@ class SAMWindow(gtk.Window):
         vbox.pack_start(vpaned, True, True, 0)
                 
         scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_size_request(0, 200)
         vpaned.pack1(scrolledwindow, False, True)
         
         self.user_tree_view = gtk.TreeView()
@@ -300,20 +328,28 @@ class SAMWindow(gtk.Window):
         column.add_attribute(renderer, "text", 0)
                 
         column = gtk.TreeViewColumn()
-        column.set_title("Description")
+        column.set_title("Full Name")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.user_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 1)
         
         column = gtk.TreeViewColumn()
+        column.set_title("Description")
+        column.set_expand(True)
+        renderer = gtk.CellRendererText()
+        column.pack_start(renderer, True)
+        self.user_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 2)
+        
+        column = gtk.TreeViewColumn()
         column.set_title("RID")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.user_tree_view.append_column(column)
-        column.add_attribute(renderer, "text", 1)
+        column.set_cell_data_func(renderer, self.cell_data_func_hex, 3)
         
-        self.users_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_INT)
+        self.users_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_INT)
         self.user_tree_view.set_model(self.users_store)
 
 
@@ -334,6 +370,7 @@ class SAMWindow(gtk.Window):
                 
         column = gtk.TreeViewColumn()
         column.set_title("Description")
+        column.set_expand(True)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.group_list_view.append_column(column)
@@ -344,7 +381,7 @@ class SAMWindow(gtk.Window):
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.group_list_view.append_column(column)
-        column.add_attribute(renderer, "text", 1)
+        column.set_cell_data_func(renderer, self.cell_data_func_hex, 2)
 
         self.groups_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_INT)
         self.group_list_view.set_model(self.groups_store)
@@ -370,7 +407,6 @@ class SAMWindow(gtk.Window):
         self.delete_item.connect("activate", self.on_delete_item_activate)
         self.edit_item.connect("activate", self.on_edit_item_activate)
         
-        self.account_item.connect("activate", self.on_account_item_activate)
         self.user_rights_item.connect("activate", self.on_user_rights_item_activate)
         self.audit_item.connect("activate", self.on_audit_item_activate)
         self.trust_relations_item.connect("activate", self.on_trust_relations_item_activate)
@@ -391,7 +427,6 @@ class SAMWindow(gtk.Window):
         self.new_item.set_sensitive(is_connected)
         self.delete_item.set_sensitive(is_connected)
         self.edit_item.set_sensitive(is_connected)
-        self.account_item.set_sensitive(is_connected)
         self.user_rights_item.set_sensitive(is_connected)
         self.audit_item.set_sensitive(is_connected)
         self.trust_relations_item.set_sensitive(is_connected)
@@ -401,9 +436,28 @@ class SAMWindow(gtk.Window):
         return False
 
     def on_connect_item_activate(self, widget):
+        try:
+            self.sam = SAM()    
+            user_list = self.sam.get_user_list()
+            group_list = self.sam.get_group_list()
+            
+            self.users_store.clear()
+            for user in user_list:
+                self.users_store.append(user)
+                
+            self.groups_store.clear()
+            for group  in group_list:
+                self.groups_store.append(group)
+                
+        except Exception, e:
+            print "failed to connect: %s" % e
+            return
+        
         self.update_sensitivity(True)
 
     def on_disconnect_item_activate(self, widget):
+        self.sam.close()
+        
         self.update_sensitivity(False)
     
     def on_sel_domain_item_activate(self, widget):
@@ -422,11 +476,10 @@ class SAMWindow(gtk.Window):
         None
 
     def on_edit_item_activate(self, widget):
+        dialog = UserEditDialog()
+        dialog.show_all()
         None
 
-    def on_account_item_activate(self, widget):
-        None
-    
     def on_user_rights_item_activate(self, widget):
         None
     
@@ -440,6 +493,9 @@ class SAMWindow(gtk.Window):
         aboutwin = sambagtk.AboutDialog("PyGWSAM")
         aboutwin.run()
         aboutwin.destroy()
+        
+    def cell_data_func_hex(self, column, cell, model, iter, column_no):
+        cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
 
 main_window = SAMWindow()
 main_window.show_all()

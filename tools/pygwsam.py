@@ -1,203 +1,79 @@
 #!/usr/bin/python
 
+import traceback
 import gtk, gobject
 import sambagtk
+
 from samba.dcerpc import mgmt, epmapper
+from objects import User, Group
+from dialogs import UserEditDialog
 
 
-class UserEditDialog(gtk.Dialog):
-    
-    def __init__(self):
-        super(UserEditDialog, self).__init__()
-        self.create()
-        
-    def create(self):
-        self.set_title("Edit User")
-        self.set_border_width(5)
-        
-        notebook = gtk.Notebook()
-        self.vbox.pack_start(notebook, True, True, 0)
-        
-        table = gtk.Table (10, 2, False)
-        table.set_border_width(5)
-        table.set_col_spacings(5)
-        table.set_row_spacings(5)
-        notebook.add(table)
-        
-        label = gtk.Label("Username")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
-        
-        label = gtk.Label("Full name")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
-        
-        label = gtk.Label("Description")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 2, 3, gtk.FILL, 0, 0, 0)
-
-        label = gtk.Label("Password")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 3, 4, gtk.FILL, 0, 0, 0)
-
-        label = gtk.Label("Confirm password")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 4, 5, gtk.FILL, 0, 0, 0)
-
-        self.check_must_change = gtk.CheckButton("_User Must Change Password at Next Logon")
-        table.attach(self.check_must_change, 1, 2, 5, 6, gtk.FILL, 0, 0, 0)
-
-        self.label_username = gtk.Label("")
-        table.attach(self.label_username, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
-
-        self.entry_fullname = gtk.Entry()
-        table.attach(self.entry_fullname, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-
-        self.entry_description = gtk.Entry()
-        table.attach(self.entry_description, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-
-        self.entry_password = gtk.Entry()
-        table.attach(self.entry_password, 1, 2, 3, 4, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-        
-        self.entry_confirm_password = gtk.Entry()
-        table.attach(self.entry_confirm_password, 1, 2, 4, 5, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-        
-        self.cannot_change_password_check = gtk.CheckButton("User Cannot Change Password")
-        table.attach(self.cannot_change_password_check, 1, 2, 6, 7, gtk.FILL, 0, 0, 0)
-
-        self.password_never_expires_check = gtk.CheckButton("Password Never Expires")
-        table.attach(self.password_never_expires_check, 1, 2, 7, 8, gtk.FILL, 0, 0, 0)
-        
-        self.account_disabled_check = gtk.CheckButton("Account Disabled")
-        table.attach(self.account_disabled_check, 1, 2, 8, 9, gtk.FILL, 0, 0, 0)
-
-        self.account_locked_out_check = gtk.CheckButton("Account Locked Out")
-        table.attach(self.account_locked_out_check, 1, 2, 9, 10, gtk.FILL, 0, 0, 0)
-
-        notebook.set_tab_label(notebook.get_nth_page(0), gtk.Label("Main"))
-        
-        hbox = gtk.HBox(False, 5)
-        notebook.add(hbox)
-        
-        scrolledwindow = gtk.ScrolledWindow(None, None)
-        hbox.pack_start(scrolledwindow, True, True, 0)
-        
-        self.existing_groups_tree_view = gtk.TreeView()
-        scrolledwindow.add(self.existing_groups_tree_view)
-        
-        vbox = gtk.VBox(True, 0)
-        hbox.pack_start(vbox, True, True, 0)
-        
-        self.add_group_button = gtk.Button("Add", gtk.STOCK_ADD)
-        vbox.pack_start(self.add_group_button, False, False, 0)
-        
-        self.del_group_button = gtk.Button("Remove", gtk.STOCK_REMOVE)
-        vbox.pack_start(self.del_group_button, False, False, 0)
-        
-        scrolledwindow = gtk.ScrolledWindow(None, None)
-        hbox.pack_start(scrolledwindow, True, True, 0)
-        
-        self.available_groups_tree_view = gtk.TreeView()
-        scrolledwindow.add(self.available_groups_tree_view)
-        
-        notebook.set_tab_label(notebook.get_nth_page(1), gtk.Label("Groups"))
-        
-        vbox = gtk.VBox(False, 0)
-        notebook.add(vbox)
-        
-        frame = gtk.Frame("User Profiles")
-        frame.set_border_width(5)
-        vbox.pack_start(frame, True, True, 0)
-        
-        table = gtk.Table(2, 2, False)
-        table.set_border_width(5)
-        table.set_col_spacings(5)
-        table.set_row_spacings(5)
-        frame.add(table)
-        
-        label = gtk.Label("User Profile Path")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
-
-        label = gtk.Label("Logon Script Name")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
-
-        self.profile_path_entry = gtk.Entry()
-        table.attach(self.profile_path_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-
-        self.script_name_entry = gtk.Entry()
-        table.attach(self.script_name_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-        
-        frame = gtk.Frame("Home Directory")
-        frame.set_border_width(5)
-        vbox.pack_start(frame, True, True, 0)
-
-        table = gtk.Table(2, 2, False)
-        table.set_border_width(5)
-        table.set_col_spacings(5)
-        table.set_row_spacings(5)
-        frame.add(table)
-
-        label = gtk.Label("Path")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
-        
-        self.home_dir_entry = gtk.Entry()
-        table.attach(self.home_dir_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-        
-        self.check_map_drive = gtk.CheckButton("Map homedir to drive")
-        table.attach(self.check_map_drive, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
-        
-        self.home_drive_combo = gtk.combo_box_new_text()
-        table.attach(self.home_drive_combo, 1, 2, 1, 2, gtk.FILL, gtk.FILL, 0, 0)
-        
-        for i in range(ord('Z') - ord('A') + 1):
-            self.home_drive_combo.append_text(chr(i + ord('A')) + ':')
-
-        notebook.set_tab_label(notebook.get_nth_page(2), gtk.Label("Profile"))
-        
-        self.action_area.set_layout(gtk.BUTTONBOX_END)
-        
-        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
-        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
-        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
-        
-        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
-        self.apply_button.set_flags(gtk.CAN_DEFAULT)
-        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
-        
-        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
-        self.ok_button.set_flags(gtk.CAN_DEFAULT)
-        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
-
-
-class SAM:
+class SAMManager:
     
     def __init__(self):
         self.connection = sambagtk.gtk_connect_rpc_interface("samr")
+        self.user_list = []
+        self.group_list = []
         
     def close(self):
-        self.connection.close()
+        if (self.connection != None):
+            self.connection.close()
         
-    def get_user_list(self):
-        dummy = [("ccrisan", "Calin Crisan", "The one and only user", 0x3ED),
-                 ("garbage", "The Garbage", "The second user", 0x3EE)]
+    def get_from_pipe(self):
+        group1 = Group("group1", "Group Description 1", 0xAAAA)
+        group2 = Group("group2", "Group Description 2", 0xBBBB)
         
-        return dummy
+        del self.group_list[:]
+        self.group_list.append(group1)
+        self.group_list.append(group2)
+        
+        user1 = User("username1", "Full Name 1", "User Description 1", 0xDEAD)
+        user1.password = "password1"
+        user1.must_change_password = True
+        user1.cannot_change_password = False
+        user1.password_never_expires = False
+        user1.account_disabled = False
+        user1.account_locked_out = False
+        user1.group_list = [self.group_list[0]]
+        user1.profile_path = "/profiles/user1"
+        user1.logon_script = "script1"
+        user1.homedir_path = "/home/user1"
+        user1.map_homedir_drive = None
+                
+        user2 = User("username2", "Full Name 2", "User Description 2", 0xBEEF)
+        user2.password = "password2"
+        user2.must_change_password = False
+        user2.cannot_change_password = True
+        user2.password_never_expires = True
+        user2.account_disabled = True
+        user2.account_locked_out = True
+        user2.group_list = [self.group_list[1]]
+        user2.profile_path = "/profiles/user2"
+        user2.logon_script = "script2"
+        user2.homedir_path = "/home/user2"
+        user2.map_homedir_drive = 4
+        
+        del self.user_list[:]
+        self.user_list.append(user1)
+        self.user_list.append(user2)
+        
+    def set_user_to_pipe(self, user):
+        None
 
-    def get_group_list(self):
-        dummy = [("Administrators", "They have complete power!", 0x3ED),
-                 ("Users", "Simple users", 0x3EE)]
-        
-        return dummy
+    def set_group_to_pipe(self, group):
+        None
 
+    
 class SAMWindow(gtk.Window):
 
     def __init__(self):
         super(SAMWindow, self).__init__()
+
         self.create()
-        self.update_sensitivity(False)
+        self.sam_manager = None
+        self.users_groups_notebook_page_num = 0
+        self.update_sensitivity()
         
     def create(self):
         
@@ -206,8 +82,8 @@ class SAMWindow(gtk.Window):
 
         accel_group = gtk.AccelGroup()
         
-        self.set_title("User Management")
-        self.set_default_size(642, 562)
+        self.set_title("User/Group Management")
+        self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
         
     	vbox = gtk.VBox(False, 0)
@@ -233,7 +109,7 @@ class SAMWindow(gtk.Window):
         self.disconnect_item.set_sensitive(False)
         file_menu.add(self.disconnect_item)
         
-        self.sel_domain_item = gtk.MenuItem("_Select Domain")
+        self.sel_domain_item = gtk.MenuItem("_Select Domain", accel_group)
         self.sel_domain_item.set_sensitive(False)
         file_menu.add(self.sel_domain_item)
         
@@ -256,23 +132,23 @@ class SAMWindow(gtk.Window):
         view_menu.add(self.refresh_item)
         
         
-        self.user_item = gtk.MenuItem("_User")
-        menubar.add(self.user_item)
+        self.user_group_item = gtk.MenuItem("_User")
+        menubar.add(self.user_group_item)
         
-        user_menu = gtk.Menu()
-        self.user_item.set_submenu(user_menu)
+        user_group_menu = gtk.Menu()
+        self.user_group_item.set_submenu(user_group_menu)
 
         self.new_item = gtk.ImageMenuItem(gtk.STOCK_NEW, accel_group)
         self.new_item.set_sensitive(False)
-        user_menu.add(self.new_item)
+        user_group_menu.add(self.new_item)
 
         self.delete_item = gtk.ImageMenuItem(gtk.STOCK_DELETE, accel_group)
         self.delete_item.set_sensitive(False)
-        user_menu.add(self.delete_item)
+        user_group_menu.add(self.delete_item)
 
         self.edit_item = gtk.ImageMenuItem(gtk.STOCK_EDIT, accel_group)
         self.edit_item.set_sensitive(False)
-        user_menu.add(self.edit_item)
+        user_group_menu.add(self.edit_item)
 
         
         self.policies_item = gtk.MenuItem("_Policies")
@@ -281,11 +157,11 @@ class SAMWindow(gtk.Window):
         policies_menu = gtk.Menu()
         self.policies_item.set_submenu(policies_menu)
         
-        self.user_rights_item = gtk.MenuItem("_User Rights...")
+        self.user_rights_item = gtk.MenuItem("_User Rights...", accel_group)
         self.user_rights_item.set_sensitive(False)
         policies_menu.add(self.user_rights_item)
 
-        self.audit_item = gtk.MenuItem("A_udit...")
+        self.audit_item = gtk.MenuItem("A_udit...", accel_group)
         self.audit_item.set_sensitive(False)
         policies_menu.add(self.audit_item)
 
@@ -293,7 +169,7 @@ class SAMWindow(gtk.Window):
         menu_separator_item.set_sensitive(False)
         policies_menu.add(menu_separator_item)
         
-        self.trust_relations_item = gtk.MenuItem("_Trust relations")
+        self.trust_relations_item = gtk.MenuItem("_Trust relations", accel_group)
         self.trust_relations_item.set_sensitive(False)
         policies_menu.add(self.trust_relations_item)
         
@@ -304,34 +180,34 @@ class SAMWindow(gtk.Window):
         help_menu = gtk.Menu()
         self.help_item.set_submenu(help_menu)
 
-        self.about_item = gtk.MenuItem("_About")
+        self.about_item = gtk.ImageMenuItem(gtk.STOCK_ABOUT, accel_group)
         help_menu.add(self.about_item)
         
         
         # user list
         
-        vpaned = gtk.VPaned()
-        vbox.pack_start(vpaned, True, True, 0)
-                
-        scrolledwindow = gtk.ScrolledWindow(None, None)
-        scrolledwindow.set_size_request(0, 200)
-        vpaned.pack1(scrolledwindow, False, True)
+        self.users_groups_notebook = gtk.Notebook()
+        vbox.pack_start(self.users_groups_notebook, True, True, 0)
         
-        self.user_tree_view = gtk.TreeView()
-        scrolledwindow.add(self.user_tree_view)
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.users_groups_notebook.append_page(scrolledwindow, gtk.Label("Users"))
+        
+        self.users_tree_view = gtk.TreeView()
+        scrolledwindow.add(self.users_tree_view)
         
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.user_tree_view.append_column(column)
+        self.users_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 0)
                 
         column = gtk.TreeViewColumn()
         column.set_title("Full Name")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.user_tree_view.append_column(column)
+        self.users_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 1)
         
         column = gtk.TreeViewColumn()
@@ -339,33 +215,35 @@ class SAMWindow(gtk.Window):
         column.set_expand(True)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.user_tree_view.append_column(column)
+        self.users_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 2)
         
         column = gtk.TreeViewColumn()
         column.set_title("RID")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.user_tree_view.append_column(column)
+        self.users_tree_view.append_column(column)
         column.set_cell_data_func(renderer, self.cell_data_func_hex, 3)
         
         self.users_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_INT)
-        self.user_tree_view.set_model(self.users_store)
+        self.users_store.set_sort_column_id(0, gtk.SORT_ASCENDING)
+        self.users_tree_view.set_model(self.users_store)
 
 
         # group list
 
         scrolledwindow = gtk.ScrolledWindow(None, None)
-        vpaned.pack2(scrolledwindow, True, True)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.users_groups_notebook.append_page(scrolledwindow, gtk.Label("Groups"))
         
-        self.group_list_view = gtk.TreeView()
-        scrolledwindow.add(self.group_list_view)
+        self.groups_tree_view = gtk.TreeView()
+        scrolledwindow.add(self.groups_tree_view)
         
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.group_list_view.append_column(column)
+        self.groups_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 0)
                 
         column = gtk.TreeViewColumn()
@@ -373,18 +251,19 @@ class SAMWindow(gtk.Window):
         column.set_expand(True)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.group_list_view.append_column(column)
+        self.groups_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 1)
         
         column = gtk.TreeViewColumn()
         column.set_title("RID")
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
-        self.group_list_view.append_column(column)
+        self.groups_tree_view.append_column(column)
         column.set_cell_data_func(renderer, self.cell_data_func_hex, 2)
 
         self.groups_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_INT)
-        self.group_list_view.set_model(self.groups_store)
+        self.groups_store.set_sort_column_id(0, gtk.SORT_ASCENDING)
+        self.groups_tree_view.set_model(self.groups_store)
 
 
         # status bar
@@ -400,65 +279,131 @@ class SAMWindow(gtk.Window):
         self.disconnect_item.connect("activate", self.on_disconnect_item_activate)
         self.sel_domain_item.connect("activate", self.on_sel_domain_item_activate)
         self.quit_item.connect("activate", self.on_quit_item_activate)
-
         self.refresh_item.connect("activate", self.on_refresh_item_activate)
-        
         self.new_item.connect("activate", self.on_new_item_activate)
         self.delete_item.connect("activate", self.on_delete_item_activate)
         self.edit_item.connect("activate", self.on_edit_item_activate)
-        
         self.user_rights_item.connect("activate", self.on_user_rights_item_activate)
         self.audit_item.connect("activate", self.on_audit_item_activate)
-        self.trust_relations_item.connect("activate", self.on_trust_relations_item_activate)
-        
+        self.trust_relations_item.connect("activate", self.on_trust_relations_item_activate)        
         self.about_item.connect("activate", self.on_about_item_activate)
         
+        self.users_groups_notebook.connect("switch-page", self.on_users_groups_notebook_switch_page)
+        self.users_tree_view.get_selection().connect("changed", self.on_users_tree_view_selection_changed)
+        self.groups_tree_view.get_selection().connect("changed", self.on_groups_tree_view_selection_changed)
+        
         self.add_accel_group(accel_group)
+
+    def refresh_user_list_view(self):
+        self.users_store.clear()
+        for user in self.sam_manager.user_list:
+            self.users_store.append(user.list_view_representation())
+
+    def refresh_group_list_view(self):
+        self.groups_store.clear()
+        for group in self.sam_manager.group_list:
+            self.groups_store.append(group.list_view_representation())
 
     def set_status(self, message):
         self.statusbar.pop(0)
         self.statusbar.push(0, message)
+        
+    def show_message_box(self, type, buttons, message):
+        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
+        response = message_box.run()
+        message_box.hide()
+        
+        return response
 
-    def update_sensitivity(self, is_connected):
-        self.connect_item.set_sensitive(not is_connected)
-        self.disconnect_item.set_sensitive(is_connected)
-        self.sel_domain_item.set_sensitive(is_connected)
-        self.refresh_item.set_sensitive(is_connected)
-        self.new_item.set_sensitive(is_connected)
-        self.delete_item.set_sensitive(is_connected)
-        self.edit_item.set_sensitive(is_connected)
-        self.user_rights_item.set_sensitive(is_connected)
-        self.audit_item.set_sensitive(is_connected)
-        self.trust_relations_item.set_sensitive(is_connected)
+    def update_sensitivity(self):
+        connected = (self.sam_manager != None)
+        user_selected = (self.users_tree_view.get_selection().count_selected_rows() > 0)
+        group_selected = (self.groups_tree_view.get_selection().count_selected_rows() > 0)
+        obj_selected = [user_selected, group_selected][self.users_groups_notebook_page_num]
+        
+        self.connect_item.set_sensitive(not connected)
+        self.disconnect_item.set_sensitive(connected)
+        self.sel_domain_item.set_sensitive(connected)
+        self.refresh_item.set_sensitive(connected)
+        self.new_item.set_sensitive(connected)
+        self.delete_item.set_sensitive(connected and obj_selected)
+        self.edit_item.set_sensitive(connected and obj_selected)
+        self.user_rights_item.set_sensitive(connected)
+        self.audit_item.set_sensitive(connected)
+        self.trust_relations_item.set_sensitive(connected)
+
+    def run_user_edit_dialog(self, user):
+        # todo implement an apply callback
+        if (user == None):
+            user = User("", "", "", 0x0000)
+        
+        dialog = UserEditDialog(self.sam_manager, user)
+        dialog.show_all()
+        
+        while True:
+            response_id = dialog.run()
+            
+            if (response_id == gtk.RESPONSE_OK):
+                problem_msg = dialog.check_for_problems()
+                
+                if (problem_msg != None):
+                    self.show_message_box(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                else:
+                    dialog.set_to_user(user)
+                    dialog.hide()
+                    break
+            
+            elif (response_id == gtk.RESPONSE_CANCEL):
+                dialog.hide()
+                break
+            
+            elif (response_id == gtk.RESPONSE_APPLY):
+                problem_msg = dialog.check_for_problems()
+                
+                if (problem_msg != None):
+                    self.show_message_box(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                else:
+                    dialog.set_to_user(user)
+            
+            else:
+                dialog.hide()
+                break
+        
+        return response_id
+
+    def cell_data_func_hex(self, column, cell, model, iter, column_no):
+        cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
 
     def on_self_delete(self, widget, event):
+        if (self.sam_manager != None):
+            self.on_disconnect_item_activate(self.disconnect_item)
+        
         gtk.main_quit()
         return False
 
     def on_connect_item_activate(self, widget):
         try:
-            self.sam = SAM()    
-            user_list = self.sam.get_user_list()
-            group_list = self.sam.get_group_list()
+            self.sam_manager = SAMManager()
+            self.sam_manager.get_from_pipe()
             
-            self.users_store.clear()
-            for user in user_list:
-                self.users_store.append(user)
-                
-            self.groups_store.clear()
-            for group  in group_list:
-                self.groups_store.append(group)
-                
-        except Exception, e:
-            print "failed to connect: %s" % e
+        except Exception:
+            print "failed to connect"
+            traceback.print_exc()
+            self.sam_manager = None
             return
         
-        self.update_sensitivity(True)
+        self.refresh_user_list_view()
+        self.refresh_group_list_view()
+        self.update_sensitivity()
 
     def on_disconnect_item_activate(self, widget):
-        self.sam.close()
-        
-        self.update_sensitivity(False)
+        if (self.sam_manager != None):
+            self.sam_manager.close()
+            self.sam_manager = None
+            self.users_store.clear()
+            self.groups_store.clear()
+            
+        self.update_sensitivity()
     
     def on_sel_domain_item_activate(self, widget):
         None
@@ -467,18 +412,36 @@ class SAMWindow(gtk.Window):
         self.on_self_delete(None, None)
     
     def on_refresh_item_activate(self, widget):
-        None
-
+        self.sam_manager.get_from_pipe()
+        self.refresh_user_list_view()
+        self.refresh_group_list_view()
+        
     def on_new_item_activate(self, widget):
-        None
+        if (self.users_groups_notebook_page_num == 0):
+            pass
+        else:
+            pass
 
     def on_delete_item_activate(self, widget):
         None
 
     def on_edit_item_activate(self, widget):
-        dialog = UserEditDialog()
-        dialog.show_all()
-        None
+        (model, iter) = self.users_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return 
+        
+        rid = model.get_value(iter, 3)
+        
+        edit_user = None
+        for user in self.sam_manager.user_list:
+            if (user.rid == rid):
+                edit_user = user
+                break
+            
+        if (edit_user != None):            
+            # TODO: handle response_i
+            response_id = self.run_user_edit_dialog(edit_user)
+
 
     def on_user_rights_item_activate(self, widget):
         None
@@ -493,9 +456,18 @@ class SAMWindow(gtk.Window):
         aboutwin = sambagtk.AboutDialog("PyGWSAM")
         aboutwin.run()
         aboutwin.destroy()
-        
-    def cell_data_func_hex(self, column, cell, model, iter, column_no):
-        cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
+
+    def on_users_tree_view_selection_changed(self, widget):
+        self.update_sensitivity()
+
+    def on_groups_tree_view_selection_changed(self, widget):
+        self.update_sensitivity()
+
+    def on_users_groups_notebook_switch_page(self, widget, page, page_num):
+        self.users_groups_notebook_page_num = page_num # workaround for the fact that the signal is emitted before the change
+        self.user_group_item.get_child().set_text(["Users", "Groups"][page_num > 0])
+        self.update_sensitivity()
+
 
 main_window = SAMWindow()
 main_window.show_all()

@@ -7,13 +7,18 @@ from objects import User
 
 class UserEditDialog(gtk.Dialog):
     
-    def __init__(self, sam_manager, user):
+    def __init__(self, sam_manager, user = None):
         super(UserEditDialog, self).__init__()
-        
-        self.create()
+
+        self.user = user
         self.sam_manager = sam_manager
+        self.create()
+        
+        if (self.user == None):
+            self.user = User("", "", "", 0x0000)
+        
         self.update_sensitivity()
-        self.get_from_user(user)
+        self.user_to_values()
         
     def create(self):
         self.set_title("Edit User")
@@ -195,6 +200,7 @@ class UserEditDialog(gtk.Dialog):
         
         self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
         self.apply_button.set_flags(gtk.CAN_DEFAULT)
+        self.apply_button.set_sensitive(self.user != None) # disabled for new user
         self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
         
         self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
@@ -213,6 +219,10 @@ class UserEditDialog(gtk.Dialog):
     def check_for_problems(self):
         if (self.password_entry.get_text() != self.confirm_password_entry.get_text()):
             return "The password was not correctly confirmed. Please ensure that the password and confirmation match exactly."
+        if (len(self.username_entry.get_text()) == 0):
+            return "Username may not be empty!"
+        
+        return None
 
     def update_sensitivity(self):
         existing_selected = (self.existing_groups_tree_view.get_selection().count_selected_rows() > 0)
@@ -220,24 +230,29 @@ class UserEditDialog(gtk.Dialog):
         
         self.add_group_button.set_sensitive(available_selected)
         self.del_group_button.set_sensitive(existing_selected)
-
-    def get_from_user(self, user):
-        self.username_entry.set_text(user.username)
-        self.username_entry.set_editable(len(user.username) == 0)
-        self.fullname_entry.set_text(user.fullname)
-        self.description_entry.set_text(user.description)
-        self.must_change_password_check.set_active(user.must_change_password)
-        self.cannot_change_password_check.set_active(user.cannot_change_password)
-        self.password_never_expires_check.set_active(user.password_never_expires)
-        self.account_disabled_check.set_active(user.account_disabled)
-        self.account_locked_out_check.set_active(user.account_locked_out)
-        self.profile_path_entry.set_text(user.profile_path)
-        self.logon_script_entry.set_text(user.logon_script)
-        self.homedir_path_entry.set_text(user.homedir_path)
         
-        if (user.map_homedir_drive != None):
+        self.map_homedir_drive_combo.set_sensitive(self.map_homedir_drive_check.get_active())
+
+    def user_to_values(self):
+        if (self.user == None):
+            raise Exception("user not set")
+        
+        self.username_entry.set_text(self.user.username)
+        self.username_entry.set_editable(len(self.user.username) == 0)
+        self.fullname_entry.set_text(self.user.fullname)
+        self.description_entry.set_text(self.user.description)
+        self.must_change_password_check.set_active(self.user.must_change_password)
+        self.cannot_change_password_check.set_active(self.user.cannot_change_password)
+        self.password_never_expires_check.set_active(self.user.password_never_expires)
+        self.account_disabled_check.set_active(self.user.account_disabled)
+        self.account_locked_out_check.set_active(self.user.account_locked_out)
+        self.profile_path_entry.set_text(self.user.profile_path)
+        self.logon_script_entry.set_text(self.user.logon_script)
+        self.homedir_path_entry.set_text(self.user.homedir_path)
+        
+        if (self.user.map_homedir_drive != None):
             self.map_homedir_drive_check.set_active(True)
-            self.map_homedir_drive_combo.set_active(user.map_homedir_drive)
+            self.map_homedir_drive_combo.set_active(self.user.map_homedir_drive)
             self.map_homedir_drive_combo.set_sensitive(True)
         else:
             self.map_homedir_drive_check.set_active(False)
@@ -245,39 +260,42 @@ class UserEditDialog(gtk.Dialog):
             self.map_homedir_drive_combo.set_sensitive(False)
             
         self.existing_groups_store.clear()
-        for group in user.group_list:
+        for group in self.user.group_list:
             self.existing_groups_store.append([group.name])
         
         self.available_groups_store.clear()
         for group in self.sam_manager.group_list:
-            if (not group in user.group_list):
+            if (not group in self.user.group_list):
                 self.available_groups_store.append([group.name])
     
-    def set_to_user(self, user):
-        user.username = self.username_entry.get_text()
-        user.fullname = self.fullname_entry.get_text()
-        user.description = self.description_entry.get_text()
-        user.password = (None, self.password_entry.get_text())[len(self.password_entry.get_text()) > 0]
-        user.must_change_password = self.must_change_password_check.get_active()
-        user.cannot_change_password = self.cannot_change_password_check.get_active()
-        user.password_never_expires = self.password_never_expires_check.get_active()
-        user.account_disabled = self.account_disabled_check.get_active()
-        user.account_locked_out = self.account_locked_out_check.get_active()
-        user.profile_path = self.profile_path_entry.get_text()
-        user.logon_script = self.logon_script_entry.get_text()
-        user.homedir_path = self.homedir_path_entry.get_text()
+    def values_to_user(self):
+        if (self.user == None):
+            raise Exception("user not set")
+        
+        self.user.username = self.username_entry.get_text()
+        self.user.fullname = self.fullname_entry.get_text()
+        self.user.description = self.description_entry.get_text()
+        self.user.password = (None, self.password_entry.get_text())[len(self.password_entry.get_text()) > 0]
+        self.user.must_change_password = self.must_change_password_check.get_active()
+        self.user.cannot_change_password = self.cannot_change_password_check.get_active()
+        self.user.password_never_expires = self.password_never_expires_check.get_active()
+        self.user.account_disabled = self.account_disabled_check.get_active()
+        self.user.account_locked_out = self.account_locked_out_check.get_active()
+        self.user.profile_path = self.profile_path_entry.get_text()
+        self.user.logon_script = self.logon_script_entry.get_text()
+        self.user.homedir_path = self.homedir_path_entry.get_text()
         
         if (self.map_homedir_drive_check.get_active()) and (self.map_homedir_drive_combo.get_active() != -1):
-            user.map_homedir_drive = self.map_homedir_drive_combo.get_active()
+            self.user.map_homedir_drive = self.map_homedir_drive_combo.get_active()
         else:
-            user.map_homedir_drive = None
+            self.user.map_homedir_drive = None
 
-        del user.group_list[:]
+        del self.user.group_list[:]
         
         iter = self.existing_groups_store.get_iter_first()
         while (iter != None):
             value = self.existing_groups_store.get_value(iter, 0)
-            user.group_list.append([group for group in self.sam_manager.group_list if group.name == value][0])
+            self.user.group_list.append([group for group in self.sam_manager.group_list if group.name == value][0])
             iter = self.existing_groups_store.iter_next(iter)
             
     def on_add_group_button_clicked(self, widget):
@@ -305,4 +323,4 @@ class UserEditDialog(gtk.Dialog):
         self.update_sensitivity()
 
     def on_map_homedir_drive_check_toggled(self, widget):
-        self.map_homedir_drive_combo.set_sensitive(self.map_homedir_drive_check.get_active())
+        self.update_sensitivity()

@@ -58,10 +58,10 @@ class SAMManager:
         self.user_list.append(user1)
         self.user_list.append(user2)
         
-    def set_user_to_pipe(self, user):
+    def user_to_pipe(self, user):
         None
 
-    def set_group_to_pipe(self, group):
+    def group_to_pipe(self, group):
         None
 
     
@@ -290,6 +290,7 @@ class SAMWindow(gtk.Window):
         
         self.users_groups_notebook.connect("switch-page", self.on_users_groups_notebook_switch_page)
         self.users_tree_view.get_selection().connect("changed", self.on_users_tree_view_selection_changed)
+        self.users_tree_view.connect("button_press_event", self.on_users_tree_view_button_press)
         self.groups_tree_view.get_selection().connect("changed", self.on_groups_tree_view_selection_changed)
         
         self.add_accel_group(accel_group)
@@ -308,7 +309,7 @@ class SAMWindow(gtk.Window):
         self.statusbar.pop(0)
         self.statusbar.push(0, message)
         
-    def show_message_box(self, type, buttons, message):
+    def run_message_dialog(self, type, buttons, message):
         message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
         response = message_box.run()
         message_box.hide()
@@ -332,14 +333,11 @@ class SAMWindow(gtk.Window):
         self.audit_item.set_sensitive(connected)
         self.trust_relations_item.set_sensitive(connected)
 
-    def run_user_edit_dialog(self, user):
-        # todo implement an apply callback
-        if (user == None):
-            user = User("", "", "", 0x0000)
-        
+    def run_user_edit_dialog(self, user = None, apply_callback = None):
         dialog = UserEditDialog(self.sam_manager, user)
         dialog.show_all()
         
+        # loop to handle the applies
         while True:
             response_id = dialog.run()
             
@@ -347,29 +345,29 @@ class SAMWindow(gtk.Window):
                 problem_msg = dialog.check_for_problems()
                 
                 if (problem_msg != None):
-                    self.show_message_box(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
                 else:
-                    dialog.set_to_user(user)
+                    dialog.values_to_user()
+                    if (apply_callback != None):
+                        apply_callback()
                     dialog.hide()
                     break
-            
-            elif (response_id == gtk.RESPONSE_CANCEL):
-                dialog.hide()
-                break
             
             elif (response_id == gtk.RESPONSE_APPLY):
                 problem_msg = dialog.check_for_problems()
                 
                 if (problem_msg != None):
-                    self.show_message_box(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
                 else:
-                    dialog.set_to_user(user)
+                    dialog.values_to_user()
+                    if (apply_callback != None):
+                        apply_callback()
             
             else:
                 dialog.hide()
-                break
+                return None
         
-        return response_id
+        return dialog.user
 
     def cell_data_func_hex(self, column, cell, model, iter, column_no):
         cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
@@ -418,13 +416,29 @@ class SAMWindow(gtk.Window):
         
     def on_new_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0):
-            pass
+            new_user = self.run_user_edit_dialog()
+            if (new_user == None):
+                return
+            
+            self.sam_manager.user_list.append(new_user)
+            self.refresh_user_list_view()
         else:
             pass
 
     def on_delete_item_activate(self, widget):
-        None
+        (model, iter) = self.users_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return
+        
+        rid = model.get_value(iter, 3)
+        del_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
 
+        if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete user '%s'?" % user.username) != gtk.RESPONSE_YES):
+            return 
+        
+        self.sam_manager.user_list.remove(del_user)
+        self.refresh_user_list_view()
+        
     def on_edit_item_activate(self, widget):
         (model, iter) = self.users_tree_view.get_selection().get_selected()
         if (iter == None): # no selection
@@ -432,16 +446,8 @@ class SAMWindow(gtk.Window):
         
         rid = model.get_value(iter, 3)
         
-        edit_user = None
-        for user in self.sam_manager.user_list:
-            if (user.rid == rid):
-                edit_user = user
-                break
-            
-        if (edit_user != None):            
-            # TODO: handle response_i
-            response_id = self.run_user_edit_dialog(edit_user)
-
+        edit_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
+        self.run_user_edit_dialog(edit_user, self.refresh_user_list_view)
 
     def on_user_rights_item_activate(self, widget):
         None
@@ -459,6 +465,10 @@ class SAMWindow(gtk.Window):
 
     def on_users_tree_view_selection_changed(self, widget):
         self.update_sensitivity()
+
+    def on_users_tree_view_button_press(self, widget, event):
+        if (event.type == gtk.gdk._2BUTTON_PRESS):
+            self.on_edit_item_activate(self.edit_item)
 
     def on_groups_tree_view_selection_changed(self, widget):
         self.update_sensitivity()

@@ -75,6 +75,7 @@ class SAMWindow(gtk.Window):
         self.create()
         self.sam_manager = None
         self.users_groups_notebook_page_num = 0
+        self.update_captions()
         self.update_sensitivity()
         
     def create(self):
@@ -185,6 +186,36 @@ class SAMWindow(gtk.Window):
         help_menu.add(self.about_item)
         
         
+        # toolbar
+        
+        toolbar = gtk.Toolbar()
+        vbox.pack_start(toolbar, False, False, 0)
+        
+        self.connect_button = gtk.ToolButton(gtk.STOCK_CONNECT)
+        self.connect_button.set_is_important(True)
+        self.connect_button.set_tooltip_text("Connect to a SAM server")
+        toolbar.insert(self.connect_button, 0)
+        
+        self.disconnect_button = gtk.ToolButton(gtk.STOCK_DISCONNECT)
+        self.disconnect_button.set_is_important(True)
+        self.disconnect_button.set_tooltip_text("Disconnect from the SAM server")
+        toolbar.insert(self.disconnect_button, 1)
+        
+        toolbar.insert(gtk.SeparatorToolItem(), 2)
+        
+        self.new_button = gtk.ToolButton(gtk.STOCK_NEW)
+        self.new_button.set_is_important(True)
+        toolbar.insert(self.new_button, 3)
+                
+        self.edit_button = gtk.ToolButton(gtk.STOCK_EDIT)
+        self.edit_button.set_is_important(True)
+        toolbar.insert(self.edit_button, 4)
+                
+        self.delete_button = gtk.ToolButton(gtk.STOCK_DELETE)
+        self.delete_button.set_is_important(True)
+        toolbar.insert(self.delete_button, 5)
+                
+        
         # user list
         
         self.users_groups_notebook = gtk.Notebook()
@@ -289,6 +320,12 @@ class SAMWindow(gtk.Window):
         self.trust_relations_item.connect("activate", self.on_trust_relations_item_activate)        
         self.about_item.connect("activate", self.on_about_item_activate)
         
+        self.connect_button.connect("clicked", self.on_connect_item_activate)
+        self.disconnect_button.connect("clicked", self.on_disconnect_item_activate)
+        self.new_button.connect("clicked", self.on_new_item_activate)
+        self.delete_button.connect("clicked", self.on_delete_item_activate)
+        self.edit_button.connect("clicked", self.on_edit_item_activate)
+        
         self.users_tree_view.get_selection().connect("changed", self.on_users_tree_view_selection_changed)
         self.users_tree_view.connect("button_press_event", self.on_users_tree_view_button_press)
         self.groups_tree_view.get_selection().connect("changed", self.on_groups_tree_view_selection_changed)
@@ -327,6 +364,18 @@ class SAMWindow(gtk.Window):
         self.user_rights_item.set_sensitive(connected)
         self.audit_item.set_sensitive(connected)
         self.trust_relations_item.set_sensitive(connected)
+
+        self.connect_button.set_sensitive(not connected)
+        self.disconnect_button.set_sensitive(connected)
+        self.new_button.set_sensitive(connected)
+        self.delete_button.set_sensitive(connected and obj_selected)
+        self.edit_button.set_sensitive(connected and obj_selected)
+
+    def update_captions(self):
+        self.user_group_item.get_child().set_text(["Users", "Groups"][self.users_groups_notebook_page_num > 0])
+        self.new_button.set_tooltip_text(["New user", "New group"][self.users_groups_notebook_page_num > 0])
+        self.edit_button.set_tooltip_text(["Edit user", "Edit group"][self.users_groups_notebook_page_num > 0])
+        self.delete_button.set_tooltip_text(["Delete user", "Delete group"][self.users_groups_notebook_page_num > 0])
 
     def run_message_dialog(self, type, buttons, message):
         message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
@@ -530,8 +579,8 @@ class SAMWindow(gtk.Window):
             self.on_edit_item_activate(self.edit_item)
 
     def on_users_groups_notebook_switch_page(self, widget, page, page_num):
-        self.users_groups_notebook_page_num = page_num # workaround for the fact that the signal is emitted before the change
-        self.user_group_item.get_child().set_text(["Users", "Groups"][page_num > 0])
+        self.users_groups_notebook_page_num = page_num # workaround - the signal is emitted before the actual change
+        self.update_captions()
         self.update_sensitivity()
 
 

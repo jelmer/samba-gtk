@@ -5,8 +5,10 @@ import gtk, gobject
 import sambagtk
 
 from samba.dcerpc import mgmt, epmapper
-from objects import User, Group
+from objects import User
+from objects import Group
 from dialogs import UserEditDialog
+from dialogs import GroupEditDialog
 
 
 class SAMManager:
@@ -76,7 +78,6 @@ class SAMWindow(gtk.Window):
         self.update_sensitivity()
         
     def create(self):
-        
         
         # main window        
 
@@ -288,10 +289,11 @@ class SAMWindow(gtk.Window):
         self.trust_relations_item.connect("activate", self.on_trust_relations_item_activate)        
         self.about_item.connect("activate", self.on_about_item_activate)
         
-        self.users_groups_notebook.connect("switch-page", self.on_users_groups_notebook_switch_page)
         self.users_tree_view.get_selection().connect("changed", self.on_users_tree_view_selection_changed)
         self.users_tree_view.connect("button_press_event", self.on_users_tree_view_button_press)
         self.groups_tree_view.get_selection().connect("changed", self.on_groups_tree_view_selection_changed)
+        self.groups_tree_view.connect("button_press_event", self.on_groups_tree_view_button_press)
+        self.users_groups_notebook.connect("switch-page", self.on_users_groups_notebook_switch_page)
         
         self.add_accel_group(accel_group)
 
@@ -309,13 +311,6 @@ class SAMWindow(gtk.Window):
         self.statusbar.pop(0)
         self.statusbar.push(0, message)
         
-    def run_message_dialog(self, type, buttons, message):
-        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
-        response = message_box.run()
-        message_box.hide()
-        
-        return response
-
     def update_sensitivity(self):
         connected = (self.sam_manager != None)
         user_selected = (self.users_tree_view.get_selection().count_selected_rows() > 0)
@@ -333,6 +328,13 @@ class SAMWindow(gtk.Window):
         self.audit_item.set_sensitive(connected)
         self.trust_relations_item.set_sensitive(connected)
 
+    def run_message_dialog(self, type, buttons, message):
+        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
+        response = message_box.run()
+        message_box.hide()
+        
+        return response
+
     def run_user_edit_dialog(self, user = None, apply_callback = None):
         dialog = UserEditDialog(self.sam_manager, user)
         dialog.show_all()
@@ -341,7 +343,7 @@ class SAMWindow(gtk.Window):
         while True:
             response_id = dialog.run()
             
-            if (response_id == gtk.RESPONSE_OK):
+            if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
                 
                 if (problem_msg != None):
@@ -350,24 +352,42 @@ class SAMWindow(gtk.Window):
                     dialog.values_to_user()
                     if (apply_callback != None):
                         apply_callback()
-                    dialog.hide()
-                    break
-            
-            elif (response_id == gtk.RESPONSE_APPLY):
-                problem_msg = dialog.check_for_problems()
-                
-                if (problem_msg != None):
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
-                else:
-                    dialog.values_to_user()
-                    if (apply_callback != None):
-                        apply_callback()
-            
+                    if (response_id == gtk.RESPONSE_OK):
+                        dialog.hide()
+                        break
+                        
             else:
                 dialog.hide()
                 return None
         
         return dialog.user
+
+    def run_group_edit_dialog(self, group = None, apply_callback = None):
+        dialog = GroupEditDialog(self.sam_manager, group)
+        dialog.show_all()
+        
+        # loop to handle the applies
+        while True:
+            response_id = dialog.run()
+            
+            if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
+                problem_msg = dialog.check_for_problems()
+                
+                if (problem_msg != None):
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                else:
+                    dialog.values_to_group()
+                    if (apply_callback != None):
+                        apply_callback()                        
+                    if (response_id == gtk.RESPONSE_OK):
+                        dialog.hide()
+                        break
+            
+            else:
+                dialog.hide()
+                return None
+        
+        return dialog.thegroup
 
     def cell_data_func_hex(self, column, cell, model, iter, column_no):
         cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
@@ -398,9 +418,9 @@ class SAMWindow(gtk.Window):
         if (self.sam_manager != None):
             self.sam_manager.close()
             self.sam_manager = None
-            self.users_store.clear()
-            self.groups_store.clear()
             
+        self.users_store.clear()
+        self.groups_store.clear()       
         self.update_sensitivity()
     
     def on_sel_domain_item_activate(self, widget):
@@ -415,39 +435,71 @@ class SAMWindow(gtk.Window):
         self.refresh_group_list_view()
         
     def on_new_item_activate(self, widget):
-        if (self.users_groups_notebook_page_num == 0):
+        if (self.users_groups_notebook_page_num == 0): # users tab
             new_user = self.run_user_edit_dialog()
             if (new_user == None):
                 return
             
             self.sam_manager.user_list.append(new_user)
             self.refresh_user_list_view()
-        else:
-            pass
+
+        else: # groups tab
+            new_group = self.run_group_edit_dialog()
+            if (new_group == None):
+                return
+            
+            self.sam_manager.group_list.append(new_group)
+            self.refresh_group_list_view()
 
     def on_delete_item_activate(self, widget):
-        (model, iter) = self.users_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
-            return
-        
-        rid = model.get_value(iter, 3)
-        del_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
+        if (self.users_groups_notebook_page_num == 0): # users tab
+            (model, iter) = self.users_tree_view.get_selection().get_selected()
+            if (iter == None): # no selection
+                return
+            
+            rid = model.get_value(iter, 3)
+            del_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
+    
+            if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete user '%s'?" % del_user.username) != gtk.RESPONSE_YES):
+                return 
+            
+            self.sam_manager.user_list.remove(del_user)
+            self.refresh_user_list_view()
 
-        if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete user '%s'?" % user.username) != gtk.RESPONSE_YES):
-            return 
-        
-        self.sam_manager.user_list.remove(del_user)
-        self.refresh_user_list_view()
+        else: # groups tab
+            (model, iter) = self.groups_tree_view.get_selection().get_selected()
+            if (iter == None): # no selection
+                return
+
+            rid = model.get_value(iter, 2)
+            del_group = [group for group in self.sam_manager.group_list if group.rid == rid][0]
+    
+            if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete group '%s'?" % del_group.name) != gtk.RESPONSE_YES):
+                return 
+            
+            self.sam_manager.group_list.remove(del_group)
+            self.refresh_group_list_view()
         
     def on_edit_item_activate(self, widget):
-        (model, iter) = self.users_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
-            return 
-        
-        rid = model.get_value(iter, 3)
-        
-        edit_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
-        self.run_user_edit_dialog(edit_user, self.refresh_user_list_view)
+        if (self.users_groups_notebook_page_num == 0): # users tab
+            (model, iter) = self.users_tree_view.get_selection().get_selected()
+            if (iter == None): # no selection
+                return 
+            
+            rid = model.get_value(iter, 3)
+            
+            edit_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
+            self.run_user_edit_dialog(edit_user, self.refresh_user_list_view)
+            
+        else: # groups tab
+            (model, iter) = self.groups_tree_view.get_selection().get_selected()
+            if (iter == None): # no selection
+                return 
+            
+            rid = model.get_value(iter, 2)
+            
+            edit_group = [group for group in self.sam_manager.group_list if group.rid == rid][0]
+            self.run_group_edit_dialog(edit_group, self.refresh_group_list_view)
 
     def on_user_rights_item_activate(self, widget):
         None
@@ -472,6 +524,10 @@ class SAMWindow(gtk.Window):
 
     def on_groups_tree_view_selection_changed(self, widget):
         self.update_sensitivity()
+
+    def on_groups_tree_view_button_press(self, widget, event):
+        if (event.type == gtk.gdk._2BUTTON_PRESS):
+            self.on_edit_item_activate(self.edit_item)
 
     def on_users_groups_notebook_switch_page(self, widget, page, page_num):
         self.users_groups_notebook_page_num = page_num # workaround for the fact that the signal is emitted before the change

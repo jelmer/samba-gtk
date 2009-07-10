@@ -3,6 +3,7 @@ import gtk
 import gobject
 
 from objects import User
+from objects import Group
 
 
 class UserEditDialog(gtk.Dialog):
@@ -21,7 +22,7 @@ class UserEditDialog(gtk.Dialog):
         self.user_to_values()
         
     def create(self):
-        self.set_title("Edit User")
+        self.set_title(["Edit user", "New user"][self.user == None])
         self.set_border_width(5)
         
         notebook = gtk.Notebook()
@@ -221,6 +222,7 @@ class UserEditDialog(gtk.Dialog):
             return "The password was not correctly confirmed. Please ensure that the password and confirmation match exactly."
         if (len(self.username_entry.get_text()) == 0):
             return "Username may not be empty!"
+        # TODO: check for username duplicates
         
         return None
 
@@ -324,3 +326,79 @@ class UserEditDialog(gtk.Dialog):
 
     def on_map_homedir_drive_check_toggled(self, widget):
         self.update_sensitivity()
+
+
+class GroupEditDialog(gtk.Dialog):
+    
+    def __init__(self, sam_manager, group = None):
+        super(GroupEditDialog, self).__init__()
+
+        self.thegroup = group
+        self.sam_manager = sam_manager
+        self.create()
+        
+        if (self.thegroup == None):
+            self.thegroup = Group("", "", 0x0000)
+        
+        self.group_to_values()
+                
+    def create(self):        
+        self.set_title(["Edit group", "New group"][self.thegroup == None])
+        self.set_border_width(5)
+        
+        table = gtk.Table (2, 2, False)
+        table.set_border_width(5)
+        table.set_col_spacings(5)
+        table.set_row_spacings(5)
+        self.vbox.pack_start(table, True, True, 0)
+        
+        label = gtk.Label("Name")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
+        
+        label = gtk.Label("Description")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
+
+        self.name_entry = gtk.Entry()
+        table.attach(self.name_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
+
+        self.description_entry = gtk.Entry()
+        table.attach(self.description_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.apply_button.set_flags(gtk.CAN_DEFAULT)
+        self.apply_button.set_sensitive(self.thegroup != None) # disabled for new group
+        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
+        
+        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+    def check_for_problems(self):
+        if (len(self.name_entry.get_text()) == 0):
+            return "Name may not be empty!"
+        # TODO: check for name duplicates
+        
+        return None
+
+    def group_to_values(self):
+        if (self.thegroup == None):
+            raise Exception("group not set")
+        
+        self.name_entry.set_text(self.thegroup.name)
+        self.name_entry.set_editable(len(self.thegroup.name) == 0)
+        self.description_entry.set_text(self.thegroup.description)
+        
+    def values_to_group(self):
+        if (self.thegroup == None):
+            raise Exception("group not set")
+        
+        self.thegroup.name = self.name_entry.get_text()
+        self.thegroup.description = self.description_entry.get_text()

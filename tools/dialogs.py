@@ -1,4 +1,6 @@
 
+import sys
+import os.path
 import gtk
 import gobject
 
@@ -8,15 +10,18 @@ from objects import Group
 
 class UserEditDialog(gtk.Dialog):
     
-    def __init__(self, sam_manager, user = None):
+    def __init__(self, pipe_manager, user = None):
         super(UserEditDialog, self).__init__()
 
-        self.user = user
-        self.sam_manager = sam_manager
-        self.create()
-        
-        if (self.user == None):
+        if (user == None):
+            self.brand_new = True
             self.user = User("", "", "", 0x0000)
+        else:
+            self.brand_new = False
+            self.user = user
+        
+        self.pipe_manager = pipe_manager
+        self.create()
         
         self.update_sensitivity()
         self.user_to_values()
@@ -24,6 +29,7 @@ class UserEditDialog(gtk.Dialog):
     def create(self):
         self.set_title(["Edit user", "New user"][self.user == None])
         self.set_border_width(5)
+        self.set_icon_from_file(os.path.join(sys.path[0], "images", "user.png"))
         
         notebook = gtk.Notebook()
         self.vbox.pack_start(notebook, True, True, 0)
@@ -201,12 +207,14 @@ class UserEditDialog(gtk.Dialog):
         
         self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
         self.apply_button.set_flags(gtk.CAN_DEFAULT)
-        self.apply_button.set_sensitive(self.user != None) # disabled for new user
+        self.apply_button.set_sensitive(not self.brand_new) # disabled for new user
         self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
         
         self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
         self.ok_button.set_flags(gtk.CAN_DEFAULT)
         self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
         
         
         # signals/events
@@ -220,9 +228,14 @@ class UserEditDialog(gtk.Dialog):
     def check_for_problems(self):
         if (self.password_entry.get_text() != self.confirm_password_entry.get_text()):
             return "The password was not correctly confirmed. Please ensure that the password and confirmation match exactly."
+        
         if (len(self.username_entry.get_text()) == 0):
             return "Username may not be empty!"
-        # TODO: check for username duplicates
+        
+        if (self.brand_new):
+            for user in self.pipe_manager.user_list:
+                if (user.username == self.username_entry.get_text()):
+                    return "Choose another username, this one already exists!"
         
         return None
 
@@ -240,7 +253,7 @@ class UserEditDialog(gtk.Dialog):
             raise Exception("user not set")
         
         self.username_entry.set_text(self.user.username)
-        self.username_entry.set_editable(len(self.user.username) == 0)
+        self.username_entry.set_sensitive(len(self.user.username) == 0)
         self.fullname_entry.set_text(self.user.fullname)
         self.description_entry.set_text(self.user.description)
         self.must_change_password_check.set_active(self.user.must_change_password)
@@ -266,7 +279,7 @@ class UserEditDialog(gtk.Dialog):
             self.existing_groups_store.append([group.name])
         
         self.available_groups_store.clear()
-        for group in self.sam_manager.group_list:
+        for group in self.pipe_manager.group_list:
             if (not group in self.user.group_list):
                 self.available_groups_store.append([group.name])
     
@@ -297,7 +310,7 @@ class UserEditDialog(gtk.Dialog):
         iter = self.existing_groups_store.get_iter_first()
         while (iter != None):
             value = self.existing_groups_store.get_value(iter, 0)
-            self.user.group_list.append([group for group in self.sam_manager.group_list if group.name == value][0])
+            self.user.group_list.append([group for group in self.pipe_manager.group_list if group.name == value][0])
             iter = self.existing_groups_store.iter_next(iter)
             
     def on_add_group_button_clicked(self, widget):
@@ -330,21 +343,25 @@ class UserEditDialog(gtk.Dialog):
 
 class GroupEditDialog(gtk.Dialog):
     
-    def __init__(self, sam_manager, group = None):
+    def __init__(self, pipe_manager, group = None):
         super(GroupEditDialog, self).__init__()
 
-        self.thegroup = group
-        self.sam_manager = sam_manager
-        self.create()
-        
-        if (self.thegroup == None):
+        if (group == None):
+            self.brand_new = True
             self.thegroup = Group("", "", 0x0000)
+        else:
+            self.brand_new = False
+            self.thegroup = group
+        
+        self.sam_manager = pipe_manager
+        self.create()
         
         self.group_to_values()
                 
     def create(self):        
         self.set_title(["Edit group", "New group"][self.thegroup == None])
         self.set_border_width(5)
+        self.set_icon_from_file(os.path.join(sys.path[0], "images", "group.png"))
         
         table = gtk.Table (2, 2, False)
         table.set_border_width(5)
@@ -374,17 +391,24 @@ class GroupEditDialog(gtk.Dialog):
         
         self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
         self.apply_button.set_flags(gtk.CAN_DEFAULT)
-        self.apply_button.set_sensitive(self.thegroup != None) # disabled for new group
+        self.apply_button.set_sensitive(not self.brand_new) # disabled for new group
         self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
         
         self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
         self.ok_button.set_flags(gtk.CAN_DEFAULT)
         self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
         
+        self.set_default_response(gtk.RESPONSE_OK)
+
+        
     def check_for_problems(self):
         if (len(self.name_entry.get_text()) == 0):
             return "Name may not be empty!"
-        # TODO: check for name duplicates
+
+        if (self.brand_new):
+            for group in self.sam_manager.group_list:
+                if (group.name == self.name_entry.get_text()):
+                    return "Choose another group name, this one already exists!"
         
         return None
 
@@ -393,7 +417,7 @@ class GroupEditDialog(gtk.Dialog):
             raise Exception("group not set")
         
         self.name_entry.set_text(self.thegroup.name)
-        self.name_entry.set_editable(len(self.thegroup.name) == 0)
+        self.name_entry.set_sensitive(len(self.thegroup.name) == 0)
         self.description_entry.set_text(self.thegroup.description)
         
     def values_to_group(self):
@@ -402,3 +426,90 @@ class GroupEditDialog(gtk.Dialog):
         
         self.thegroup.name = self.name_entry.get_text()
         self.thegroup.description = self.description_entry.get_text()
+
+
+class ServiceEditDialog(gtk.Dialog):
+    
+    def __init__(self, pipe_manager, service = None):
+        super(ServiceEditDialog, self).__init__()
+
+        if (service == None):
+            self.brand_new = True
+            self.service = Service("", "", False, service.STARTUP_TYPE_NORMAL)
+        else:
+            self.brand_new = False
+            self.service = service
+        
+        self.pipe_manager = pipe_manager
+        self.create()
+        
+        self.group_to_values()
+                
+    def create(self):  
+        self.set_title("Edit service " + self.service.name)
+        self.set_border_width(5)
+        self.set_icon_from_file(os.path.join(sys.path[0], "images", "group.png"))
+#        
+#        table = gtk.Table (2, 2, False)
+#        table.set_border_width(5)
+#        table.set_col_spacings(5)
+#        table.set_row_spacings(5)
+#        self.vbox.pack_start(table, True, True, 0)
+#        
+#        label = gtk.Label("Name")
+#        label.set_alignment(0, 0.5)
+#        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
+#        
+#        label = gtk.Label("Description")
+#        label.set_alignment(0, 0.5)
+#        table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
+#
+#        self.name_entry = gtk.Entry()
+#        table.attach(self.name_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
+#
+#        self.description_entry = gtk.Entry()
+#        table.attach(self.description_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
+#        
+#        self.action_area.set_layout(gtk.BUTTONBOX_END)
+#        
+#        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+#        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+#        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+#        
+#        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+#        self.apply_button.set_flags(gtk.CAN_DEFAULT)
+#        self.apply_button.set_sensitive(not self.brand_new) # disabled for new group
+#        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
+#        
+#        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
+#        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+#        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+#        
+#        self.set_default_response(gtk.RESPONSE_OK)
+
+        
+    def check_for_problems(self):
+#        if (len(self.name_entry.get_text()) == 0):
+#            return "Name may not be empty!"
+#
+#        if (self.brand_new):
+#            for group in self.pipe_manager.group_list:
+#                if (group.name == self.name_entry.get_text()):
+#                    return "Choose another group name, this one already exists!"
+
+        return None
+
+    def service_to_values(self):
+        if (self.service == None):
+            raise Exception("service not set")
+        
+#        self.name_entry.set_text(self.service.name)
+#        self.name_entry.set_sensitive(len(self.service.name) == 0)
+#        self.description_entry.set_text(self.service.description)
+        
+    def values_to_service(self):
+        if (self.service == None):
+            raise Exception("service not set")
+        
+#        self.service.name = self.name_entry.get_text()
+#        self.service.description = self.description_entry.get_text()

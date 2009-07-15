@@ -34,3 +34,19 @@ class Group:
         
     def list_view_representation(self):
         return [self.name, self.description, self.rid]
+
+
+class Service:
+    
+    STARTUP_TYPE_NORMAL = 0
+    STARTUP_TYPE_AUTOMATIC = 1
+    STARTUP_TYPE_DISABLED = 2
+    
+    def __init__(self, name, description, started, startup_type):
+        self.name = name
+        self.description = description
+        self.started = started
+        self.startup_type = startup_type
+        
+    def list_view_representation(self):
+        return [self.name, self.description, ["Stopped", "Started"][self.started], ["Normal", "Automatic", "Disabled"][self.startup_type]]

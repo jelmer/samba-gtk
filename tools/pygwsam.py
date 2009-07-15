@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import sys
+import os.path
 import traceback
 import gtk, gobject
 import sambagtk
@@ -11,16 +13,16 @@ from dialogs import UserEditDialog
 from dialogs import GroupEditDialog
 
 
-class SAMManager:
+class SAMPipeManager:
     
     def __init__(self):
-        self.connection = sambagtk.gtk_connect_rpc_interface("samr")
+        self.pipe = sambagtk.gtk_connect_rpc_interface("samr")
         self.user_list = []
         self.group_list = []
         
     def close(self):
-        if (self.connection != None):
-            self.connection.close()
+        if (self.pipe != None):
+            self.pipe.close()
         
     def get_from_pipe(self):
         group1 = Group("group1", "Group Description 1", 0xAAAA)
@@ -61,10 +63,10 @@ class SAMManager:
         self.user_list.append(user2)
         
     def user_to_pipe(self, user):
-        None
+        pass
 
     def group_to_pipe(self, group):
-        None
+        pass
 
     
 class SAMWindow(gtk.Window):
@@ -73,7 +75,7 @@ class SAMWindow(gtk.Window):
         super(SAMWindow, self).__init__()
 
         self.create()
-        self.sam_manager = None
+        self.pipe_manager = None
         self.users_groups_notebook_page_num = 0
         self.update_captions()
         self.update_sensitivity()
@@ -87,6 +89,7 @@ class SAMWindow(gtk.Window):
         self.set_title("User/Group Management")
         self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
+        self.set_icon_from_file(os.path.join(sys.path[0], "images", "group.png"))
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -193,12 +196,12 @@ class SAMWindow(gtk.Window):
         
         self.connect_button = gtk.ToolButton(gtk.STOCK_CONNECT)
         self.connect_button.set_is_important(True)
-        self.connect_button.set_tooltip_text("Connect to a SAM server")
+        self.connect_button.set_tooltip_text("Connect to a server")
         toolbar.insert(self.connect_button, 0)
         
         self.disconnect_button = gtk.ToolButton(gtk.STOCK_DISCONNECT)
         self.disconnect_button.set_is_important(True)
-        self.disconnect_button.set_tooltip_text("Disconnect from the SAM server")
+        self.disconnect_button.set_tooltip_text("Disconnect from the server")
         toolbar.insert(self.disconnect_button, 1)
         
         toolbar.insert(gtk.SeparatorToolItem(), 2)
@@ -335,32 +338,58 @@ class SAMWindow(gtk.Window):
         self.add_accel_group(accel_group)
 
     def refresh_user_list_view(self):
+        (model, paths) = self.users_tree_view.get_selection().get_selected_rows()
+        
         self.users_store.clear()
-        for user in self.sam_manager.user_list:
+        for user in self.pipe_manager.user_list:
             self.users_store.append(user.list_view_representation())
 
+        if (len(paths) > 0):
+            self.users_tree_view.get_selection().select_path(paths[0])
+
     def refresh_group_list_view(self):
+        (model, paths) = self.groups_tree_view.get_selection().get_selected_rows()
+
         self.groups_store.clear()
-        for group in self.sam_manager.group_list:
+        for group in self.pipe_manager.group_list:
             self.groups_store.append(group.list_view_representation())
+            
+        if (len(paths) > 0):
+            self.groups_tree_view.get_selection().select_path(paths[0])
+
+    def get_selected_user(self):
+        (model, iter) = self.users_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return None
+        else:            
+            username = model.get_value(iter, 0)
+            return [user for user in self.pipe_manager.user_list if user.username == username][0]
+
+    def get_selected_group(self):
+        (model, iter) = self.groups_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return None
+        else:            
+            name = model.get_value(iter, 0)
+            return [group for group in self.pipe_manager.group_list if group.name == name][0]
 
     def set_status(self, message):
         self.statusbar.pop(0)
         self.statusbar.push(0, message)
         
     def update_sensitivity(self):
-        connected = (self.sam_manager != None)
-        user_selected = (self.users_tree_view.get_selection().count_selected_rows() > 0)
-        group_selected = (self.groups_tree_view.get_selection().count_selected_rows() > 0)
-        obj_selected = [user_selected, group_selected][self.users_groups_notebook_page_num]
+        connected = (self.pipe_manager != None)
+        user_selected = (self.get_selected_user() != None)
+        group_selected = (self.get_selected_group() != None)
+        selected = [user_selected, group_selected][self.users_groups_notebook_page_num]
         
         self.connect_item.set_sensitive(not connected)
         self.disconnect_item.set_sensitive(connected)
         self.sel_domain_item.set_sensitive(connected)
         self.refresh_item.set_sensitive(connected)
         self.new_item.set_sensitive(connected)
-        self.delete_item.set_sensitive(connected and obj_selected)
-        self.edit_item.set_sensitive(connected and obj_selected)
+        self.delete_item.set_sensitive(connected and selected)
+        self.edit_item.set_sensitive(connected and selected)
         self.user_rights_item.set_sensitive(connected)
         self.audit_item.set_sensitive(connected)
         self.trust_relations_item.set_sensitive(connected)
@@ -368,14 +397,14 @@ class SAMWindow(gtk.Window):
         self.connect_button.set_sensitive(not connected)
         self.disconnect_button.set_sensitive(connected)
         self.new_button.set_sensitive(connected)
-        self.delete_button.set_sensitive(connected and obj_selected)
-        self.edit_button.set_sensitive(connected and obj_selected)
+        self.delete_button.set_sensitive(connected and selected)
+        self.edit_button.set_sensitive(connected and selected)
 
     def update_captions(self):
         self.user_group_item.get_child().set_text(["Users", "Groups"][self.users_groups_notebook_page_num > 0])
-        self.new_button.set_tooltip_text(["New user", "New group"][self.users_groups_notebook_page_num > 0])
-        self.edit_button.set_tooltip_text(["Edit user", "Edit group"][self.users_groups_notebook_page_num > 0])
-        self.delete_button.set_tooltip_text(["Delete user", "Delete group"][self.users_groups_notebook_page_num > 0])
+        self.new_button.set_tooltip_text(["Create a new user", "Create a new group"][self.users_groups_notebook_page_num > 0])
+        self.edit_button.set_tooltip_text(["Edit user's properties", "Edit group's properties"][self.users_groups_notebook_page_num > 0])
+        self.delete_button.set_tooltip_text(["Delete the user", "Delete the group"][self.users_groups_notebook_page_num > 0])
 
     def run_message_dialog(self, type, buttons, message):
         message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
@@ -385,7 +414,7 @@ class SAMWindow(gtk.Window):
         return response
 
     def run_user_edit_dialog(self, user = None, apply_callback = None):
-        dialog = UserEditDialog(self.sam_manager, user)
+        dialog = UserEditDialog(self.pipe_manager, user)
         dialog.show_all()
         
         # loop to handle the applies
@@ -412,7 +441,7 @@ class SAMWindow(gtk.Window):
         return dialog.user
 
     def run_group_edit_dialog(self, group = None, apply_callback = None):
-        dialog = GroupEditDialog(self.sam_manager, group)
+        dialog = GroupEditDialog(self.pipe_manager, group)
         dialog.show_all()
         
         # loop to handle the applies
@@ -442,7 +471,7 @@ class SAMWindow(gtk.Window):
         cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
 
     def on_self_delete(self, widget, event):
-        if (self.sam_manager != None):
+        if (self.pipe_manager != None):
             self.on_disconnect_item_activate(self.disconnect_item)
         
         gtk.main_quit()
@@ -450,13 +479,13 @@ class SAMWindow(gtk.Window):
 
     def on_connect_item_activate(self, widget):
         try:
-            self.sam_manager = SAMManager()
-            self.sam_manager.get_from_pipe()
+            self.pipe_manager = SAMPipeManager()
+            self.pipe_manager.get_from_pipe()
             
         except Exception:
             print "failed to connect"
             traceback.print_exc()
-            self.sam_manager = None
+            self.pipe_manager = None
             return
         
         self.refresh_user_list_view()
@@ -464,22 +493,22 @@ class SAMWindow(gtk.Window):
         self.update_sensitivity()
 
     def on_disconnect_item_activate(self, widget):
-        if (self.sam_manager != None):
-            self.sam_manager.close()
-            self.sam_manager = None
+        if (self.pipe_manager != None):
+            self.pipe_manager.close()
+            self.pipe_manager = None
             
         self.users_store.clear()
         self.groups_store.clear()       
         self.update_sensitivity()
     
     def on_sel_domain_item_activate(self, widget):
-        None
+        pass
 
     def on_quit_item_activate(self, widget):
         self.on_self_delete(None, None)
     
     def on_refresh_item_activate(self, widget):
-        self.sam_manager.get_from_pipe()
+        self.pipe_manager.get_from_pipe()
         self.refresh_user_list_view()
         self.refresh_group_list_view()
         
@@ -489,7 +518,7 @@ class SAMWindow(gtk.Window):
             if (new_user == None):
                 return
             
-            self.sam_manager.user_list.append(new_user)
+            self.pipe_manager.user_list.append(new_user)
             self.refresh_user_list_view()
 
         else: # groups tab
@@ -497,67 +526,45 @@ class SAMWindow(gtk.Window):
             if (new_group == None):
                 return
             
-            self.sam_manager.group_list.append(new_group)
+            self.pipe_manager.group_list.append(new_group)
             self.refresh_group_list_view()
 
     def on_delete_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
-            (model, iter) = self.users_tree_view.get_selection().get_selected()
-            if (iter == None): # no selection
-                return
-            
-            rid = model.get_value(iter, 3)
-            del_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
+            del_user = self.get_selected_user()
     
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete user '%s'?" % del_user.username) != gtk.RESPONSE_YES):
                 return 
             
-            self.sam_manager.user_list.remove(del_user)
+            self.pipe_manager.user_list.remove(del_user)
             self.refresh_user_list_view()
 
         else: # groups tab
-            (model, iter) = self.groups_tree_view.get_selection().get_selected()
-            if (iter == None): # no selection
-                return
-
-            rid = model.get_value(iter, 2)
-            del_group = [group for group in self.sam_manager.group_list if group.rid == rid][0]
+            del_group = self.get_selected_group()
     
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete group '%s'?" % del_group.name) != gtk.RESPONSE_YES):
                 return 
             
-            self.sam_manager.group_list.remove(del_group)
+            self.pipe_manager.group_list.remove(del_group)
             self.refresh_group_list_view()
         
     def on_edit_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
-            (model, iter) = self.users_tree_view.get_selection().get_selected()
-            if (iter == None): # no selection
-                return 
-            
-            rid = model.get_value(iter, 3)
-            
-            edit_user = [user for user in self.sam_manager.user_list if user.rid == rid][0]
+            edit_user = self.get_selected_user()
             self.run_user_edit_dialog(edit_user, self.refresh_user_list_view)
             
         else: # groups tab
-            (model, iter) = self.groups_tree_view.get_selection().get_selected()
-            if (iter == None): # no selection
-                return 
-            
-            rid = model.get_value(iter, 2)
-            
-            edit_group = [group for group in self.sam_manager.group_list if group.rid == rid][0]
+            edit_group = self.get_selected_group()
             self.run_group_edit_dialog(edit_group, self.refresh_group_list_view)
 
     def on_user_rights_item_activate(self, widget):
-        None
+        pass
     
     def on_audit_item_activate(self, widget):
-        None
+        pass
     
     def on_trust_relations_item_activate(self, widget):
-        None
+        pass
     
     def on_about_item_activate(self, widget):
         aboutwin = sambagtk.AboutDialog("PyGWSAM")

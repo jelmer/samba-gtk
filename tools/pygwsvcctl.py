@@ -58,6 +58,7 @@ class SVCCTLWindow(gtk.Window):
         self.set_title("Service Management")
         self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
+        self.set_icon_from_file(os.path.join(sys.path[0], "images", "service.png"))
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -237,6 +238,9 @@ class SVCCTLWindow(gtk.Window):
             self.services_tree_view.get_selection().select_path(paths[0])
 
     def get_selected_service(self):
+        if (self.pipe_manager == None): # not connected
+            return None
+        
         (model, iter) = self.services_tree_view.get_selection().get_selected()
         if (iter == None): # no selection
             return None
@@ -371,7 +375,8 @@ class SVCCTLWindow(gtk.Window):
         self.update_sensitivity()
     
     def on_edit_item_activate(self, widget):
-        pass
+        edit_service = self.get_selected_service()
+        self.run_service_edit_dialog(edit_service, self.refresh_services_list_view)
     
     def on_about_item_activate(self, widget):
         aboutwin = sambagtk.AboutDialog("PyGWSVCCTL")

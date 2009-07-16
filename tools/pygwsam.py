@@ -358,6 +358,9 @@ class SAMWindow(gtk.Window):
             self.groups_tree_view.get_selection().select_path(paths[0])
 
     def get_selected_user(self):
+        if (self.pipe_manager == None): # not connected
+            return None
+        
         (model, iter) = self.users_tree_view.get_selection().get_selected()
         if (iter == None): # no selection
             return None
@@ -366,6 +369,9 @@ class SAMWindow(gtk.Window):
             return [user for user in self.pipe_manager.user_list if user.username == username][0]
 
     def get_selected_group(self):
+        if (self.pipe_manager == None): # not connected
+            return None
+        
         (model, iter) = self.groups_tree_view.get_selection().get_selected()
         if (iter == None): # no selection
             return None

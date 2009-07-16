@@ -6,6 +6,7 @@ import gobject
 
 from objects import User
 from objects import Group
+from objects import Service
 
 
 class UserEditDialog(gtk.Dialog):
@@ -27,7 +28,7 @@ class UserEditDialog(gtk.Dialog):
         self.user_to_values()
         
     def create(self):
-        self.set_title(["Edit user", "New user"][self.user == None])
+        self.set_title(["Edit user", "New user"][self.user == None] + " " + self.user.username)
         self.set_border_width(5)
         self.set_icon_from_file(os.path.join(sys.path[0], "images", "user.png"))
         
@@ -99,6 +100,7 @@ class UserEditDialog(gtk.Dialog):
         
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
         hbox.pack_start(scrolledwindow, True, True, 0)
         
         self.existing_groups_tree_view = gtk.TreeView()
@@ -126,6 +128,7 @@ class UserEditDialog(gtk.Dialog):
         
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
         hbox.pack_start(scrolledwindow, True, True, 0)
         
         self.available_groups_tree_view = gtk.TreeView()
@@ -359,7 +362,7 @@ class GroupEditDialog(gtk.Dialog):
         self.group_to_values()
                 
     def create(self):        
-        self.set_title(["Edit group", "New group"][self.thegroup == None])
+        self.set_title(["Edit group", "New group"][self.thegroup == None] + " " + self.thegroup.name)
         self.set_border_width(5)
         self.set_icon_from_file(os.path.join(sys.path[0], "images", "group.png"))
         
@@ -443,49 +446,175 @@ class ServiceEditDialog(gtk.Dialog):
         self.pipe_manager = pipe_manager
         self.create()
         
-        self.group_to_values()
-                
+        self.service_to_values()
+
     def create(self):  
         self.set_title("Edit service " + self.service.name)
         self.set_border_width(5)
-        self.set_icon_from_file(os.path.join(sys.path[0], "images", "group.png"))
-#        
-#        table = gtk.Table (2, 2, False)
-#        table.set_border_width(5)
-#        table.set_col_spacings(5)
-#        table.set_row_spacings(5)
-#        self.vbox.pack_start(table, True, True, 0)
-#        
-#        label = gtk.Label("Name")
-#        label.set_alignment(0, 0.5)
-#        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
-#        
-#        label = gtk.Label("Description")
-#        label.set_alignment(0, 0.5)
-#        table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
-#
-#        self.name_entry = gtk.Entry()
-#        table.attach(self.name_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
-#
-#        self.description_entry = gtk.Entry()
-#        table.attach(self.description_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
-#        
-#        self.action_area.set_layout(gtk.BUTTONBOX_END)
-#        
-#        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
-#        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
-#        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
-#        
-#        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
-#        self.apply_button.set_flags(gtk.CAN_DEFAULT)
-#        self.apply_button.set_sensitive(not self.brand_new) # disabled for new group
-#        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
-#        
-#        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
-#        self.ok_button.set_flags(gtk.CAN_DEFAULT)
-#        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
-#        
-#        self.set_default_response(gtk.RESPONSE_OK)
+        self.set_icon_from_file(os.path.join(sys.path[0], "images", "service.png"))
+        self.set_resizable(False)
+        self.set_size_request(520, 400)
+        
+        notebook = gtk.Notebook()
+        self.vbox.pack_start(notebook, True, True, 0)
+
+
+        # general tab
+
+        table = gtk.Table(5, 2, False)
+        table.set_border_width(5)
+        table.set_col_spacings(5)
+        table.set_row_spacings(5)
+        notebook.add(table)
+
+        label = gtk.Label("Name")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 5, 0)
+
+        label = gtk.Label("Description")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 5, 0)
+
+        label = gtk.Label("Path to executable")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 2, 3, gtk.FILL, 0, 5, 0)
+
+        label = gtk.Label("Startup type")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 3, 4, gtk.FILL, 0, 5, 0)
+
+        label = gtk.Label("Start parameters")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 4, 5, gtk.FILL, 0, 5, 0)
+
+        self.name_label = gtk.Label()
+        self.name_label.set_alignment(0, 0.5)
+        table.attach(self.name_label, 1, 2, 0, 1, gtk.FILL, 0, 0, 5)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        scrolledwindow.set_size_request(0, 50)
+        table.attach(scrolledwindow, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, gtk.FILL, 0, 5)
+        
+        self.description_text_view = gtk.TextView()
+        self.description_text_view.set_editable(False)
+        self.description_text_view.set_wrap_mode(gtk.WRAP_WORD)
+        scrolledwindow.add(self.description_text_view)
+
+        self.exe_path_entry = gtk.Entry()
+        table.attach(self.exe_path_entry, 1, 2, 2, 3, gtk.FILL, 0, 0, 0)
+        
+        self.startup_type_combo = gtk.combo_box_new_text()
+        self.startup_type_combo.append_text("Manual")
+        self.startup_type_combo.append_text("Automatic")
+        self.startup_type_combo.append_text("Disabled")
+        table.attach(self.startup_type_combo, 1, 2, 3, 4, gtk.FILL, 0, 0, 0)
+
+        self.start_params_entry = gtk.Entry()
+        table.attach(self.start_params_entry, 1, 2, 4, 5, gtk.FILL, 0, 0, 0)
+        
+        notebook.set_tab_label(notebook.get_nth_page(0), gtk.Label("General"))
+        
+        
+        # log on tab
+        
+        table = gtk.Table(8, 3, False)
+        table.set_border_width(5)
+        table.set_col_spacings(5)
+        table.set_row_spacings(5)
+        notebook.add(table)
+        
+        self.local_account_radio = gtk.RadioButton(None, "_Local System account")
+        table.attach(self.local_account_radio, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
+        
+        self.allow_interact_desktop_check = gtk.CheckButton("Allo_w service to interact with desktop")
+        table.attach(self.allow_interact_desktop_check, 0, 2, 1, 2, gtk.FILL, 0, 20, 0)
+        
+        self.this_account_radio = gtk.RadioButton(self.local_account_radio, "_This account:")
+        table.attach(self.this_account_radio, 0, 1, 2, 3, gtk.FILL, 0, 0, 0)
+        
+        self.account_entry = gtk.Entry()
+        table.attach(self.account_entry, 1, 2, 2, 3, gtk.FILL, 0, 0, 0)
+        
+        self.browse_button = gtk.Button("Browse...")
+        table.attach(self.browse_button, 2, 3, 2, 3, 0, 0, 0, 0)
+        
+        label = gtk.Label("Password:")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 3, 4, gtk.FILL, 0, 20, 0)
+        
+        self.password_entry = gtk.Entry()
+        self.password_entry.set_visibility(False)
+        table.attach(self.password_entry, 1, 2, 3, 4, gtk.FILL, 0, 0, 0)
+        
+        label = gtk.Label("Confirm password:")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 4, 5, gtk.FILL, 0, 20, 0)
+        
+        self.confirm_password_entry = gtk.Entry()
+        self.confirm_password_entry.set_visibility(False)
+        table.attach(self.confirm_password_entry, 1, 2, 4, 5, gtk.FILL, 0, 0, 0)
+        
+        label = gtk.Label("You can enable or disable this service for the hardware profiles listed below :")
+        table.attach(label, 0, 3, 5, 6, 0, 0, 0, 5)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        table.attach(scrolledwindow, 0, 3, 6, 7, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.profiles_tree_view = gtk.TreeView()
+        scrolledwindow.add(self.profiles_tree_view)
+
+        column = gtk.TreeViewColumn()
+        column.set_title("Hardware profile")
+        renderer = gtk.CellRendererText()
+        column.pack_start(renderer, True)
+        self.profiles_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+                
+        column = gtk.TreeViewColumn()
+        column.set_title("Status")
+        renderer = gtk.CellRendererText()
+        column.pack_start(renderer, True)
+        self.profiles_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+        
+        self.profiles_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING)
+        self.profiles_store.set_sort_column_id(0, gtk.SORT_ASCENDING)
+        self.profiles_tree_view.set_model(self.profiles_store)
+        
+        hbox = gtk.HBox(2, False)
+        table.attach(hbox, 0, 1, 7, 8, 0, 0, 0, 0)
+        
+        self.enable_button = gtk.Button("Enable")
+        hbox.pack_start(self.enable_button, False, False, 0) 
+        
+        self.disable_button = gtk.Button("Disable")
+        hbox.pack_start(self.disable_button, False, False, 0) 
+        
+        notebook.set_tab_label(notebook.get_nth_page(1), gtk.Label("Log On"))
+        
+                        
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.apply_button.set_flags(gtk.CAN_DEFAULT)
+        self.apply_button.set_sensitive(not self.brand_new) # disabled for new group
+        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
+        
+        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
 
         
     def check_for_problems(self):

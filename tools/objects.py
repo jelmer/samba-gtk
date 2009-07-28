@@ -48,5 +48,12 @@ class Service:
         self.started = started
         self.startup_type = startup_type
         
+        self.start_params = ""
+        self.path_to_exe = ""
+        self.account = None # local system account
+        self.account_password = ""
+        self.allow_desktop_interaction = False
+        self.hw_profile_list = [["Profile 1", True], ["Profile 2", False]]
+        
     def list_view_representation(self):
         return [self.name, self.description, ["Stopped", "Started"][self.started], ["Normal", "Automatic", "Disabled"][self.startup_type]]

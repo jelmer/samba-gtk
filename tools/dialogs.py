@@ -24,8 +24,8 @@ class UserEditDialog(gtk.Dialog):
         self.pipe_manager = pipe_manager
         self.create()
         
-        self.update_sensitivity()
         self.user_to_values()
+        self.update_sensitivity()
         
     def create(self):
         self.set_title(["Edit user", "New user"][self.user == None] + " " + self.user.username)
@@ -402,8 +402,8 @@ class GroupEditDialog(gtk.Dialog):
         self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
         
         self.set_default_response(gtk.RESPONSE_OK)
-
         
+                
     def check_for_problems(self):
         if (len(self.name_entry.get_text()) == 0):
             return "Name may not be empty!"
@@ -447,6 +447,7 @@ class ServiceEditDialog(gtk.Dialog):
         self.create()
         
         self.service_to_values()
+        self.update_sensitivity()
 
     def create(self):  
         self.set_title("Edit service " + self.service.name)
@@ -503,6 +504,7 @@ class ServiceEditDialog(gtk.Dialog):
         scrolledwindow.add(self.description_text_view)
 
         self.exe_path_entry = gtk.Entry()
+        self.exe_path_entry.set_editable(False)
         table.attach(self.exe_path_entry, 1, 2, 2, 3, gtk.FILL, 0, 0, 0)
         
         self.startup_type_combo = gtk.combo_box_new_text()
@@ -528,8 +530,8 @@ class ServiceEditDialog(gtk.Dialog):
         self.local_account_radio = gtk.RadioButton(None, "_Local System account")
         table.attach(self.local_account_radio, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
         
-        self.allow_interact_desktop_check = gtk.CheckButton("Allo_w service to interact with desktop")
-        table.attach(self.allow_interact_desktop_check, 0, 2, 1, 2, gtk.FILL, 0, 20, 0)
+        self.allow_desktop_interaction_check = gtk.CheckButton("Allo_w service to interact with desktop")
+        table.attach(self.allow_desktop_interaction_check, 0, 2, 1, 2, gtk.FILL, 0, 20, 0)
         
         self.this_account_radio = gtk.RadioButton(self.local_account_radio, "_This account:")
         table.attach(self.this_account_radio, 0, 1, 2, 3, gtk.FILL, 0, 0, 0)
@@ -579,7 +581,7 @@ class ServiceEditDialog(gtk.Dialog):
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.profiles_tree_view.append_column(column)
-        column.add_attribute(renderer, "text", 0)
+        column.add_attribute(renderer, "text", 1)
         
         self.profiles_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING)
         self.profiles_store.set_sort_column_id(0, gtk.SORT_ASCENDING)
@@ -617,28 +619,117 @@ class ServiceEditDialog(gtk.Dialog):
         self.set_default_response(gtk.RESPONSE_OK)
 
         
-    def check_for_problems(self):
-#        if (len(self.name_entry.get_text()) == 0):
-#            return "Name may not be empty!"
-#
-#        if (self.brand_new):
-#            for group in self.pipe_manager.group_list:
-#                if (group.name == self.name_entry.get_text()):
-#                    return "Choose another group name, this one already exists!"
+        # signals/events
+        
+        self.local_account_radio.connect("toggled", self.on_local_account_radio_clicked)
+        self.profiles_tree_view.get_selection().connect("changed", self.on_profiles_tree_view_selection_changed)
+        self.enable_button.connect("clicked", self.on_enable_button_click)
+        self.disable_button.connect("clicked", self.on_disable_button_click)
 
+    def check_for_problems(self):
+        if (self.password_entry.get_text() != self.confirm_password_entry.get_text()) and self.this_account_radio.get_active():
+            return "The password was not correctly confirmed. Please ensure that the password and confirmation match exactly."
+        
         return None
 
+    def update_sensitivity(self):
+        local_account = self.local_account_radio.get_active()
+        
+        self.allow_desktop_interaction_check.set_sensitive(local_account)
+        self.account_entry.set_sensitive(not local_account)
+        self.password_entry.set_sensitive(not local_account)
+        self.confirm_password_entry.set_sensitive(not local_account)
+        self.browse_button.set_sensitive(not local_account)
+        
+        profile = self.get_selected_profile()
+        if (profile == None):
+            self.enable_button.set_sensitive(False)
+            self.disable_button.set_sensitive(False)
+        else:
+            self.enable_button.set_sensitive(not profile[1])
+            self.disable_button.set_sensitive(profile[1])
+        
     def service_to_values(self):
         if (self.service == None):
             raise Exception("service not set")
+ 
+        self.name_label.set_text(self.service.name)
+        self.description_text_view.get_buffer().set_text(self.service.description)
+        self.exe_path_entry.set_text(self.service.path_to_exe)
+        self.startup_type_combo.set_active(self.service.startup_type)
+        self.start_params_entry.set_text(self.service.start_params)
         
-#        self.name_entry.set_text(self.service.name)
-#        self.name_entry.set_sensitive(len(self.service.name) == 0)
-#        self.description_entry.set_text(self.service.description)
+        if (self.service.account == None):
+            self.local_account_radio.set_active(True)
+            self.allow_desktop_interaction_check.set_active(self.service.allow_desktop_interaction)
+        else:
+            self.this_account_radio.set_active(True)
+            self.account_entry.set_text(self.service.account)
+            self.password_entry.set_text(self.service.account_password)
+            self.confirm_password_entry.set_text(self.service.account_password)
+            
+        self.refresh_profiles_tree_view()
         
     def values_to_service(self):
         if (self.service == None):
             raise Exception("service not set")
         
-#        self.service.name = self.name_entry.get_text()
-#        self.service.description = self.description_entry.get_text()
+        self.service.startup_type = self.startup_type_combo.get_active()
+        self.service.start_params = self.start_params_entry.get_text()
+        
+        if (self.local_account_radio.get_active()):
+            self.service.account = None
+            self.service.account_password = None
+            self.service.allow_desktop_interaction = self.allow_desktop_interaction_check.get_active()
+        else:
+            self.service.account = self.account_entry.get_text()
+            self.service.account_password = self.password_entry.get_text()
+            
+        del self.service.hw_profile_list[:]
+        
+        iter = self.profiles_store.get_iter_first()
+        while (iter != None):
+            name = self.profiles_store.get_value(iter, 0)
+            enabled = self.profiles_store.get_value(iter, 1)
+            self.service.hw_profile_list.append([name, [False, True][enabled == "Enabled"]])
+            iter = self.profiles_store.iter_next(iter)
+
+    def refresh_profiles_tree_view(self):
+        (model, paths) = self.profiles_tree_view.get_selection().get_selected_rows()
+        
+        self.profiles_store.clear()
+        for profile in self.service.hw_profile_list:
+            self.profiles_store.append((profile[0], ["Disabled", "Enabled"][profile[1]]))
+        
+        if (len(paths) > 0):
+            self.profiles_tree_view.get_selection().select_path(paths[0])
+
+    def get_selected_profile(self):
+        (model, iter) = self.profiles_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return None
+        else:
+            name = model.get_value(iter, 0)
+            return [profile for profile in self.service.hw_profile_list if profile[0] == name][0]
+
+    def on_local_account_radio_clicked(self, widget):
+        self.update_sensitivity()
+
+    def on_enable_button_click(self, widget):
+        profile = self.get_selected_profile()
+        if (profile == None): # no selection
+            return 
+        
+        profile[1] = True
+        self.refresh_profiles_tree_view()
+    
+    def on_disable_button_click(self, widget):
+        profile = self.get_selected_profile()
+        if (profile == None): # no selection
+            return 
+        
+        profile[1] = False
+        self.refresh_profiles_tree_view()
+
+    def on_profiles_tree_view_selection_changed(self, widget):
+        self.update_sensitivity()

@@ -226,6 +226,7 @@ class SAMWindow(gtk.Window):
         
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
         self.users_groups_notebook.append_page(scrolledwindow, gtk.Label("Users"))
         
         self.users_tree_view = gtk.TreeView()
@@ -269,6 +270,7 @@ class SAMWindow(gtk.Window):
 
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
         self.users_groups_notebook.append_page(scrolledwindow, gtk.Label("Groups"))
         
         self.groups_tree_view = gtk.TreeView()

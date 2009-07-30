@@ -1,4 +1,7 @@
 
+import gtk;
+
+
 class User:
     
     def __init__(self, username, fullname, description, rid):
@@ -57,3 +60,25 @@ class Service:
         
     def list_view_representation(self):
         return [self.name, self.description, ["Stopped", "Started"][self.started], ["Normal", "Automatic", "Disabled"][self.startup_type]]
+
+
+class RegistryValue:
+    
+    def __init__(self, name, type, data, parent):
+        self.name = name
+        self.type = type
+        self.data = data
+        self.parent = parent
+        
+    def list_view_representation(self):
+        return [self.name, self.type, self.data]
+
+
+class RegistryKey:
+    
+    def __init__(self, name, parent):
+        self.name = name
+        self.parent = parent
+        
+    def list_view_representation(self):
+        return [gtk.STOCK_DIRECTORY, self.name]

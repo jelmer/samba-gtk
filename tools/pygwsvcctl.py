@@ -161,6 +161,7 @@ class SVCCTLWindow(gtk.Window):
         
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
         vbox.pack_start(scrolledwindow)
         
         self.services_tree_view = gtk.TreeView()

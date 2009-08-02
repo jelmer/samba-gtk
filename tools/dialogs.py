@@ -268,7 +268,7 @@ class UserEditDialog(gtk.Dialog):
         self.logon_script_entry.set_text(self.user.logon_script)
         self.homedir_path_entry.set_text(self.user.homedir_path)
         
-        if (self.user.map_homedir_drive != None):
+        if (self.user.map_homedir_drive != -1):
             self.map_homedir_drive_check.set_active(True)
             self.map_homedir_drive_combo.set_active(self.user.map_homedir_drive)
             self.map_homedir_drive_combo.set_sensitive(True)
@@ -306,7 +306,7 @@ class UserEditDialog(gtk.Dialog):
         if (self.map_homedir_drive_check.get_active()) and (self.map_homedir_drive_combo.get_active() != -1):
             self.user.map_homedir_drive = self.map_homedir_drive_combo.get_active()
         else:
-            self.user.map_homedir_drive = None
+            self.user.map_homedir_drive = -1
 
         del self.user.group_list[:]
         
@@ -432,7 +432,7 @@ class GroupEditDialog(gtk.Dialog):
 
 
 class ServiceEditDialog(gtk.Dialog):
-    
+        
     def __init__(self, pipe_manager, service = None):
         super(ServiceEditDialog, self).__init__()
 
@@ -733,3 +733,170 @@ class ServiceEditDialog(gtk.Dialog):
 
     def on_profiles_tree_view_selection_changed(self, widget):
         self.update_sensitivity()
+
+
+class SAMConnectDialog(gtk.Dialog):
+    
+    def __init__(self, server_address, transport_type, username):
+        super(SAMConnectDialog, self).__init__()
+
+        self.server_address = server_address
+        self.transport_type = transport_type
+        self.username = username
+        self.domains = None
+        
+        self.create()
+        
+        self.update_sensitivity()
+
+    def create(self):  
+        self.set_title("Connect to SAM server")
+        self.set_border_width(5)
+        self.set_icon_name(gtk.STOCK_CONNECT)
+        self.set_resizable(False)
+        
+        # server frame
+        
+        self.vbox.set_spacing(5)
+
+        self.server_frame = gtk.Frame("Server")
+        self.vbox.pack_start(self.server_frame, False, True, 0)
+                
+        table = gtk.Table(3, 2)
+        table.set_border_width(5)
+        self.server_frame.add(table)
+        
+        label = gtk.Label(" Server address: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 0, 1, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.server_address_entry = gtk.Entry()
+        self.server_address_entry.set_text(self.server_address)
+        table.attach(self.server_address_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        label = gtk.Label(" Username: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 1, 2, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.username_entry = gtk.Entry()
+        self.username_entry.set_text(self.username)
+        table.attach(self.username_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        label = gtk.Label(" Password: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.password_entry = gtk.Entry()
+        self.password_entry.set_visibility(False)
+        table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        
+        # transport frame
+
+        self.transport_frame = gtk.Frame(" Transport type ")
+        self.vbox.pack_start(self.transport_frame, False, True, 0)
+
+        vbox = gtk.VBox()
+        vbox.set_border_width(5)
+        self.transport_frame.add(vbox)
+        
+        self.rpc_smb_tcpip_radio_button = gtk.RadioButton(None, "RPC over SMB over TCP/IP")
+        self.rpc_smb_tcpip_radio_button.set_active(self.transport_type == 0)
+        vbox.pack_start(self.rpc_smb_tcpip_radio_button)
+        
+        self.rpc_tcpip_radio_button = gtk.RadioButton(self.rpc_smb_tcpip_radio_button, "RPC over TCP/IP")
+        self.rpc_tcpip_radio_button.set_active(self.transport_type == 1)
+        vbox.pack_start(self.rpc_tcpip_radio_button)
+        
+        self.localhost_radio_button = gtk.RadioButton(self.rpc_tcpip_radio_button, "Localhost")
+        self.localhost_radio_button.set_active(self.transport_type == 2)
+        vbox.pack_start(self.localhost_radio_button)
+        
+        
+        # domain frame
+        
+        self.domains_frame = gtk.Frame(" Domain ")
+        self.domains_frame.set_no_show_all(True)
+        self.vbox.pack_start(self.domains_frame, False, True, 0)
+        
+        table = gtk.Table(1, 2)
+        table.set_border_width(5)
+        self.domains_frame.add(table)
+        
+        label = gtk.Label("Select domain: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 0, 1, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.domain_combo_box = gtk.combo_box_new_text()
+        table.attach(self.domain_combo_box, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.connect_button = gtk.Button("Connect", gtk.STOCK_CONNECT)
+        self.connect_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.connect_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
+        
+        
+        # signals/events
+        
+        self.rpc_smb_tcpip_radio_button.connect("toggled", self.on_radio_button_toggled)
+        self.rpc_tcpip_radio_button.connect("toggled", self.on_radio_button_toggled)
+        self.localhost_radio_button.connect("toggled", self.on_radio_button_toggled)
+        
+    def update_sensitivity(self):
+        server_required = not self.localhost_radio_button.get_active()
+        
+        self.server_address_entry   .set_sensitive(server_required)
+    
+    def set_domains(self, domains, domain_index = -1):
+        if (domains != None):
+            self.server_frame.set_sensitive(False)
+            self.transport_frame.set_sensitive(False)
+            
+            self.domains_frame.set_no_show_all(False)
+            self.domains_frame.show_all()
+            self.domains_frame.set_no_show_all(True)
+            self.domain_combo_box.get_model().clear()
+            for domain in domains:
+                self.domain_combo_box.append_text(domain)
+                
+            if (domain_index != -1):
+                self.domain_combo_box.set_active(domain_index)
+        else:
+            self.server_frame.set_sensitive(True)
+            self.transport_frame.set_sensitive(True)
+            self.domains_frame.hide_all()
+            
+    def get_server_address(self):
+        return self.server_address_entry.get_text().strip()
+    
+    def get_transport_type(self):
+        if (self.rpc_smb_tcpip_radio_button.get_active()):
+            return 0
+        elif (self.rpc_tcpip_radio_button.get_active()):
+            return 1
+        elif (self.localhost_radio_button.get_active()):
+            return 2
+        else:
+            return -1
+    
+    def get_username(self):
+        return self.username_entry.get_text().strip()
+    
+    def get_password(self):
+        return self.password_entry.get_text()
+    
+    def get_domain_index(self):
+        return self.domain_combo_box.get_active()
+#    
+    def on_radio_button_toggled(self, widget):
+        self.update_sensitivity()
+    

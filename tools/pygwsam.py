@@ -4,63 +4,126 @@ import sys
 import os.path
 import traceback
 import gtk, gobject
-import sambagtk
 
-from samba.dcerpc import mgmt, epmapper
+from samba.dcerpc import samr
+from samba.dcerpc import security
+from samba import credentials
+from samba import param
+
 from objects import User
 from objects import Group
 from dialogs import UserEditDialog
 from dialogs import GroupEditDialog
+from dialogs import SAMConnectDialog
 
 
 class SAMPipeManager:
     
-    def __init__(self):
-        self.pipe = sambagtk.gtk_connect_rpc_interface("samr")
+    def __init__(self, server_address, transport_type, username, password):
         self.user_list = []
-        self.group_list = []
+        self.group_list = []        
+        
+        creds = credentials.Credentials()
+        if (username.count("\\") > 0):
+            creds.set_domain(username.split("\\")[0])
+            creds.set_username(username.split("\\")[1])
+        elif (username.count("@") > 0):
+            creds.set_domain(username.split("@")[1])
+            creds.set_username(username.split("@")[0])
+        else:
+            creds.set_domain("")
+            creds.set_username(username)
+        creds.set_workstation("")
+        creds.set_password(password)
+        
+        binding = ["ncacn_np:%s", "ncacn_ip_tcp:%s", "ncalrpc:%s"][transport_type]
+        
+        self.pipe = samr.samr(binding % (server_address), credentials = creds)
+        self.connect_handle = self.pipe.Connect2(None, security.SEC_FLAG_MAXIMUM_ALLOWED)
         
     def close(self):
         if (self.pipe != None):
-            self.pipe.close()
+            self.pipe.Close(self.connect_handle)
+            
+    def fetch_and_get_domain_names(self):
+        if (self.pipe == None): # not connected
+            return None
         
-    def get_from_pipe(self):
-        group1 = Group("group1", "Group Description 1", 0xAAAA)
-        group2 = Group("group2", "Group Description 2", 0xBBBB)
+        domain_name_list = []
         
-        del self.group_list[:]
-        self.group_list.append(group1)
-        self.group_list.append(group2)
+        self.sam_domains = self.toArray(self.pipe.EnumDomains(self.connect_handle, 0, -1))
+        for (rid, domain_name) in self.sam_domains:
+            domain_name_list.append(self.get_lsa_string(domain_name))
         
-        user1 = User("username1", "Full Name 1", "User Description 1", 0xDEAD)
-        user1.password = "password1"
-        user1.must_change_password = True
-        user1.cannot_change_password = False
-        user1.password_never_expires = False
-        user1.account_disabled = False
-        user1.account_locked_out = False
-        user1.group_list = [self.group_list[0]]
-        user1.profile_path = "/profiles/user1"
-        user1.logon_script = "script1"
-        user1.homedir_path = "/home/user1"
-        user1.map_homedir_drive = None
-                
-        user2 = User("username2", "Full Name 2", "User Description 2", 0xBEEF)
-        user2.password = "password2"
-        user2.must_change_password = False
-        user2.cannot_change_password = True
-        user2.password_never_expires = True
-        user2.account_disabled = True
-        user2.account_locked_out = True
-        user2.group_list = [self.group_list[1]]
-        user2.profile_path = "/profiles/user2"
-        user2.logon_script = "script2"
-        user2.homedir_path = "/home/user2"
-        user2.map_homedir_drive = 4
+        return domain_name_list
+    
+    def set_current_domain(self, domain_index):
+        self.domain = self.sam_domains[domain_index]
         
+        self.domain_sid = self.pipe.LookupDomain(self.connect_handle, self.domain[1])
+        self.domain_handle = self.pipe.OpenDomain(self.connect_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, self.domain_sid)
+        
+    def fetch_users_and_groups(self):
         del self.user_list[:]
-        self.user_list.append(user1)
-        self.user_list.append(user2)
+        del self.group_list[:]
+        
+        # fetch groups
+        self.sam_groups = self.toArray(self.pipe.EnumDomainGroups(self.domain_handle, 0, -1))
+        
+        for (rid, groupname) in self.sam_groups:
+            group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
+            info = self.pipe.QueryGroupInfo(group_handle, 1)
+            
+            group = Group(self.get_lsa_string(info.name), 
+                        self.get_lsa_string(info.description),  
+                        rid)
+            
+            
+            self.group_list.append(group)
+            
+        # fetch users
+        self.sam_users = self.toArray(self.pipe.EnumDomainUsers(self.domain_handle, 0, 0, -1))
+        
+        for (rid, username) in self.sam_users:
+            user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
+            info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+            
+            user = User(self.get_lsa_string(info.account_name), 
+                        self.get_lsa_string(info.full_name), 
+                        self.get_lsa_string(info.description), 
+                        info.rid)
+            user.must_change_password = (info.acct_flags & 0x00020000) != 0
+            #user.cannot_change_password =
+            user.password_never_expires = (info.acct_flags & 0x00000200) != 0
+            user.account_disabled = (info.acct_flags & 0x00000001) != 0
+            user.account_locked_out = (info.acct_flags & 0x00000400) != 0
+            user.profile_path = self.get_lsa_string(info.profile_path)
+            user.logon_script = self.get_lsa_string(info.logon_script)
+            user.homedir_path = self.get_lsa_string(info.home_directory)
+            
+            drive = self.get_lsa_string(info.home_drive)
+            if (len(drive) == 2):
+                user.map_homedir_drive = ord(drive[0]) - ord('A')
+            else:
+                user.map_homedir_drive = -1
+            
+            group_rwa_list = self.pipe.GetGroupsForUser(user_handle).rids
+            for rwa in group_rwa_list:
+                group_rid = rwa.rid
+                group_to_add = None
+                
+                for group in self.group_list:
+                    if (group.rid == group_rid):
+                        group_to_add = group
+                        break
+                    
+                if (group_to_add != None):
+                    user.group_list.append(group_to_add)
+                else:
+                    raise Exception("group not found for rid = %d" % group_rid)
+
+            self.user_list.append(user)
+
         
     def user_to_pipe(self, user):
         pass
@@ -68,15 +131,32 @@ class SAMPipeManager:
     def group_to_pipe(self, group):
         pass
 
+    @staticmethod
+    def toArray((handle, array, num_entries)):
+        ret = []
+        for x in range(num_entries):
+            ret.append((array.entries[x].idx, array.entries[x].name))
+        return ret
+
+    @staticmethod
+    def get_lsa_string(str):
+        return str.string
     
+
 class SAMWindow(gtk.Window):
 
     def __init__(self):
         super(SAMWindow, self).__init__()
 
         self.create()
+        
         self.pipe_manager = None
         self.users_groups_notebook_page_num = 0
+        self.server_address = ""
+        self.transport_type = 0
+        self.username = ""
+        self.domain_index = 0;
+        
         self.update_captions()
         self.update_sensitivity()
         
@@ -340,6 +420,9 @@ class SAMWindow(gtk.Window):
         self.add_accel_group(accel_group)
 
     def refresh_user_list_view(self):
+        if not self.connected():
+            return None
+        
         (model, paths) = self.users_tree_view.get_selection().get_selected_rows()
         
         self.users_store.clear()
@@ -350,6 +433,9 @@ class SAMWindow(gtk.Window):
             self.users_tree_view.get_selection().select_path(paths[0])
 
     def refresh_group_list_view(self):
+        if not self.connected():
+            return None
+        
         (model, paths) = self.groups_tree_view.get_selection().get_selected_rows()
 
         self.groups_store.clear()
@@ -360,7 +446,7 @@ class SAMWindow(gtk.Window):
             self.groups_tree_view.get_selection().select_path(paths[0])
 
     def get_selected_user(self):
-        if (self.pipe_manager == None): # not connected
+        if not self.connected():
             return None
         
         (model, iter) = self.users_tree_view.get_selection().get_selected()
@@ -371,7 +457,7 @@ class SAMWindow(gtk.Window):
             return [user for user in self.pipe_manager.user_list if user.username == username][0]
 
     def get_selected_group(self):
-        if (self.pipe_manager == None): # not connected
+        if not self.connected():
             return None
         
         (model, iter) = self.groups_tree_view.get_selection().get_selected()
@@ -475,6 +561,55 @@ class SAMWindow(gtk.Window):
         
         return dialog.thegroup
 
+    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username, domains = None):
+        dialog = SAMConnectDialog(server_address, transport_type, username)
+        dialog.show_all()
+        
+        if (domains == None):
+            # loop to handle the failures
+            while True:
+                response_id = dialog.run()
+                
+                if (response_id != gtk.RESPONSE_OK):
+                    dialog.hide()
+                    return None
+                else:
+                    try:
+                        self.server_address = dialog.get_server_address()
+                        self.transport_type = dialog.get_transport_type()
+                        self.username = dialog.get_username()
+                        self.domain_index = 0
+                        password = dialog.get_password()
+                        
+                        pipe_manager = SAMPipeManager(self.server_address, self.transport_type, self.username, password)
+                        domains = pipe_manager.fetch_and_get_domain_names()
+                        
+                        break
+                    
+                    except RuntimeError, re:
+                        msg = "Failed to connect: " + re.args[1] + "."
+                        print msg
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                        
+                    except Exception, ex:
+                        msg = "Failed to connect: " + str(ex) + "."
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+
+        dialog.set_domains(domains, self.domain_index)
+        response_id = dialog.run()
+        dialog.hide()
+        
+        if (response_id != gtk.RESPONSE_OK):
+            return None
+        else:
+            self.domain_index = dialog.get_domain_index()
+            pipe_manager.set_current_domain(self.domain_index)
+        
+        return pipe_manager
+    
+    def connected(self):
+        return self.pipe_manager != None
+    
     def cell_data_func_hex(self, column, cell, model, iter, column_no):
         cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
 
@@ -487,14 +622,17 @@ class SAMWindow(gtk.Window):
 
     def on_connect_item_activate(self, widget):
         try:
-            self.pipe_manager = SAMPipeManager()
-            self.pipe_manager.get_from_pipe()
-            
-        except Exception:
-            print "failed to connect"
-            traceback.print_exc()
-            self.pipe_manager = None
-            return
+            self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
+            if (self.pipe_manager != None):
+                self.pipe_manager.fetch_users_and_groups()
+        except RuntimeError, re:
+            msg = "Failed to open the selected domain: " + re.args[1] + "."
+            print msg
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        except Exception, ex:
+            msg = "Failed to open the selected domain: " + str(ex) + "."
+            print msg
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         self.refresh_user_list_view()
         self.refresh_group_list_view()
@@ -510,13 +648,38 @@ class SAMWindow(gtk.Window):
         self.update_sensitivity()
     
     def on_sel_domain_item_activate(self, widget):
-        pass
+        try:
+            self.pipe_manager = self.run_connect_dialog(self.pipe_manager, self.server_address, self.transport_type, self.username, self.pipe_manager.fetch_and_get_domain_names())
+            if (self.pipe_manager != None):
+                self.pipe_manager.fetch_users_and_groups()
+        except RuntimeError, re:
+            msg = "Failed to open the selected domain: " + re.args[1] + "."
+            print msg
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        except Exception, ex:
+            msg = "Failed to open the selected domain: " + str(ex) + "."
+            print msg
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
+        self.refresh_user_list_view()
+        self.refresh_group_list_view()
+        self.update_sensitivity()
 
     def on_quit_item_activate(self, widget):
         self.on_self_delete(None, None)
     
     def on_refresh_item_activate(self, widget):
-        self.pipe_manager.get_from_pipe()
+        try:
+            self.pipe_manager.fetch_users_and_groups()
+        except RuntimeError, re:
+            msg = "Failed to refresh SAM info: " + re.args[1] + "."
+            print msg
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        except Exception, ex:
+            msg = "Failed to refresh SAM info: " + str(ex) + "."
+            print msg
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
         self.refresh_user_list_view()
         self.refresh_group_list_view()
         
@@ -575,9 +738,10 @@ class SAMWindow(gtk.Window):
         pass
     
     def on_about_item_activate(self, widget):
-        aboutwin = sambagtk.AboutDialog("PyGWSAM")
-        aboutwin.run()
-        aboutwin.destroy()
+        #aboutwin = sambagtk.AboutDialog("PyGWSAM")
+        #aboutwin.run()
+        #aboutwin.destroy()
+        pass
 
     def on_users_tree_view_selection_changed(self, widget):
         self.update_sensitivity()

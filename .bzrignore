@@ -14,3 +14,7 @@ gwsam
 gwsvcctl
 *.so.*
 tags
+*.po
+config.h
+config.h.in
+python/sambagtk.c

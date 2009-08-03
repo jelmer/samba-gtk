@@ -91,10 +91,18 @@ class SAMPipeManager:
 
         
     def add_user(self, user):
-        pass
+        (user_handle, rid) = self.pipe.CreateUser(self.domain_handle, self.set_lsa_string(user.username), security.SEC_FLAG_MAXIMUM_ALLOWED)        
+        user.rid = rid
+        
+        self.update_user(user)
+        self.user_list.append(user)
 
     def add_group(self, group):
-        pass
+        (group_handle, rid) = self.pipe.CreateDomainGroup(self.domain_handle, self.set_lsa_string(group.name), security.SEC_FLAG_MAXIMUM_ALLOWED)        
+        group.rid = rid
+        
+        self.update_group(group)
+        self.group_list.append(group)
 
     def update_user(self, user):
         user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
@@ -110,24 +118,25 @@ class SAMPipeManager:
         
         info = self.pipe.QueryUserInfo(user_handle, samr.UserControlInformation)
         if (user.must_change_password):
-            info.acct_flags |= 0x00020000;
+            info.acct_flags |= 0x00020000
         else:
-            info.acct_flags &= ~0x00020000;
+            info.acct_flags &= ~0x00020000
 
         if (user.password_never_expires):
-            info.acct_flags |= 0x00000200;
+            info.acct_flags |= 0x00000200
         else:
-            info.acct_flags &= ~0x00000200;
+            info.acct_flags &= ~0x00000200
             
         if (user.account_disabled):
-            info.acct_flags |= 0x00000001;
+            info.acct_flags |= 0x00000001
         else:
-            info.acct_flags &= ~0x00000001;
+            info.acct_flags &= ~0x00000001
 
         if (user.account_locked_out):
-            info.acct_flags |= 0x00000400;
+            info.acct_flags |= 0x00000400
         else:
-            info.acct_flags &= ~0x00000400;
+            info.acct_flags &= ~0x00000400
+        # TODO: the must_change_password flag doesn't get updated, no idea why!
         self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
             
         # TODO: cannot_change_password
@@ -153,13 +162,21 @@ class SAMPipeManager:
         # TODO: update user's groups
 
     def update_group(self, group):
-        pass
+        group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
 
+        info = self.set_lsa_string(group.name)
+        self.pipe.SetGroupInfo(group_handle, 2, info)
+        
+        info = self.set_lsa_string(group.description)
+        self.pipe.SetGroupInfo(group_handle, 4, info)
+        
     def delete_user(self, user):
-        pass
+        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
+        self.pipe.DeleteUser(user_handle)
 
     def delete_group(self, group):
-        pass
+        group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
+        self.pipe.DeleteDomainGroup(group_handle)
     
     def query_info_to_user(self, query_info):
         user = User(self.get_lsa_string(query_info.account_name), 
@@ -498,9 +515,9 @@ class SAMWindow(gtk.Window):
         self.delete_button.connect("clicked", self.on_delete_item_activate)
         self.edit_button.connect("clicked", self.on_edit_item_activate)
         
-        self.users_tree_view.get_selection().connect("changed", self.on_users_tree_view_selection_changed)
+        self.users_tree_view.get_selection().connect("changed", self.on_update_sensitivity)
         self.users_tree_view.connect("button_press_event", self.on_users_tree_view_button_press)
-        self.groups_tree_view.get_selection().connect("changed", self.on_groups_tree_view_selection_changed)
+        self.groups_tree_view.get_selection().connect("changed", self.on_update_sensitivity)
         self.groups_tree_view.connect("button_press_event", self.on_groups_tree_view_button_press)
         self.users_groups_notebook.connect("switch-page", self.on_users_groups_notebook_switch_page)
         
@@ -704,11 +721,35 @@ class SAMWindow(gtk.Window):
         cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
 
     def update_user_callback(self, user):
-        self.pipe_manager.update_user(user)
+        try:
+            self.pipe_manager.update_user(user)
+        except RuntimeError, re:
+            msg = "Failed to update user: " + re.args[1] + "."
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        except Exception, ex:
+            msg = "Failed to update user: " + str(ex) + "."
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
         self.refresh_user_list_view()
 
     def update_group_callback(self, group):
-        self.pipe_manager.update_group(group)
+        try:
+            self.pipe_manager.update_group(group)
+        except RuntimeError, re:
+            msg = "Failed to update group: " + re.args[1] + "."
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        except Exception, ex:
+            msg = "Failed to update group: " + str(ex) + "."
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+
         self.refresh_group_list_view()
 
     def on_self_delete(self, widget, event):
@@ -793,8 +834,20 @@ class SAMWindow(gtk.Window):
             if (new_user == None):
                 return
             
-            self.pipe_manager.user_list.append(new_user)
-            self.pipe_manager.update_user(new_user)
+            try:
+                self.pipe_manager.add_user(new_user)
+                self.pipe_manager.fetch_users_and_groups()
+            except RuntimeError, re:
+                msg = "Failed to create user: " + re.args[1] + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            except Exception, ex:
+                msg = "Failed to create user: " + str(ex) + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
             self.refresh_user_list_view()
 
         else: # groups tab
@@ -802,8 +855,20 @@ class SAMWindow(gtk.Window):
             if (new_group == None):
                 return
             
-            self.pipe_manager.group_list.append(new_group)
-            self.pipe_manager.update_group(new_group)
+            try:
+                self.pipe_manager.add_group(new_group)
+                self.pipe_manager.fetch_users_and_groups()
+            except RuntimeError, re:
+                msg = "Failed to create group: " + re.args[1] + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            except Exception, ex:
+                msg = "Failed to create group: " + str(ex) + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                
             self.refresh_group_list_view()
 
     def on_delete_item_activate(self, widget):
@@ -813,8 +878,20 @@ class SAMWindow(gtk.Window):
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete user '%s'?" % del_user.username) != gtk.RESPONSE_YES):
                 return 
             
-            self.pipe_manager.user_list.remove(del_user)
-            self.pipe_manager.delete_user(del_user)
+            try:
+                self.pipe_manager.delete_user(del_user)
+                self.pipe_manager.fetch_users_and_groups()
+            except RuntimeError, re:
+                msg = "Failed to delete user: " + re.args[1] + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            except Exception, ex:
+                msg = "Failed to delete user: " + str(ex) + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
             self.refresh_user_list_view()
 
         else: # groups tab
@@ -823,8 +900,20 @@ class SAMWindow(gtk.Window):
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete group '%s'?" % del_group.name) != gtk.RESPONSE_YES):
                 return 
             
-            self.pipe_manager.group_list.remove(del_group)
-            self.pipe_manager.delete_group(del_group)
+            try:
+                self.pipe_manager.delete_group(del_group)
+                self.pipe_manager.fetch_users_and_groups()
+            except RuntimeError, re:
+                msg = "Failed to delete group: " + re.args[1] + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            except Exception, ex:
+                msg = "Failed to delete group: " + str(ex) + "."
+                print msg
+                traceback.print_exc()
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                
             self.refresh_group_list_view()
         
     def on_edit_item_activate(self, widget):
@@ -852,15 +941,9 @@ class SAMWindow(gtk.Window):
         #aboutwin.destroy()
         pass
 
-    def on_users_tree_view_selection_changed(self, widget):
-        self.update_sensitivity()
-
     def on_users_tree_view_button_press(self, widget, event):
         if (event.type == gtk.gdk._2BUTTON_PRESS):
             self.on_edit_item_activate(self.edit_item)
-
-    def on_groups_tree_view_selection_changed(self, widget):
-        self.update_sensitivity()
 
     def on_groups_tree_view_button_press(self, widget, event):
         if (event.type == gtk.gdk._2BUTTON_PRESS):
@@ -869,6 +952,9 @@ class SAMWindow(gtk.Window):
     def on_users_groups_notebook_switch_page(self, widget, page, page_num):
         self.users_groups_notebook_page_num = page_num # workaround - the signal is emitted before the actual change
         self.update_captions()
+        self.update_sensitivity()
+        
+    def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
 

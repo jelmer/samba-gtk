@@ -16,7 +16,7 @@ class UserEditDialog(gtk.Dialog):
 
         if (user == None):
             self.brand_new = True
-            self.user = User("", "", "", 0x0000)
+            self.user = User("", "", "", 0)
         else:
             self.brand_new = False
             self.user = user
@@ -24,11 +24,12 @@ class UserEditDialog(gtk.Dialog):
         self.pipe_manager = pipe_manager
         self.create()
         
-        self.user_to_values()
+        if (not self.brand_new):
+            self.user_to_values()
         self.update_sensitivity()
         
     def create(self):
-        self.set_title(["Edit user", "New user"][self.user == None] + " " + self.user.username)
+        self.set_title(["Edit user", "New user"][self.brand_new] + " " + self.user.username)
         self.set_border_width(5)
         self.set_icon_from_file(os.path.join(sys.path[0], "images", "user.png"))
         
@@ -61,9 +62,6 @@ class UserEditDialog(gtk.Dialog):
         label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 4, 5, gtk.FILL, 0, 0, 0)
 
-        self.must_change_password_check = gtk.CheckButton("_User Must Change Password at Next Logon")
-        table.attach(self.must_change_password_check, 1, 2, 5, 6, gtk.FILL, 0, 0, 0)
-
         self.username_entry = gtk.Entry()
         table.attach(self.username_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
 
@@ -81,6 +79,10 @@ class UserEditDialog(gtk.Dialog):
         self.confirm_password_entry.set_visibility(False)
         table.attach(self.confirm_password_entry, 1, 2, 4, 5, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
+        self.must_change_password_check = gtk.CheckButton("_User Must Change Password at Next Logon")
+        self.must_change_password_check.set_active(self.brand_new)
+        table.attach(self.must_change_password_check, 1, 2, 5, 6, gtk.FILL, 0, 0, 0)
+
         self.cannot_change_password_check = gtk.CheckButton("User Cannot Change Password")
         table.attach(self.cannot_change_password_check, 1, 2, 6, 7, gtk.FILL, 0, 0, 0)
 
@@ -88,6 +90,7 @@ class UserEditDialog(gtk.Dialog):
         table.attach(self.password_never_expires_check, 1, 2, 7, 8, gtk.FILL, 0, 0, 0)
         
         self.account_disabled_check = gtk.CheckButton("Account Disabled")
+        self.account_disabled_check.set_active(self.brand_new)
         table.attach(self.account_disabled_check, 1, 2, 8, 9, gtk.FILL, 0, 0, 0)
 
         self.account_locked_out_check = gtk.CheckButton("Account Locked Out")
@@ -222,11 +225,17 @@ class UserEditDialog(gtk.Dialog):
         
         # signals/events
         
+        self.must_change_password_check.connect("toggled", self.on_update_sensitivity)
+        self.cannot_change_password_check.connect("toggled", self.on_update_sensitivity)
+        self.password_never_expires_check.connect("toggled", self.on_update_sensitivity)
+        self.account_disabled_check.connect("toggled", self.on_update_sensitivity)
+        self.account_locked_out_check.connect("toggled", self.on_update_sensitivity)
+        
         self.add_group_button.connect("clicked", self.on_add_group_button_clicked)
         self.del_group_button.connect("clicked", self.on_del_group_button_clicked)
-        self.existing_groups_tree_view.get_selection().connect("changed", self.on_existing_groups_tree_view_selection_changed)
-        self.available_groups_tree_view.get_selection().connect("changed", self.on_available_groups_tree_view_selection_changed)
-        self.map_homedir_drive_check.connect("toggled", self.on_map_homedir_drive_check_toggled)
+        self.existing_groups_tree_view.get_selection().connect("changed", self.on_update_sensitivity)
+        self.available_groups_tree_view.get_selection().connect("changed", self.on_update_sensitivity)
+        self.map_homedir_drive_check.connect("toggled", self.on_update_sensitivity)
         
     def check_for_problems(self):
         if (self.password_entry.get_text() != self.confirm_password_entry.get_text()):
@@ -245,6 +254,10 @@ class UserEditDialog(gtk.Dialog):
     def update_sensitivity(self):
         existing_selected = (self.existing_groups_tree_view.get_selection().count_selected_rows() > 0)
         available_selected = (self.available_groups_tree_view.get_selection().count_selected_rows() > 0)
+
+        self.must_change_password_check.set_sensitive(not self.password_never_expires_check.get_active())
+        self.cannot_change_password_check.set_sensitive(not self.must_change_password_check.get_active())
+        self.password_never_expires_check.set_sensitive(not self.must_change_password_check.get_active())
         
         self.add_group_button.set_sensitive(available_selected)
         self.del_group_button.set_sensitive(existing_selected)
@@ -334,13 +347,7 @@ class UserEditDialog(gtk.Dialog):
         self.available_groups_store.append([group_name])
         self.existing_groups_store.remove(iter)
 
-    def on_existing_groups_tree_view_selection_changed(self, widget):
-        self.update_sensitivity()
-
-    def on_available_groups_tree_view_selection_changed(self, widget):
-        self.update_sensitivity()
-
-    def on_map_homedir_drive_check_toggled(self, widget):
+    def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
 
@@ -351,18 +358,19 @@ class GroupEditDialog(gtk.Dialog):
 
         if (group == None):
             self.brand_new = True
-            self.thegroup = Group("", "", 0x0000)
+            self.thegroup = Group("", "", 0)
         else:
             self.brand_new = False
             self.thegroup = group
         
         self.sam_manager = pipe_manager
         self.create()
-        
-        self.group_to_values()
+
+        if (not self.brand_new):
+            self.group_to_values()
                 
     def create(self):        
-        self.set_title(["Edit group", "New group"][self.thegroup == None] + " " + self.thegroup.name)
+        self.set_title(["Edit group", "New group"][self.brand_new] + " " + self.thegroup.name)
         self.set_border_width(5)
         self.set_icon_from_file(os.path.join(sys.path[0], "images", "group.png"))
         

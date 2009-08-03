@@ -20,7 +20,7 @@ class User:
         self.profile_path = ""
         self.logon_script = ""
         self.homedir_path = ""
-        self.map_homedir_drive = None
+        self.map_homedir_drive = -1
         
         None
 

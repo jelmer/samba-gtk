@@ -7,6 +7,7 @@ import gtk, gobject
 
 from samba.dcerpc import samr
 from samba.dcerpc import security
+from samba.dcerpc import lsa
 from samba import credentials
 from samba import param
 
@@ -73,12 +74,8 @@ class SAMPipeManager:
         for (rid, groupname) in self.sam_groups:
             group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
             info = self.pipe.QueryGroupInfo(group_handle, 1)
-            
-            group = Group(self.get_lsa_string(info.name), 
-                        self.get_lsa_string(info.description),  
-                        rid)
-            
-            
+            group = self.query_info_to_group(info)
+            group.rid = rid
             self.group_list.append(group)
             
         # fetch users
@@ -87,49 +84,130 @@ class SAMPipeManager:
         for (rid, username) in self.sam_users:
             user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
             info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-            
-            user = User(self.get_lsa_string(info.account_name), 
-                        self.get_lsa_string(info.full_name), 
-                        self.get_lsa_string(info.description), 
-                        info.rid)
-            user.must_change_password = (info.acct_flags & 0x00020000) != 0
-            #user.cannot_change_password =
-            user.password_never_expires = (info.acct_flags & 0x00000200) != 0
-            user.account_disabled = (info.acct_flags & 0x00000001) != 0
-            user.account_locked_out = (info.acct_flags & 0x00000400) != 0
-            user.profile_path = self.get_lsa_string(info.profile_path)
-            user.logon_script = self.get_lsa_string(info.logon_script)
-            user.homedir_path = self.get_lsa_string(info.home_directory)
-            
-            drive = self.get_lsa_string(info.home_drive)
-            if (len(drive) == 2):
-                user.map_homedir_drive = ord(drive[0]) - ord('A')
-            else:
-                user.map_homedir_drive = -1
-            
+            user = self.query_info_to_user(info)
             group_rwa_list = self.pipe.GetGroupsForUser(user_handle).rids
-            for rwa in group_rwa_list:
-                group_rid = rwa.rid
-                group_to_add = None
-                
-                for group in self.group_list:
-                    if (group.rid == group_rid):
-                        group_to_add = group
-                        break
-                    
-                if (group_to_add != None):
-                    user.group_list.append(group_to_add)
-                else:
-                    raise Exception("group not found for rid = %d" % group_rid)
-
+            user.group_list = self.rwa_list_to_group_list(group_rwa_list)
             self.user_list.append(user)
 
         
-    def user_to_pipe(self, user):
+    def add_user(self, user):
         pass
 
-    def group_to_pipe(self, group):
+    def add_group(self, group):
         pass
+
+    def update_user(self, user):
+        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
+
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserNameInformation)
+        info.account_name = self.set_lsa_string(user.username)
+        info.full_name = self.set_lsa_string(user.fullname)
+        self.pipe.SetUserInfo(user_handle, samr.UserNameInformation, info)
+        
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserAdminCommentInformation)
+        info.description = self.set_lsa_string(user.description)
+        self.pipe.SetUserInfo(user_handle, samr.UserAdminCommentInformation, info)
+        
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserControlInformation)
+        if (user.must_change_password):
+            info.acct_flags |= 0x00020000;
+        else:
+            info.acct_flags &= ~0x00020000;
+
+        if (user.password_never_expires):
+            info.acct_flags |= 0x00000200;
+        else:
+            info.acct_flags &= ~0x00000200;
+            
+        if (user.account_disabled):
+            info.acct_flags |= 0x00000001;
+        else:
+            info.acct_flags &= ~0x00000001;
+
+        if (user.account_locked_out):
+            info.acct_flags |= 0x00000400;
+        else:
+            info.acct_flags &= ~0x00000400;
+        self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
+            
+        # TODO: cannot_change_password
+
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserProfileInformation)
+        info.profile_path = self.set_lsa_string(user.profile_path)
+        self.pipe.SetUserInfo(user_handle, samr.UserProfileInformation, info)
+        
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserScriptInformation)
+        info.logon_script = self.set_lsa_string(user.logon_script)
+        self.pipe.SetUserInfo(user_handle, samr.UserScriptInformation, info)
+
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserHomeInformation)
+        info.home_directory = self.set_lsa_string(user.homedir_path)
+        
+        if (user.map_homedir_drive == -1):
+            info.home_drive = self.set_lsa_string("")
+        else:
+            info.home_drive = self.set_lsa_string(chr(user.map_homedir_drive + ord('A')) + ":")
+        self.pipe.SetUserInfo(user_handle, samr.UserHomeInformation, info)
+        
+        
+        # TODO: update user's groups
+
+    def update_group(self, group):
+        pass
+
+    def delete_user(self, user):
+        pass
+
+    def delete_group(self, group):
+        pass
+    
+    def query_info_to_user(self, query_info):
+        user = User(self.get_lsa_string(query_info.account_name), 
+                        self.get_lsa_string(query_info.full_name), 
+                        self.get_lsa_string(query_info.description), 
+                        query_info.rid)
+        user.must_change_password = (query_info.acct_flags & 0x00020000) != 0
+        #user.cannot_change_password = TODO: fix this 
+        user.password_never_expires = (query_info.acct_flags & 0x00000200) != 0
+        user.account_disabled = (query_info.acct_flags & 0x00000001) != 0
+        user.account_locked_out = (query_info.acct_flags & 0x00000400) != 0
+        user.profile_path = self.get_lsa_string(query_info.profile_path)
+        user.logon_script = self.get_lsa_string(query_info.logon_script)
+        user.homedir_path = self.get_lsa_string(query_info.home_directory)
+        
+        drive = self.get_lsa_string(query_info.home_drive)
+        if (len(drive) == 2):
+            user.map_homedir_drive = ord(drive[0]) - ord('A')
+        else:
+            user.map_homedir_drive = -1
+            
+        return user
+    
+    def rwa_list_to_group_list(self, rwa_list):
+        group_list = []
+        
+        for rwa in rwa_list:
+            group_rid = rwa.rid
+            group_to_add = None
+            
+            for group in self.group_list:
+                if (group.rid == group_rid):
+                    group_to_add = group
+                    break
+                
+            if (group_to_add != None):
+                group_list.append(group_to_add)
+            else:
+                raise Exception("group not found for rid = %d" % group_rid)
+            
+        return group_list
+
+    def query_info_to_group(self, query_info):
+        group = Group(self.get_lsa_string(query_info.name), 
+                        self.get_lsa_string(query_info.description),  
+                        0)
+        
+        return group
 
     @staticmethod
     def toArray((handle, array, num_entries)):
@@ -141,6 +219,15 @@ class SAMPipeManager:
     @staticmethod
     def get_lsa_string(str):
         return str.string
+    
+    @staticmethod
+    def set_lsa_string(str):
+        lsa_string = lsa.String()
+        lsa_string.string = unicode(str)
+        lsa_string.length = len(str)
+        lsa_string.size = len(str)
+        
+        return lsa_string
     
 
 class SAMWindow(gtk.Window):
@@ -454,7 +541,7 @@ class SAMWindow(gtk.Window):
             return None
         else:            
             username = model.get_value(iter, 0)
-            return [user for user in self.pipe_manager.user_list if user.username == username][0]
+            return [user for user in self.pipe_manager.user_list if user.username == username][0] # TODO: check if [0] exists
 
     def get_selected_group(self):
         if not self.connected():
@@ -465,7 +552,7 @@ class SAMWindow(gtk.Window):
             return None
         else:            
             name = model.get_value(iter, 0)
-            return [group for group in self.pipe_manager.group_list if group.name == name][0]
+            return [group for group in self.pipe_manager.group_list if group.name == name][0] # TODO: check if [0] exists
 
     def set_status(self, message):
         self.statusbar.pop(0)
@@ -523,7 +610,7 @@ class SAMWindow(gtk.Window):
                 else:
                     dialog.values_to_user()
                     if (apply_callback != None):
-                        apply_callback()
+                        apply_callback(dialog.user)
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
@@ -550,7 +637,7 @@ class SAMWindow(gtk.Window):
                 else:
                     dialog.values_to_group()
                     if (apply_callback != None):
-                        apply_callback()                        
+                        apply_callback(dialog.thegroup)                        
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
@@ -589,10 +676,13 @@ class SAMWindow(gtk.Window):
                     except RuntimeError, re:
                         msg = "Failed to connect: " + re.args[1] + "."
                         print msg
+                        traceback.print_exc()                        
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
                         
                     except Exception, ex:
                         msg = "Failed to connect: " + str(ex) + "."
+                        print msg
+                        traceback.print_exc()
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
 
         dialog.set_domains(domains, self.domain_index)
@@ -613,6 +703,14 @@ class SAMWindow(gtk.Window):
     def cell_data_func_hex(self, column, cell, model, iter, column_no):
         cell.set_property("text", "0x%X" % model.get_value(iter, column_no))
 
+    def update_user_callback(self, user):
+        self.pipe_manager.update_user(user)
+        self.refresh_user_list_view()
+
+    def update_group_callback(self, group):
+        self.pipe_manager.update_group(group)
+        self.refresh_group_list_view()
+
     def on_self_delete(self, widget, event):
         if (self.pipe_manager != None):
             self.on_disconnect_item_activate(self.disconnect_item)
@@ -628,10 +726,12 @@ class SAMWindow(gtk.Window):
         except RuntimeError, re:
             msg = "Failed to open the selected domain: " + re.args[1] + "."
             print msg
+            traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         except Exception, ex:
             msg = "Failed to open the selected domain: " + str(ex) + "."
             print msg
+            traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         self.refresh_user_list_view()
@@ -655,10 +755,12 @@ class SAMWindow(gtk.Window):
         except RuntimeError, re:
             msg = "Failed to open the selected domain: " + re.args[1] + "."
             print msg
+            traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         except Exception, ex:
             msg = "Failed to open the selected domain: " + str(ex) + "."
             print msg
+            traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         self.refresh_user_list_view()
@@ -674,10 +776,12 @@ class SAMWindow(gtk.Window):
         except RuntimeError, re:
             msg = "Failed to refresh SAM info: " + re.args[1] + "."
             print msg
+            traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         except Exception, ex:
             msg = "Failed to refresh SAM info: " + str(ex) + "."
             print msg
+            traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
             
         self.refresh_user_list_view()
@@ -690,6 +794,7 @@ class SAMWindow(gtk.Window):
                 return
             
             self.pipe_manager.user_list.append(new_user)
+            self.pipe_manager.update_user(new_user)
             self.refresh_user_list_view()
 
         else: # groups tab
@@ -698,6 +803,7 @@ class SAMWindow(gtk.Window):
                 return
             
             self.pipe_manager.group_list.append(new_group)
+            self.pipe_manager.update_group(new_group)
             self.refresh_group_list_view()
 
     def on_delete_item_activate(self, widget):
@@ -708,6 +814,7 @@ class SAMWindow(gtk.Window):
                 return 
             
             self.pipe_manager.user_list.remove(del_user)
+            self.pipe_manager.delete_user(del_user)
             self.refresh_user_list_view()
 
         else: # groups tab
@@ -717,16 +824,17 @@ class SAMWindow(gtk.Window):
                 return 
             
             self.pipe_manager.group_list.remove(del_group)
+            self.pipe_manager.delete_group(del_group)
             self.refresh_group_list_view()
         
     def on_edit_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
             edit_user = self.get_selected_user()
-            self.run_user_edit_dialog(edit_user, self.refresh_user_list_view)
+            self.run_user_edit_dialog(edit_user, self.update_user_callback)
             
         else: # groups tab
             edit_group = self.get_selected_group()
-            self.run_group_edit_dialog(edit_group, self.refresh_group_list_view)
+            self.run_group_edit_dialog(edit_group, self.update_group_callback)
 
     def on_user_rights_item_activate(self, widget):
         pass
@@ -738,6 +846,7 @@ class SAMWindow(gtk.Window):
         pass
     
     def on_about_item_activate(self, widget):
+        # TODO: implement this
         #aboutwin = sambagtk.AboutDialog("PyGWSAM")
         #aboutwin.run()
         #aboutwin.destroy()

@@ -63,20 +63,25 @@ class UserEditDialog(gtk.Dialog):
         table.attach(label, 0, 1, 4, 5, gtk.FILL, 0, 0, 0)
 
         self.username_entry = gtk.Entry()
+        self.username_entry.set_activates_default(True)
         table.attach(self.username_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
 
         self.fullname_entry = gtk.Entry()
+        self.fullname_entry.set_activates_default(True)
         table.attach(self.fullname_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
 
         self.description_entry = gtk.Entry()
+        self.description_entry.set_activates_default(True)
         table.attach(self.description_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, 0, 0, 0)
 
         self.password_entry = gtk.Entry()
         self.password_entry.set_visibility(False)
+        self.password_entry.set_activates_default(True)
         table.attach(self.password_entry, 1, 2, 3, 4, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
         self.confirm_password_entry = gtk.Entry()
         self.confirm_password_entry.set_visibility(False)
+        self.confirm_password_entry.set_activates_default(True)
         table.attach(self.confirm_password_entry, 1, 2, 4, 5, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
         self.must_change_password_check = gtk.CheckButton("_User Must Change Password at Next Logon")
@@ -172,9 +177,11 @@ class UserEditDialog(gtk.Dialog):
         table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
 
         self.profile_path_entry = gtk.Entry()
+        self.profile_path_entry.set_activates_default(True)
         table.attach(self.profile_path_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, 0, 0, 0)
 
         self.logon_script_entry = gtk.Entry()
+        self.logon_script_entry.set_activates_default(True)
         table.attach(self.logon_script_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
         frame = gtk.Frame("Home Directory")
@@ -192,6 +199,7 @@ class UserEditDialog(gtk.Dialog):
         table.attach(label, 0, 1, 0, 1, gtk.FILL, 0, 0, 0)
         
         self.homedir_path_entry = gtk.Entry()
+        self.homedir_path_entry.set_activates_default(True)
         table.attach(self.homedir_path_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
         self.map_homedir_drive_check = gtk.CheckButton("Map homedir to drive")
@@ -389,9 +397,11 @@ class GroupEditDialog(gtk.Dialog):
         table.attach(label, 0, 1, 1, 2, gtk.FILL, 0, 0, 0)
 
         self.name_entry = gtk.Entry()
+        self.name_entry.set_activates_default(True)
         table.attach(self.name_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
 
         self.description_entry = gtk.Entry()
+        self.description_entry.set_activates_default(True)
         table.attach(self.description_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, 0, 0, 0)
         
         self.action_area.set_layout(gtk.BUTTONBOX_END)
@@ -522,6 +532,7 @@ class ServiceEditDialog(gtk.Dialog):
         table.attach(self.startup_type_combo, 1, 2, 3, 4, gtk.FILL, 0, 0, 0)
 
         self.start_params_entry = gtk.Entry()
+        self.start_params_entry.set_activates_default(True)
         table.attach(self.start_params_entry, 1, 2, 4, 5, gtk.FILL, 0, 0, 0)
         
         notebook.set_tab_label(notebook.get_nth_page(0), gtk.Label("General"))
@@ -545,6 +556,7 @@ class ServiceEditDialog(gtk.Dialog):
         table.attach(self.this_account_radio, 0, 1, 2, 3, gtk.FILL, 0, 0, 0)
         
         self.account_entry = gtk.Entry()
+        self.account_entry.set_activates_default(True)
         table.attach(self.account_entry, 1, 2, 2, 3, gtk.FILL, 0, 0, 0)
         
         self.browse_button = gtk.Button("Browse...")
@@ -555,6 +567,7 @@ class ServiceEditDialog(gtk.Dialog):
         table.attach(label, 0, 1, 3, 4, gtk.FILL, 0, 20, 0)
         
         self.password_entry = gtk.Entry()
+        self.password_entry.set_activates_default(True)
         self.password_entry.set_visibility(False)
         table.attach(self.password_entry, 1, 2, 3, 4, gtk.FILL, 0, 0, 0)
         
@@ -563,6 +576,7 @@ class ServiceEditDialog(gtk.Dialog):
         table.attach(label, 0, 1, 4, 5, gtk.FILL, 0, 20, 0)
         
         self.confirm_password_entry = gtk.Entry()
+        self.confirm_password_entry.set_activates_default(True)
         self.confirm_password_entry.set_visibility(False)
         table.attach(self.confirm_password_entry, 1, 2, 4, 5, gtk.FILL, 0, 0, 0)
         
@@ -780,6 +794,7 @@ class SAMConnectDialog(gtk.Dialog):
         
         self.server_address_entry = gtk.Entry()
         self.server_address_entry.set_text(self.server_address)
+        self.server_address_entry.set_activates_default(True)
         table.attach(self.server_address_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
         
         label = gtk.Label(" Username: ")
@@ -788,6 +803,7 @@ class SAMConnectDialog(gtk.Dialog):
         
         self.username_entry = gtk.Entry()
         self.username_entry.set_text(self.username)
+        self.username_entry.set_activates_default(True)
         table.attach(self.username_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
         
         label = gtk.Label(" Password: ")
@@ -796,6 +812,7 @@ class SAMConnectDialog(gtk.Dialog):
         
         self.password_entry = gtk.Entry()
         self.password_entry.set_visibility(False)
+        self.password_entry.set_activates_default(True)
         table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
         
         

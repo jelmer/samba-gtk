@@ -37,8 +37,7 @@ install-doc:: doc
 	$(INSTALL) -m 0644 $(MANPAGES) $(DESTDIR)$(man1dir)
 
 configure: configure.ac
-	aclocal
-	autoconf -f
+	autoreconf -i
 
 check:: test
 

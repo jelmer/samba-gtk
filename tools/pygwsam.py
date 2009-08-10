@@ -5,25 +5,25 @@ import os.path
 import traceback
 import gtk, gobject
 
-import samba
+from samba import credentials
 from samba.dcerpc import samr
 from samba.dcerpc import security
 from samba.dcerpc import lsa
-from samba import credentials
-from samba import param
 
 from objects import User
 from objects import Group
+
+from dialogs import SAMConnectDialog
 from dialogs import UserEditDialog
 from dialogs import GroupEditDialog
-from dialogs import SAMConnectDialog
+from dialogs import AboutDialog
 
 
 class SAMPipeManager:
     
     def __init__(self, server_address, transport_type, username, password):
         self.user_list = []
-        self.group_list = []        
+        self.group_list = []
         
         creds = credentials.Credentials()
         if (username.count("\\") > 0):
@@ -152,6 +152,7 @@ class SAMPipeManager:
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserHomeInformation)
         info.home_directory = self.set_lsa_string(user.homedir_path)
+        
         
         if (user.map_homedir_drive == -1):
             info.home_drive = self.set_lsa_string("")
@@ -999,27 +1000,10 @@ class SAMWindow(gtk.Window):
         pass
     
     def on_about_item_activate(self, widget):
-        license = '''This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.'''
-
-        dialog = gtk.AboutDialog()
-        dialog.set_name("PyGWSAM")
-        dialog.set_version(samba.version)
-        dialog.set_license(license)
-        dialog.set_logo(self.icon_pixbuf)
-        dialog.set_copyright("Copyright \xc2\xa9 2009 Calin Crisan <ccrisan@gmail.com>")
-        dialog.set_authors(["Calin Crisan <ccrisan@gmail.com>", "Jelmer Vernooij <jelmer@samba.org>"])
-        dialog.set_comments("A tool to manage accounts on a SAM server.\n Based on Jelmer Vernooij's original Samba-GTK")
+        dialog = AboutDialog(
+                             "PyGWSAM", 
+                             "A tool to manage accounts on a SAM server.\n Based on Jelmer Vernooij's original Samba-GTK",
+                             self.icon_pixbuf)
         dialog.run()
         dialog.hide()
 

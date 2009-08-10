@@ -82,3 +82,25 @@ class RegistryKey:
         
     def list_view_representation(self):
         return [gtk.STOCK_DIRECTORY, self.name]
+
+
+class Task:
+    
+    def __init__(self, command, id):
+        self.command = command
+        self.id = id
+        self.job_time = 0
+        self.days_of_month = 0
+        self.days_of_week = 0
+        self.run_periodically = False
+        self.add_current_date = False
+        self.non_interactive = False
+
+    def list_view_representation(self):
+        if (self.run_periodically):
+            schedule = "Periodically, "
+        else:
+            schedule = "Once, "
+        
+        return [str(self.id), self.command, schedule]
+

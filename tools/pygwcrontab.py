@@ -50,102 +50,51 @@ class ATSvcPipeManager:
                 self.task_list.append(task)
 
     def add_task(self, task):
-#        (user_handle, rid) = self.pipe.CreateUser(self.domain_handle, self.set_lsa_string(user.username), security.SEC_FLAG_MAXIMUM_ALLOWED)        
-#        user.rid = rid
-#        
-#        self.update_user(user)
-#        self.user_list.append(user)
-        pass
-
+        job_id = self.pipe.JobAdd(unicode(self.pipe.server_name), self.task_to_job_info(task))
+        if (job_id == 0):
+            raise Exception("invalid task information")
+        
+        task.id = job_id
+        self.task_list.append(task)
 
     def update_task(self, task):
-#        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
-#
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserNameInformation)
-#        info.account_name = self.set_lsa_string(user.username)
-#        info.full_name = self.set_lsa_string(user.fullname)
-#        self.pipe.SetUserInfo(user_handle, samr.UserNameInformation, info)
-#        
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserAdminCommentInformation)
-#        info.description = self.set_lsa_string(user.description)
-#        self.pipe.SetUserInfo(user_handle, samr.UserAdminCommentInformation, info)
-#        
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserControlInformation)
-#        if (user.must_change_password):
-#            info.acct_flags |= 0x00020000
-#        else:
-#            info.acct_flags &= ~0x00020000
-#
-#        if (user.password_never_expires):
-#            info.acct_flags |= 0x00000200
-#        else:
-#            info.acct_flags &= ~0x00000200
-#            
-#        if (user.account_disabled):
-#            info.acct_flags |= 0x00000001
-#        else:
-#            info.acct_flags &= ~0x00000001
-#
-#        if (user.account_locked_out):
-#            info.acct_flags |= 0x00000400
-#        else:
-#            info.acct_flags &= ~0x00000400
-#        # TODO: the must_change_password flag doesn't get updated, no idea why!
-#        self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
-#            
-#        # TODO: cannot_change_password
-#
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserProfileInformation)
-#        info.profile_path = self.set_lsa_string(user.profile_path)
-#        self.pipe.SetUserInfo(user_handle, samr.UserProfileInformation, info)
-#        
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserScriptInformation)
-#        info.logon_script = self.set_lsa_string(user.logon_script)
-#        self.pipe.SetUserInfo(user_handle, samr.UserScriptInformation, info)
-#
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserHomeInformation)
-#        info.home_directory = self.set_lsa_string(user.homedir_path)
-#        
-#        
-#        if (user.map_homedir_drive == -1):
-#            info.home_drive = self.set_lsa_string("")
-#        else:
-#            info.home_drive = self.set_lsa_string(chr(user.map_homedir_drive + ord('A')) + ":")
-#        self.pipe.SetUserInfo(user_handle, samr.UserHomeInformation, info)
-#        
-#        
-#        # update user's groups
-#        group_list = self.rwa_list_to_group_list(self.pipe.GetGroupsForUser(user_handle).rids)
-#        
-#        # groups to remove
-#        for group in group_list:
-#            if (user.group_list.count(group) == 0):
-#                group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
-#                self.pipe.DeleteGroupMember(group_handle, user.rid)
-#
-#        # groups to add
-#        for group in user.group_list:
-#            if (group_list.count(group) == 0):
-#                group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
-#                self.pipe.AddGroupMember(group_handle, user.rid, samr.SE_GROUP_ENABLED)
-        pass
+        job_id = self.pipe.JobAdd(unicode(self.pipe.server_name), self.task_to_job_info(task))
+        if (job_id == 0):
+            raise Exception("invalid task information")
+
+        self.pipe.JobDel(unicode(self.pipe.server_name), task.id, task.id)
+        
+        task.id = job_id
         
     def delete_task(self, task):
-#        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
-#        self.pipe.DeleteUser(user_handle)
-        pass
+        self.pipe.JobDel(unicode(self.pipe.server_name), task.id, task.id)
     
     def job_info_to_task(self, job_info):
         task = Task(job_info.command, job_info.job_id)
         
         task.job_time = job_info.job_time
-        self.days_of_month = job_info.days_of_month
-        self.days_of_week = job_info.days_of_week
-        self.run_periodically = (job_info.flags & 0x80) != 0
-        self.add_current_date = (job_info.flags & 0x10) != 0
-        self.non_interactive = (job_info.flags & 0x08) != 0
+        task.days_of_month = job_info.days_of_month
+        task.days_of_week = job_info.days_of_week
+        task.run_periodically = (job_info.flags & 0x01) != 0
+        task.non_interactive = (job_info.flags & 0x10) != 0
         
         return task
+
+    def task_to_job_info(self, task):
+        job_info = atsvc.JobInfo()
+        
+        job_info.command = unicode(task.command)
+        job_info.job_time = task.job_time
+        job_info.days_of_month = task.days_of_month
+        job_info.days_of_week = task.days_of_week
+        job_info.flags = 0
+        
+        if (task.run_periodically):
+            job_info.flags |= 0x01
+        if (task.non_interactive):
+            job_info.flags |= 0x10
+            
+        return job_info
 
 
 class CronTabWindow(gtk.Window):
@@ -156,9 +105,9 @@ class CronTabWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = ""
+        self.server_address = "192.168.56.102"
         self.transport_type = 0
-        self.username = ""
+        self.username = "administrator"
                 
         self.update_sensitivity()
         
@@ -388,8 +337,11 @@ class CronTabWindow(gtk.Window):
         self.delete_button.set_sensitive(connected and selected)
         self.edit_button.set_sensitive(connected and selected)
 
-    def run_message_dialog(self, type, buttons, message):
-        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
+    def run_message_dialog(self, type, buttons, message, parent = None):
+        if (parent == None):
+            parent = self
+        
+        message_box = gtk.MessageDialog(parent, gtk.DIALOG_MODAL, type, buttons, message)
         response = message_box.run()
         message_box.hide()
         
@@ -407,7 +359,7 @@ class CronTabWindow(gtk.Window):
                 problem_msg = dialog.check_for_problems()
                 
                 if (problem_msg != None):
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_task()
                     if (apply_callback != None):
@@ -448,13 +400,13 @@ class CronTabWindow(gtk.Window):
                     msg = "Failed to connect: " + re.args[1] + "."
                     print msg
                     traceback.print_exc()                        
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception, ex:
                     msg = "Failed to connect: " + str(ex) + "."
                     print msg
                     traceback.print_exc()
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
 
         dialog.hide()
         return pipe_manager
@@ -462,9 +414,10 @@ class CronTabWindow(gtk.Window):
     def connected(self):
         return self.pipe_manager != None
     
-    def update_task_callback(self, user):
+    def update_task_callback(self, task):
         try:
             self.pipe_manager.update_task(task)
+            self.pipe_manager.fetch_tasks()
         except RuntimeError, re:
             msg = "Failed to update task: " + re.args[1] + "."
             print msg
@@ -609,6 +562,9 @@ class CronTabWindow(gtk.Window):
         dialog.hide()
 
     def on_tasks_tree_view_button_press(self, widget, event):
+        if (self.get_selected_task() == None):
+            return
+
         if (event.type == gtk.gdk._2BUTTON_PRESS):
             self.on_edit_item_activate(self.edit_item)
 

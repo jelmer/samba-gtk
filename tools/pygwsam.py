@@ -633,8 +633,11 @@ class SAMWindow(gtk.Window):
         self.edit_button.set_tooltip_text(["Edit user's properties", "Edit group's properties"][self.users_groups_notebook_page_num > 0])
         self.delete_button.set_tooltip_text(["Delete the user", "Delete the group"][self.users_groups_notebook_page_num > 0])
 
-    def run_message_dialog(self, type, buttons, message):
-        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, type, buttons, message)
+    def run_message_dialog(self, type, buttons, message, parent = None):
+        if (parent == None):
+            parent = self
+        
+        message_box = gtk.MessageDialog(parent, gtk.DIALOG_MODAL, type, buttons, message)
         response = message_box.run()
         message_box.hide()
         
@@ -652,7 +655,7 @@ class SAMWindow(gtk.Window):
                 problem_msg = dialog.check_for_problems()
                 
                 if (problem_msg != None):
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_user()
                     if (apply_callback != None):
@@ -679,7 +682,7 @@ class SAMWindow(gtk.Window):
                 problem_msg = dialog.check_for_problems()
                 
                 if (problem_msg != None):
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_group()
                     if (apply_callback != None):
@@ -723,13 +726,13 @@ class SAMWindow(gtk.Window):
                         msg = "Failed to connect: " + re.args[1] + "."
                         print msg
                         traceback.print_exc()                        
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                         
                     except Exception, ex:
                         msg = "Failed to connect: " + str(ex) + "."
                         print msg
                         traceback.print_exc()
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
 
         dialog.set_domains(domains, self.domain_index)
         response_id = dialog.run()
@@ -1008,10 +1011,16 @@ class SAMWindow(gtk.Window):
         dialog.hide()
 
     def on_users_tree_view_button_press(self, widget, event):
+        if (self.get_selected_user() == None):
+            return
+        
         if (event.type == gtk.gdk._2BUTTON_PRESS):
             self.on_edit_item_activate(self.edit_item)
 
     def on_groups_tree_view_button_press(self, widget, event):
+        if (self.get_selected_group() == None):
+            return
+
         if (event.type == gtk.gdk._2BUTTON_PRESS):
             self.on_edit_item_activate(self.edit_item)
 

@@ -105,9 +105,9 @@ class CronTabWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = "192.168.56.102"
+        self.server_address = ""
         self.transport_type = 0
-        self.username = "administrator"
+        self.username = ""
                 
         self.update_sensitivity()
         

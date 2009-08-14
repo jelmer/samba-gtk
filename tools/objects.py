@@ -3,6 +3,8 @@ import datetime;
 
 import gtk;
 
+import samba.dcerpc.svcctl as svcctl
+
 
 class User:
     
@@ -43,25 +45,63 @@ class Group:
 
 class Service:
     
-    STARTUP_TYPE_NORMAL = 0
-    STARTUP_TYPE_AUTOMATIC = 1
-    STARTUP_TYPE_DISABLED = 2
-    
-    def __init__(self, name, description, started, startup_type):
-        self.name = name
-        self.description = description
-        self.started = started
-        self.startup_type = startup_type
+    def __init__(self):
+        self.name = ""
+        self.display_name = ""
+        self.description = ""
+        
+        self.state = svcctl.SVCCTL_STOPPED
+        self.check_point = 0
+        self.wait_hint = 0
+        
+        self.accepts_pause = False
+        self.accepts_stop = False
+        
+        self.start_type = svcctl.SVCCTL_AUTO_START
+        self.path_to_exe = ""        
+        self.account = None # local system account
+        self.account_password = None # don't change
+        self.allow_desktop_interaction = False
         
         self.start_params = ""
-        self.path_to_exe = ""
-        self.account = None # local system account
-        self.account_password = ""
-        self.allow_desktop_interaction = False
-        self.hw_profile_list = [["Profile 1", True], ["Profile 2", False]]
+        #self.hw_profile_list = [["Profile 1", True], ["Profile 2", False]]
+        
+        self.handle = -1
+    
+    @staticmethod
+    def get_state_string(state):
+        if (state == svcctl.SVCCTL_CONTINUE_PENDING):
+            return "Continue pending"
+        elif (state == svcctl.SVCCTL_PAUSE_PENDING):
+            return "Pause pending"
+        elif (state == svcctl.SVCCTL_PAUSED):
+            return "Paused"
+        elif (state == svcctl.SVCCTL_RUNNING):
+            return "Running"
+        elif (state == svcctl.SVCCTL_START_PENDING):
+            return "Start pending"
+        elif (state == svcctl.SVCCTL_STOP_PENDING):
+            return "Stop pending"
+        elif (state == svcctl.SVCCTL_STOPPED):
+            return "Stopped"
+        
+    @staticmethod
+    def get_start_type_string(start_type):
+        if (start_type == svcctl.SVCCTL_BOOT_START):
+            return "Start at boot"
+        elif (start_type == svcctl.SVCCTL_SYSTEM_START):
+            return "Start at system startup"
+        elif (start_type == svcctl.SVCCTL_AUTO_START):
+            return "Start automatically"
+        elif (start_type == svcctl.SVCCTL_DEMAND_START):
+            return "Start manually"
+        elif (start_type == svcctl.SVCCTL_DISABLED):
+            return "Disabled"
+        else:
+            return ""
         
     def list_view_representation(self):
-        return [self.name, self.description, ["Stopped", "Started"][self.started], ["Normal", "Automatic", "Disabled"][self.startup_type]]
+        return [self.name, self.display_name, self.description, Service.get_state_string(self.state), Service.get_start_type_string(self.start_type)]
 
 
 class RegistryValue:
@@ -199,14 +239,14 @@ class Task:
         else:
             return "At " + at_str + ", " + next_str + ", " + sw_str + "."
     
-    @classmethod
-    def get_day_of_week_name(self, day_no):
+    @staticmethod
+    def get_day_of_week_name(day_no):
         DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
         return DAYS_OF_WEEK[day_no]
     
-    @classmethod
-    def get_day_of_month_name(self, day_no):
+    @staticmethod
+    def get_day_of_month_name(day_no):
         if (day_no == 0):
             return "1st"
         elif (day_no == 1):

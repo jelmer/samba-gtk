@@ -3,7 +3,9 @@
 import sys
 import os.path
 import traceback
-import gtk, gobject
+
+import gobject
+import gtk
 
 from samba import credentials
 from samba.dcerpc import atsvc
@@ -164,20 +166,20 @@ class CronTabWindow(gtk.Window):
         view_menu.add(self.refresh_item)
         
         
-        self.user_group_item = gtk.MenuItem("_Task")
-        menubar.add(self.user_group_item)
+        self.task_item = gtk.MenuItem("_Task")
+        menubar.add(self.task_item)
         
-        user_group_menu = gtk.Menu()
-        self.user_group_item.set_submenu(user_group_menu)
+        task_menu = gtk.Menu()
+        self.task_item.set_submenu(task_menu)
 
         self.new_item = gtk.ImageMenuItem(gtk.STOCK_NEW, accel_group)
-        user_group_menu.add(self.new_item)
+        task_menu.add(self.new_item)
 
         self.delete_item = gtk.ImageMenuItem(gtk.STOCK_DELETE, accel_group)
-        user_group_menu.add(self.delete_item)
+        task_menu.add(self.delete_item)
 
         self.edit_item = gtk.ImageMenuItem(gtk.STOCK_EDIT, accel_group)
-        user_group_menu.add(self.edit_item)
+        task_menu.add(self.edit_item)
 
         
         self.help_item = gtk.MenuItem("_Help")
@@ -231,6 +233,8 @@ class CronTabWindow(gtk.Window):
         self.tasks_tree_view = gtk.TreeView()        
         scrolledwindow.add(self.tasks_tree_view)
         
+        # TODO: add an icon column
+
         column = gtk.TreeViewColumn()
         column.set_title("Id")
         column.set_resizable(True)
@@ -243,7 +247,7 @@ class CronTabWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Command")
         column.set_resizable(True)
-        column.set_sort_column_id(0)
+        column.set_sort_column_id(1)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.tasks_tree_view.append_column(column)
@@ -252,7 +256,7 @@ class CronTabWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Schedule")
         column.set_resizable(True)
-        column.set_sort_column_id(1)
+        column.set_sort_column_id(2)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
         self.tasks_tree_view.append_column(column)
@@ -418,12 +422,16 @@ class CronTabWindow(gtk.Window):
         try:
             self.pipe_manager.update_task(task)
             self.pipe_manager.fetch_tasks()
+        
+            self.set_status("Task updated.")
+
         except RuntimeError, re:
             msg = "Failed to update task: " + re.args[1] + "."
             print msg
             self.set_status(msg)
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
         except Exception, ex:
             msg = "Failed to update task: " + str(ex) + "."
             print msg
@@ -445,12 +453,16 @@ class CronTabWindow(gtk.Window):
             self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_tasks()
+                
+                self.set_status("Connected to " + self.server_address + ".")
+
         except RuntimeError, re:
             msg = "Failed to retrieve the scheduled tasks: " + re.args[1] + "."
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
         except Exception, ex:
             msg = "Failed to retrieve the scheduled tasks: " + str(ex) + "."
             self.set_status(msg)
@@ -461,8 +473,6 @@ class CronTabWindow(gtk.Window):
         self.refresh_tasks_tree_view()
         self.update_sensitivity()
         
-        self.set_status("Connected to " + self.server_address)
-
     def on_disconnect_item_activate(self, widget):
         if (self.pipe_manager != None):
             self.pipe_manager.close()
@@ -471,7 +481,7 @@ class CronTabWindow(gtk.Window):
         self.tasks_store.clear()
         self.update_sensitivity()
 
-        self.set_status("Disconnected")
+        self.set_status("Disconnected.")
     
     def on_quit_item_activate(self, widget):
         self.on_self_delete(None, None)
@@ -479,12 +489,16 @@ class CronTabWindow(gtk.Window):
     def on_refresh_item_activate(self, widget):
         try:
             self.pipe_manager.fetch_tasks()
+            
+            self.set_status("Connected to " + self.server_address)
+        
         except RuntimeError, re:
             msg = "Failed to retrieve the scheduled tasks: " + re.args[1] + "."
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
         except Exception, ex:
             msg = "Failed to retrieve the scheduled tasks: " + str(ex) + "."
             self.set_status(msg)
@@ -493,8 +507,6 @@ class CronTabWindow(gtk.Window):
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
             
         self.refresh_tasks_tree_view()
-        
-        self.set_status("Connected to " + self.server_address)
         
     def on_new_item_activate(self, widget):
         new_task = self.run_task_edit_dialog()
@@ -504,12 +516,16 @@ class CronTabWindow(gtk.Window):
         try:
             self.pipe_manager.add_task(new_task)
             self.pipe_manager.fetch_tasks()
+        
+            self.set_status("Successfully created the task")
+        
         except RuntimeError, re:
             msg = "Failed to create task: " + re.args[1] + "."
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
         except Exception, ex:
             msg = "Failed to create task: " + str(ex) + "."
             self.set_status(msg)
@@ -519,8 +535,6 @@ class CronTabWindow(gtk.Window):
         
         self.refresh_tasks_tree_view()
 
-        self.set_status("Successfully created the task")
-        
     def on_delete_item_activate(self, widget):
         del_task = self.get_selected_task()
 
@@ -530,12 +544,16 @@ class CronTabWindow(gtk.Window):
         try:
             self.pipe_manager.delete_task(del_task)
             self.pipe_manager.fetch_tasks()
+        
+            self.set_status("Successfully deleted the task.")
+        
         except RuntimeError, re:
             msg = "Failed to delete task: " + re.args[1] + "."
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
         except Exception, ex:
             msg = "Failed to delete task: " + str(ex) + "."
             self.set_status(msg)
@@ -544,20 +562,17 @@ class CronTabWindow(gtk.Window):
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         self.refresh_tasks_tree_view()
-        
-        self.set_status("Successfully deleted the task")
-        
+                
     def on_edit_item_activate(self, widget):
         edit_task = self.get_selected_task()
         self.run_task_edit_dialog(edit_task, self.update_task_callback)
         
-        self.set_status("Task updated")
-
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(
-            "PyGWCronTab", 
-            "A tool to remotely manage scheduled tasks.\n Based on Jelmer Vernooij's original Samba-GTK",
-            self.icon_pixbuf)
+                             "PyGWCronTab", 
+                             "A tool to remotely manage scheduled tasks.\n Based on Jelmer Vernooij's original Samba-GTK",
+                             self.icon_pixbuf
+                             )
         dialog.run()
         dialog.hide()
 
@@ -573,5 +588,6 @@ class CronTabWindow(gtk.Window):
 
 
 main_window = CronTabWindow()
+main_window.set_status("Disconnected.")
 main_window.show_all()
 gtk.main()

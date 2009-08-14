@@ -64,7 +64,7 @@ class Service:
         self.allow_desktop_interaction = False
         
         self.start_params = ""
-        #self.hw_profile_list = [["Profile 1", True], ["Profile 2", False]]
+        #self.hw_profile_list = [["Profile 1", True], ["Profile 2", False]] TODO: implement hw_profiles functionality
         
         self.handle = -1
     

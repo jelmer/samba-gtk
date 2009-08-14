@@ -56,10 +56,17 @@ class SvcCtlPipeManager():
             svcctl.SERVICE_TYPE_WIN32_OWN_PROCESS | svcctl.SERVICE_TYPE_WIN32_SHARE_PROCESS,
             svcctl.SERVICE_STATE_ALL, 256 * 1024,
             0)
-        
+
+        error_msg = None
         for enum_service_status in SvcCtlPipeManager.enum_service_status_list_from_buffer(buffer, count):
-            service = SvcCtlPipeManager.fetch_service(self, enum_service_status.service_name)
-            self.service_list.append(service)
+            try:
+                service = SvcCtlPipeManager.fetch_service(self, enum_service_status.service_name)
+                self.service_list.append(service)
+            except Exception as ex:
+                error_msg = "Failed to fetch service '" + enum_service_status.service_name + "': " + str(ex)
+
+        if (error_msg != None):
+            raise Exception(error_msg)
 
     def start_service(self, service):
         self.pipe.StartServiceW(service.handle, service.start_params.split())
@@ -69,7 +76,7 @@ class SvcCtlPipeManager():
 
     def update_service(self, service):
         (service_config, needed) = self.pipe.QueryServiceConfigW(service.handle, 8192)
-        # TODO: this gives a "Fault in NDR" error
+        # TODO: this gives a "DCERPC Fault NDR" error
         self.pipe.ChangeServiceConfigW(
             service.handle, 
             service_config.service_type,
@@ -224,17 +231,23 @@ class FetchServicesThread(threading.Thread):
        
         except RuntimeError, re:
             msg = "Failed to retrieve the service list: " + re.args[1] + "."
-            self.set_status(msg)
             print msg
             traceback.print_exc()
-            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+            gtk.gdk.threads_enter()
+            self.svcctl_window.set_status(msg)
+            self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            gtk.gdk.threads_leave()
         
         except Exception, ex:
             msg = "Failed to retrieve the service list: " + str(ex) + "."
-            self.set_status(msg)
             print msg
             traceback.print_exc()
-            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+            gtk.gdk.threads_enter()
+            self.svcctl_window.set_status(msg)
+            self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            gtk.gdk.threads_leave()
         
         finally:
             self.pipe_manager.lock.release()
@@ -265,6 +278,7 @@ class ServiceControlThread(threading.Thread):
         
         control_string = {None: "start", svcctl.SVCCTL_CONTROL_STOP: "stop", svcctl.SVCCTL_CONTROL_PAUSE: "pause", svcctl.SVCCTL_CONTROL_CONTINUE: "resume"}
         control_string2 = {None: "started", svcctl.SVCCTL_CONTROL_STOP: "stopped", svcctl.SVCCTL_CONTROL_PAUSE: "paused", svcctl.SVCCTL_CONTROL_CONTINUE: "resumed"}
+        final_state = {None: svcctl.SVCCTL_RUNNING, svcctl.SVCCTL_CONTROL_STOP: svcctl.SVCCTL_STOPPED, svcctl.SVCCTL_CONTROL_PAUSE: svcctl.SVCCTL_PAUSED, svcctl.SVCCTL_CONTROL_CONTINUE: svcctl.SVCCTL_RUNNING}
         sleep_delay = 0.1
 
         try:
@@ -284,10 +298,11 @@ class ServiceControlThread(threading.Thread):
         except RuntimeError, re:
             msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + re.args[1] + "."
             print msg
-            traceback.print_exc()                        
+            traceback.print_exc()
+            
             gtk.gdk.threads_enter()
-            self.svcctl_window.set_status(msg)
             self.service_control_dialog.hide()
+            self.svcctl_window.set_status(msg)
             self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.service_control_dialog)
             gtk.gdk.threads_leave()
             
@@ -297,9 +312,10 @@ class ServiceControlThread(threading.Thread):
             msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + str(ex) + "."
             print msg
             traceback.print_exc()
+            
             gtk.gdk.threads_enter()
-            self.svcctl_window.set_status(msg)
             self.service_control_dialog.hide()
+            self.svcctl_window.set_status(msg)
             self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.service_control_dialog)
             gtk.gdk.threads_leave()
             
@@ -316,10 +332,11 @@ class ServiceControlThread(threading.Thread):
             except RuntimeError, re:
                 msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + re.args[1] + "."
                 print msg
-                traceback.print_exc()                        
+                traceback.print_exc()
+                          
                 gtk.gdk.threads_enter()
-                self.svcctl_window.set_status(msg)
                 self.service_control_dialog.hide()
+                self.svcctl_window.set_status(msg)
                 self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.service_control_dialog)
                 gtk.gdk.threads_leave()
                 
@@ -329,9 +346,10 @@ class ServiceControlThread(threading.Thread):
                 msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + str(ex) + "."
                 print msg
                 traceback.print_exc()
+                
                 gtk.gdk.threads_enter()
-                self.svcctl_window.set_status(msg)
                 self.service_control_dialog.hide()
+                self.svcctl_window.set_status(msg)
                 self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.service_control_dialog)
                 gtk.gdk.threads_leave()
                 
@@ -348,7 +366,6 @@ class ServiceControlThread(threading.Thread):
                 self.running = False
                 gtk.gdk.threads_enter()
                 self.service_control_dialog.progress(True)
-                self.svcctl_window.set_status("Successfully " + control_string2[self.control] + " '" + self.service.display_name + "' service.")
                 gtk.gdk.threads_leave()
                 
             else:
@@ -357,10 +374,17 @@ class ServiceControlThread(threading.Thread):
                 gtk.gdk.threads_leave()
 
             time.sleep(sleep_delay)
-        
+            
         gtk.gdk.threads_enter()
         self.service_control_dialog.hide()
         self.svcctl_window.refresh_services_tree_view()
+
+        if (self.service.state == final_state[self.control]):        
+            self.svcctl_window.set_status("Successfully " + control_string2[self.control] + " '" + self.service.display_name + "' service.")
+        else:
+            msg = "Failed to " + control_string[self.control] + " '" + self.service.display_name + "' service."
+            self.svcctl_window.set_status(msg)
+            self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.svcctl_window)
         gtk.gdk.threads_leave()
 
 
@@ -388,7 +412,8 @@ class SvcCtlWindow(gtk.Window):
         self.set_title("Service Control Management")
         self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
-        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(os.path.join(sys.path[0], "images", "service.png"))
+        self.icon_filename = os.path.join(sys.path[0], "images", "service.png")
+        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
         
     	vbox = gtk.VBox(False, 0)
@@ -507,8 +532,14 @@ class SvcCtlWindow(gtk.Window):
         self.services_tree_view = gtk.TreeView()        
         scrolledwindow.add(self.services_tree_view)
         
-         # TODO: add an icon column
-
+        column = gtk.TreeViewColumn()
+        column.set_title("Icon")
+        column.set_resizable(False)
+        renderer = gtk.CellRendererPixbuf()
+        renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.icon_filename, 22, 22))
+        column.pack_start(renderer, True)
+        self.services_tree_view.append_column(column)
+                
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         column.set_resizable(True)

@@ -122,7 +122,8 @@ class CronTabWindow(gtk.Window):
         self.set_title("Scheduled Tasks")
         self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
-        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(os.path.join(sys.path[0], "images", "crontab.png"))
+        self.icon_filename = os.path.join(sys.path[0], "images", "crontab.png")
+        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
         
     	vbox = gtk.VBox(False, 0)
@@ -233,8 +234,13 @@ class CronTabWindow(gtk.Window):
         self.tasks_tree_view = gtk.TreeView()        
         scrolledwindow.add(self.tasks_tree_view)
         
-        # TODO: add an icon column
-
+        column = gtk.TreeViewColumn()
+        column.set_title("Icon")
+        renderer = gtk.CellRendererPixbuf()
+        renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.icon_filename, 22, 22))
+        column.pack_start(renderer, True)
+        self.tasks_tree_view.append_column(column)
+                
         column = gtk.TreeViewColumn()
         column.set_title("Id")
         column.set_resizable(True)
@@ -318,7 +324,11 @@ class CronTabWindow(gtk.Window):
             return None
         else:            
             id = int(model.get_value(iter, 0))
-            return [task for task in self.pipe_manager.task_list if task.id == id][0] # TODO: check if [0] exists
+            task_list = [task for task in self.pipe_manager.task_list if task.id == id]
+            if (len(task_list) > 0):
+                return task_list[0]
+            else:
+                return None
 
     def set_status(self, message):
         self.statusbar.pop(0)

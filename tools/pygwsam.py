@@ -75,36 +75,35 @@ class SAMPipeManager:
         self.sam_groups = self.toArray(self.pipe.EnumDomainGroups(self.domain_handle, 0, -1))
         
         for (rid, groupname) in self.sam_groups:
-            group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
-            info = self.pipe.QueryGroupInfo(group_handle, 1)
-            group = self.query_info_to_group(info)
-            group.rid = rid
+            group = self.fetch_group(rid)
             self.group_list.append(group)
             
         # fetch users
         self.sam_users = self.toArray(self.pipe.EnumDomainUsers(self.domain_handle, 0, 0, -1))
         
         for (rid, username) in self.sam_users:
-            user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
-            info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-            user = self.query_info_to_user(info)
-            group_rwa_list = self.pipe.GetGroupsForUser(user_handle).rids
-            user.group_list = self.rwa_list_to_group_list(group_rwa_list)
+            user = self.fetch_user(rid)
             self.user_list.append(user)
 
         
     def add_user(self, user):
         (user_handle, rid) = self.pipe.CreateUser(self.domain_handle, self.set_lsa_string(user.username), security.SEC_FLAG_MAXIMUM_ALLOWED)        
-        user.rid = rid
+        user = self.fetch_user(rid, user)
         
         self.update_user(user)
+        user = self.fetch_user(rid, user) # just to make sure we have the updated user properties
+
         self.user_list.append(user)
 
     def add_group(self, group):
         (group_handle, rid) = self.pipe.CreateDomainGroup(self.domain_handle, self.set_lsa_string(group.name), security.SEC_FLAG_MAXIMUM_ALLOWED)        
         group.rid = rid
+        group = self.fetch_group(rid, group)
         
         self.update_group(group)
+        group = self.fetch_group(rid, group) # just to make sure we have the updated group properties
+        
+        
         self.group_list.append(group)
 
     def update_user(self, user):
@@ -139,7 +138,6 @@ class SAMPipeManager:
             info.acct_flags |= 0x00000400
         else:
             info.acct_flags &= ~0x00000400
-        # TODO: the must_change_password flag doesn't get updated, no idea why!
         self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
             
         # TODO: cannot_change_password
@@ -166,8 +164,6 @@ class SAMPipeManager:
         # update user's groups
         group_list = self.rwa_list_to_group_list(self.pipe.GetGroupsForUser(user_handle).rids)
  
-        # TODO: when creating a new user, the primary group is automatically assigned! don't DeleteGroupMember() it!
-        
         # groups to remove
         for group in group_list:
             if (user.group_list.count(group) == 0):
@@ -197,15 +193,40 @@ class SAMPipeManager:
         group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
         self.pipe.DeleteDomainGroup(group_handle)
     
-    def query_info_to_user(self, query_info):
-        user = User(self.get_lsa_string(query_info.account_name), 
+    def fetch_user(self, rid, user = None):
+        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
+        info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+        user = self.query_info_to_user(info, user)
+        group_rwa_list = self.pipe.GetGroupsForUser(user_handle).rids
+        user.group_list = self.rwa_list_to_group_list(group_rwa_list)
+        
+        return user
+    
+    def fetch_group(self, rid, group = None):
+        group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
+        info = self.pipe.QueryGroupInfo(group_handle, 1)
+        group = self.query_info_to_group(info, group)
+        group.rid = rid
+        
+        return group
+    
+    def query_info_to_user(self, query_info, user = None):
+        if (user == None):
+            user = User(self.get_lsa_string(query_info.account_name), 
                         self.get_lsa_string(query_info.full_name), 
                         self.get_lsa_string(query_info.description), 
                         query_info.rid)
+        else:
+            user.username = self.get_lsa_string(query_info.account_name)
+            user.full_name = self.get_lsa_string(query_info.full_name)
+            user.description = self.get_lsa_string(query_info.description)
+            user.rid = query_info.rid
+        
         user.must_change_password = (query_info.acct_flags & 0x00020000) != 0
         #user.cannot_change_password = TODO: fix this 
         user.password_never_expires = (query_info.acct_flags & 0x00000200) != 0
         user.account_disabled = (query_info.acct_flags & 0x00000001) != 0
+        # TODO: account locked out does get updated!!!
         user.account_locked_out = (query_info.acct_flags & 0x00000400) != 0
         user.profile_path = self.get_lsa_string(query_info.profile_path)
         user.logon_script = self.get_lsa_string(query_info.logon_script)
@@ -238,10 +259,14 @@ class SAMPipeManager:
             
         return group_list
 
-    def query_info_to_group(self, query_info):
-        group = Group(self.get_lsa_string(query_info.name), 
-                        self.get_lsa_string(query_info.description),  
-                        0)
+    def query_info_to_group(self, query_info, group = None):
+        if (group == None):
+            group = Group(self.get_lsa_string(query_info.name), 
+                          self.get_lsa_string(query_info.description),  
+                          0)
+        else:
+            group.name = self.get_lsa_string(query_info.name)
+            group.description = self.get_lsa_string(query_info.description)
         
         return group
 
@@ -292,7 +317,10 @@ class SAMWindow(gtk.Window):
         self.set_title("User/Group Management")
         self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
-        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(os.path.join(sys.path[0], "images", "group.png"))
+        self.icon_filename = os.path.join(sys.path[0], "images", "group.png")
+        self.user_icon_filename = os.path.join(sys.path[0], "images", "user.png")
+        self.group_icon_filename = os.path.join(sys.path[0], "images", "group.png")
+        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
         
     	vbox = gtk.VBox(False, 0)
@@ -436,8 +464,13 @@ class SAMWindow(gtk.Window):
         self.users_tree_view = gtk.TreeView()        
         scrolledwindow.add(self.users_tree_view)
         
-        # TODO: add an icon column
-        
+        column = gtk.TreeViewColumn()
+        column.set_title("Icon")
+        renderer = gtk.CellRendererPixbuf()
+        renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.user_icon_filename, 22, 22))
+        column.pack_start(renderer, True)
+        self.users_tree_view.append_column(column)
+                
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         column.set_resizable(True)
@@ -489,6 +522,13 @@ class SAMWindow(gtk.Window):
         self.groups_tree_view = gtk.TreeView()
         scrolledwindow.add(self.groups_tree_view)
         
+        column = gtk.TreeViewColumn()
+        column.set_title("Icon")
+        renderer = gtk.CellRendererPixbuf()
+        renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.group_icon_filename, 22, 22))
+        column.pack_start(renderer, True)
+        self.groups_tree_view.append_column(column)
+
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         column.set_resizable(True)
@@ -593,7 +633,11 @@ class SAMWindow(gtk.Window):
             return None
         else:            
             username = model.get_value(iter, 0)
-            return [user for user in self.pipe_manager.user_list if user.username == username][0] # TODO: check if [0] exists
+            user_list = [user for user in self.pipe_manager.user_list if user.username == username]
+            if (len(user_list) > 0):
+                return user_list[0]
+            else:
+                return None
 
     def get_selected_group(self):
         if not self.connected():
@@ -604,7 +648,11 @@ class SAMWindow(gtk.Window):
             return None
         else:            
             name = model.get_value(iter, 0)
-            return [group for group in self.pipe_manager.group_list if group.name == name][0] # TODO: check if [0] exists
+            group_list = [group for group in self.pipe_manager.group_list if group.name == name]
+            if (len(group_list) > 0):
+                return group_list[0]
+            else:
+                return None
 
     def set_status(self, message):
         self.statusbar.pop(0)
@@ -664,8 +712,11 @@ class SAMWindow(gtk.Window):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_user()
+                    
                     if (apply_callback != None):
                         apply_callback(dialog.user)
+                        dialog.user_to_values()
+                        
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
@@ -691,8 +742,11 @@ class SAMWindow(gtk.Window):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_group()
+                    
                     if (apply_callback != None):
-                        apply_callback(dialog.thegroup)                        
+                        apply_callback(dialog.thegroup)
+                        dialog.group_to_values()
+                                         
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
@@ -775,7 +829,9 @@ class SAMWindow(gtk.Window):
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
-        self.refresh_user_list_view()
+        finally:
+            self.pipe_manager.fetch_user(user.rid, user) # just to make sure we have the updated user properties
+            self.refresh_user_list_view()
 
     def update_group_callback(self, group):
         try:
@@ -796,9 +852,11 @@ class SAMWindow(gtk.Window):
             self.set_status(msg)
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-
-        self.refresh_group_list_view()
-
+        
+        finally:
+            self.pipe_manager.fetch_group(group.rid, group) # just to make sure we have the updated group properties
+            self.refresh_group_list_view()
+            
     def on_self_delete(self, widget, event):
         if (self.pipe_manager != None):
             self.on_disconnect_item_activate(self.disconnect_item)

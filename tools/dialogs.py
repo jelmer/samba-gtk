@@ -56,8 +56,7 @@ class UserEditDialog(gtk.Dialog):
         self.pipe_manager = pipe_manager
         self.create()
         
-        if (not self.brand_new):
-            self.user_to_values()
+        self.user_to_values()
         self.update_sensitivity()
         
     def create(self):
@@ -503,7 +502,8 @@ class ServiceEditDialog(gtk.Dialog):
     def create(self):  
         self.set_title("Edit service " + self.service.name)
         self.set_border_width(5)
-        self.set_icon_from_file(os.path.join(sys.path[0], "images", "service.png"))
+        self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(os.path.join(sys.path[0], "images", "service.png"))
+        self.set_icon(self.icon_pixbuf)
         self.set_resizable(False)
         self.set_size_request(450, 350)
         

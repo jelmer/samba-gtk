@@ -46,7 +46,7 @@ class SvcCtlPipeManager():
         self.scm_handle = self.pipe.OpenSCManagerA(None, None, svcctl.SC_MANAGER_ALL_ACCESS)
 
     def close(self):
-        None # apparently there's no .Close() method for this pipe
+        pass # apparently there's no .Close() method for this pipe
             
     def fetch_services(self):
         del self.service_list[:]
@@ -412,6 +412,7 @@ class SvcCtlWindow(gtk.Window):
         self.set_title("Service Control Management")
         self.set_default_size(800, 600)
         self.connect("delete_event", self.on_self_delete)
+
         self.icon_filename = os.path.join(sys.path[0], "images", "service.png")
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
@@ -533,7 +534,7 @@ class SvcCtlWindow(gtk.Window):
         scrolledwindow.add(self.services_tree_view)
         
         column = gtk.TreeViewColumn()
-        column.set_title("Icon")
+        column.set_title("")
         column.set_resizable(False)
         renderer = gtk.CellRendererPixbuf()
         renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.icon_filename, 22, 22))

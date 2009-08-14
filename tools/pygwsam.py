@@ -465,7 +465,7 @@ class SAMWindow(gtk.Window):
         scrolledwindow.add(self.users_tree_view)
         
         column = gtk.TreeViewColumn()
-        column.set_title("Icon")
+        column.set_title("")
         renderer = gtk.CellRendererPixbuf()
         renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.user_icon_filename, 22, 22))
         column.pack_start(renderer, True)

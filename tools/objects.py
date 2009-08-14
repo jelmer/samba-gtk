@@ -3,7 +3,8 @@ import datetime;
 
 import gtk;
 
-import samba.dcerpc.svcctl as svcctl
+from samba.dcerpc import svcctl
+from samba.dcerpc import winreg
 
 
 class User:
@@ -112,8 +113,172 @@ class RegistryValue:
         self.data = data
         self.parent = parent
         
+    def get_absolute_path(self):
+        if (self.parent == None):
+            return self.name
+        else:
+            return self.parent.get_absolute_path() + "\\" + self.name
+        
+    def get_data_string(self):
+        interpreted_data = self.get_interpreted_data()
+        
+        if (interpreted_data == None):
+            return "(value not set)"
+
+        elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+            return interpreted_data
+
+        elif (self.type == winreg.REG_BINARY):
+            result = ""
+            
+            for byte in interpreted_data:
+                result += "%02X" % (byte)
+                
+            return result
+
+        elif (self.type == winreg.REG_DWORD):
+            return "0x%08X" % (interpreted_data)
+
+        elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
+            return "0x%08X" % (interpreted_data)
+
+        elif (self.type == winreg.REG_MULTI_SZ):
+            result = ""
+            
+            for string in interpreted_data:
+                result += string + " "
+
+            return result
+
+        elif (self.type == winreg.REG_QWORD):
+            return "0x%016X" % (interpreted_data)
+
+        else:
+            return str(interpreted_data)
+
+    def get_interpreted_data(self):
+        if (self.data == None):
+            return None
+
+        elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+            result = ""
+            
+            index = 0
+            while (index < len(self.data)):
+                uch = ((self.data[index + 1] << 8) + self.data[index])
+                if (uch != 0):
+                    result += unichr(uch)
+                index += 2
+                
+            return result
+
+        elif (self.type == winreg.REG_BINARY):
+            return self.data
+            
+        elif (self.type == winreg.REG_DWORD):
+            result = 0L
+            
+            for i in xrange(4):
+                result = (result << 8) + self.data[i]
+            
+            return result
+
+        elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
+            result = 0L
+            
+            for i in xrange(4):
+                result = (result << 8) + self.data[3 - i]
+                
+            return result
+
+        elif (self.type == winreg.REG_MULTI_SZ):
+            result = []
+            string = ""
+            
+            index = 0
+            while (index < len(self.data)):
+                uch = ((self.data[index + 1] << 8) + self.data[index])
+                if (uch == 0):
+                    result.append(string)
+                    string = ""
+                else:
+                    string += unichr(uch)
+
+                index += 2
+
+            result.pop() # remove last systematic empty string
+
+            return result
+
+        elif (self.type == winreg.REG_QWORD):
+            result = 0L
+            
+            for i in xrange(8):
+                result = (result << 8) + self.data[i]
+        
+            return result
+        
+        else:
+            return self.data
+
+    def set_interpreted_data(self, data):
+        if (data == None):
+            self.data = None
+
+        elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+            index = 0
+            for uch in data:
+                self.data[index + 1] = (uch >> 8) & 0x00FF
+                self.data[index] = uch & 0x00FF
+                index += 2
+
+        elif (self.type == winreg.REG_BINARY):
+            self.data = data
+            
+        elif (self.type == winreg.REG_DWORD):
+            for i in xrange(4):
+                self.data[3 - i] = data >> (8 * i) & 0xFF
+
+        elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
+            for i in xrange(4):
+                self.data[i] = data >> (8 * i) & 0xFF
+
+        elif (self.type == winreg.REG_MULTI_SZ):
+            index = 0
+
+            for string in data:
+                for uch in string:
+                    self.data[index + 1] = (uch >> 8) & 0x00FF
+                    self.data[index] = uch & 0x00FF
+                    index += 2
+                
+                self.data[index + 1] = 0
+                self.data[index] = 0
+                index += 2                           
+
+        elif (self.type == winreg.REG_QWORD):
+            for i in xrange(8):
+                self.data[7 - i] = data >> (8 * i) & 0xFF
+        
+        else:
+            self.data = data
+
     def list_view_representation(self):
-        return [self.name, self.type, self.data]
+        return [self.name, RegistryValue.get_type_string(self.type), self.get_data_string(), self]
+    
+    @staticmethod
+    def get_type_string(type):
+        type_strings = {
+                        winreg.REG_SZ:"String", 
+                        winreg.REG_BINARY:"Binary Data", 
+                        winreg.REG_EXPAND_SZ:"Expandable String", 
+                        winreg.REG_DWORD:"32-bit Number (little endian)",
+                        winreg.REG_DWORD_BIG_ENDIAN:"32-bit Number (big endian)",
+                        winreg.REG_MULTI_SZ:"Multi-String",
+                        winreg.REG_QWORD:"64-bit Number (little endian)"
+                        }
+        
+        return type_strings[type]
 
 
 class RegistryKey:
@@ -122,8 +287,16 @@ class RegistryKey:
         self.name = name
         self.parent = parent
         
+        self.handle = None
+        
+    def get_absolute_path(self):
+        if (self.parent == None):
+            return self.name
+        else:
+            return self.parent.get_absolute_path() + "\\" + self.name
+        
     def list_view_representation(self):
-        return [gtk.STOCK_DIRECTORY, self.name]
+        return [self.name, self]
 
 
 class Task:

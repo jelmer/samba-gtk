@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+# TODO: setting a value to DEADBEEF results in an exception
+
 import sys
 import os.path
 import traceback
@@ -16,6 +18,7 @@ from objects import RegistryKey
 from objects import RegistryValue
 
 from dialogs import WinRegConnectDialog
+from dialogs import RegValueEditDialog
 from dialogs import AboutDialog
 
 
@@ -102,7 +105,7 @@ class WinRegPipeManager:
         
         default_value_list = [value for value in value_list if value.name == ""]
         if (len(default_value_list) == 0):
-            value = RegistryValue("(Default)", winreg.REG_SZ, None, key)
+            value = RegistryValue("(Default)", winreg.REG_SZ, [], key)
             value_list.append(value)
         else:
             default_value_list[0].name = "(Default)"
@@ -123,15 +126,20 @@ class WinRegPipeManager:
         self.pipe.DeleteKey(key_handle, WinRegPipeManager.winreg_string(key.name))
         self.close_path(path_handles)
 
-    def set_value(self, parent_key, value):
-        path_handles = self.open_path(parent_key)
+    def set_value(self, value):
+        path_handles = self.open_path(value.parent)
         key_handle = path_handles[len(path_handles) - 1]
         
-        self.pipe.SetValue(key_handle, WinRegPipeManager.winreg_string(value.name), value.type, value.data)
+        if (value.name == "(Default)"):
+            name = ""
+        else:
+            name = value.name
+        
+        self.pipe.SetValue(key_handle, WinRegPipeManager.winreg_string(name), value.type, value.data)
         self.close_path(path_handles)
 
-    def unset_value(self, parent_key, value):
-        path_handles = self.open_path(parent_key)
+    def unset_value(self, value):
+        path_handles = self.open_path(value.parent)
         key_handle = path_handles[len(path_handles) - 1]
         
         self.pipe.DeleteValue(key_handle, WinRegPipeManager.winreg_string(value.name))
@@ -276,9 +284,9 @@ class RegEditWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = ""
+        self.server_address = "192.168.56.102"
         self.transport_type = 0
-        self.username = ""
+        self.username = "administrator"
 
         self.update_sensitivity()
         
@@ -451,7 +459,7 @@ class RegEditWindow(gtk.Window):
         self.new_string_button.set_tooltip_text("Create a new string registry value")
         self.new_string_button.set_is_important(True)
         toolbar.insert(self.new_string_button, 4)
-                
+
         self.rename_button = gtk.ToolButton(gtk.STOCK_EDIT)
         self.rename_button.set_label("Rename")
         self.rename_button.set_tooltip_text("Rename the selected key or value")
@@ -630,7 +638,7 @@ class RegEditWindow(gtk.Window):
         if (not self.connected()):
             return
         
-        type_pixmaps = {
+        type_pixbufs = {
                         winreg.REG_SZ:self.icon_registry_string_pixbuf,
                         winreg.REG_EXPAND_SZ:self.icon_registry_string_pixbuf,
                         winreg.REG_BINARY:self.icon_registry_binary_pixbuf,
@@ -643,7 +651,7 @@ class RegEditWindow(gtk.Window):
         self.values_store.clear()
         
         for value in value_list:
-            self.values_store.append([type_pixmaps[value.type]] + value.list_view_representation())
+            self.values_store.append([type_pixbufs[value.type]] + value.list_view_representation())
 
     def get_selected_registry_key(self):
         if (self.pipe_manager == None): # not connected
@@ -712,33 +720,34 @@ class RegEditWindow(gtk.Window):
         
         return response
 
-#    def run_service_edit_dialog(self, service = None, apply_callback = None):
-#        dialog = ServiceEditDialog(self.pipe_manager, service)
-#        dialog.show_all()
-#        
-#        # loop to handle the applies
-#        while True:
-#            response_id = dialog.run()
-#            
-#            if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
-#                problem_msg = dialog.check_for_problems()
-#                
-#                if (problem_msg != None):
-#                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
-#                else:
-#                    dialog.values_to_service()
-#                    if (apply_callback != None):
-#                        apply_callback()
-#                    if (response_id == gtk.RESPONSE_OK):
-#                        dialog.hide()
-#                        break
-#                        
-#            else:
-#                dialog.hide()
-#                return None
-#        
-#        return dialog.service
-#   
+    def run_value_edit_dialog(self, value = None, apply_callback = None):
+        dialog = RegValueEditDialog(value, None)
+        dialog.show_all()
+        dialog.update_type_page_after_show()
+        
+        # loop to handle the applies
+        while True:
+            response_id = dialog.run()
+            
+            if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
+                problem_msg = dialog.check_for_problems()
+                
+                if (problem_msg != None):
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                else:
+                    dialog.values_to_reg_value()
+                    if (apply_callback != None):
+                        apply_callback(value)
+                    if (response_id == gtk.RESPONSE_OK):
+                        dialog.hide()
+                        break
+                        
+            else:
+                dialog.hide()
+                return None
+        
+        return dialog.reg_value
+   
 
     def run_connect_dialog(self, pipe_manager, server_address, transport_type, username):
         dialog = WinRegConnectDialog(server_address, transport_type, username)
@@ -780,33 +789,30 @@ class RegEditWindow(gtk.Window):
     def connected(self):
         return self.pipe_manager != None
     
-#    def update_service_callback(self, service):
-#        try:
-#            self.pipe_manager.lock.acquire()
-#            self.pipe_manager.update_service(service)
-#            self.pipe_manager.fetch_service_status(service)
-#            
-#            self.set_status("Service '" + service.display_name + "' updated.")
-#            
-#        except RuntimeError, re:
-#            msg = "Failed to update service: " + re.args[1] + "."
-#            print msg
-#            self.set_status(msg)
-#            traceback.print_exc()
-#            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-#            
-#        except Exception, ex:
-#            msg = "Failed to update service: " + str(ex) + "."
-#            print msg
-#            self.set_status(msg)
-#            traceback.print_exc()
-#            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-#            
-#        finally:
-#            self.pipe_manager.lock.release()
-#        
-#        self.refresh_services_tree_view()
-
+    def update_value_callback(self, value):
+        try:
+            self.pipe_manager.set_value(value)
+            (iter, selected_key) = self.get_selected_registry_key()
+            if (selected_key != None):
+                (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+                self.refresh_values_tree_view(value_list)
+            
+            self.set_status("Value '" + value.get_absolute_path() + "' updated.")
+            
+        except RuntimeError, re:
+            msg = "Failed to update value: " + re.args[1] + "."
+            print msg
+            self.set_status(msg)
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+        except Exception, ex:
+            msg = "Failed to update value: " + str(ex) + "."
+            print msg
+            self.set_status(msg)
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
     def on_self_delete(self, widget, event):
         if (self.pipe_manager != None):
             self.on_disconnect_item_activate(self.disconnect_item)
@@ -839,8 +845,11 @@ class RegEditWindow(gtk.Window):
         self.on_self_delete(None, None)
 
     def on_modify_item_activate(self, widget):
-        pass
+        (iter, edit_value) = self.get_selected_registry_value()
+        self.run_value_edit_dialog(edit_value, self.update_value_callback)
 
+        self.set_status("Value '" + edit_value.get_absolute_path() + "' updated.")
+        
     def on_modify_binary_item_activate(self, widget):
         pass
     
@@ -945,9 +954,12 @@ class RegEditWindow(gtk.Window):
         self.update_sensitivity()
 
     def on_values_tree_view_button_press(self, widget, event):
-        pass
-        #if (event.type == gtk.gdk._2BUTTON_PRESS):
-            #self.on_edit_item_activate(self.edit_item)
+        (iter, selected_value) = self.get_selected_registry_value()
+        if (selected_value == None):
+            return
+        
+        if (event.type == gtk.gdk._2BUTTON_PRESS):
+            self.on_modify_item_activate(self.modify_item)
 
 win = RegEditWindow()
 win.show_all()

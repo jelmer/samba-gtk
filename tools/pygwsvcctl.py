@@ -710,7 +710,7 @@ class SvcCtlWindow(gtk.Window):
         return response
 
     def run_service_edit_dialog(self, service = None, apply_callback = None):
-        dialog = ServiceEditDialog(self.pipe_manager, service)
+        dialog = ServiceEditDialog(service)
         dialog.show_all()
         
         # loop to handle the applies
@@ -897,7 +897,7 @@ class SvcCtlWindow(gtk.Window):
         edit_service = self.get_selected_service()
         self.run_service_edit_dialog(edit_service, self.update_service_callback)
         
-        self.set_status("Service updated.")
+        self.set_status("Service '" + edit_service.display_name + "' updated.")
 
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(

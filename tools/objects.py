@@ -159,17 +159,17 @@ class RegistryValue:
     def get_interpreted_data(self):
         if (self.data == None):
             return None
-
-        elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+        
+        if (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
             result = ""
             
             index = 0
             while (index < len(self.data)):
-                uch = ((self.data[index + 1] << 8) + self.data[index])
-                if (uch != 0):
-                    result += unichr(uch)
+                word = ((self.data[index + 1] << 8) + self.data[index])
+                if (word != 0):
+                    result += unichr(word)
                 index += 2
-                
+
             return result
 
         elif (self.type == winreg.REG_BINARY):
@@ -178,16 +178,22 @@ class RegistryValue:
         elif (self.type == winreg.REG_DWORD):
             result = 0L
             
+            if (len(self.data) < 4):
+                return 0L
+            
             for i in xrange(4):
-                result = (result << 8) + self.data[i]
+                result = (result << 8) + self.data[3 - i]
             
             return result
 
         elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
             result = 0L
             
+            if (len(self.data) < 4):
+                return 0L
+
             for i in xrange(4):
-                result = (result << 8) + self.data[3 - i]
+                result = (result << 8) + self.data[i]
                 
             return result
 
@@ -195,14 +201,17 @@ class RegistryValue:
             result = []
             string = ""
             
+            if (len(self.data) == 0):
+                return []
+            
             index = 0
             while (index < len(self.data)):
-                uch = ((self.data[index + 1] << 8) + self.data[index])
-                if (uch == 0):
+                word = ((self.data[index + 1] << 8) + self.data[index])
+                if (word == 0):
                     result.append(string)
                     string = ""
                 else:
-                    string += unichr(uch)
+                    string += unichr(word)
 
                 index += 2
 
@@ -213,8 +222,11 @@ class RegistryValue:
         elif (self.type == winreg.REG_QWORD):
             result = 0L
             
+            if (len(self.data) < 8):
+                return 0L
+
             for i in xrange(8):
-                result = (result << 8) + self.data[i]
+                result = (result << 8) + self.data[7 - i]
         
             return result
         
@@ -222,43 +234,46 @@ class RegistryValue:
             return self.data
 
     def set_interpreted_data(self, data):
+        del self.data[:] 
+
         if (data == None):
             self.data = None
-
+        
         elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
-            index = 0
             for uch in data:
-                self.data[index + 1] = (uch >> 8) & 0x00FF
-                self.data[index] = uch & 0x00FF
-                index += 2
+                word = ord(uch)
+                self.data.append(word & 0x00FF)
+                self.data.append((word >> 8) & 0x00FF)
 
         elif (self.type == winreg.REG_BINARY):
             self.data = data
             
         elif (self.type == winreg.REG_DWORD):
             for i in xrange(4):
-                self.data[3 - i] = data >> (8 * i) & 0xFF
+                self.data.append(data >> (8 * i) & 0xFF)
 
         elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
-            for i in xrange(4):
-                self.data[i] = data >> (8 * i) & 0xFF
+            for i in xrange(3, -1, -1):
+                self.data.append(data >> (8 * i) & 0xFF)
 
         elif (self.type == winreg.REG_MULTI_SZ):
             index = 0
 
             for string in data:
                 for uch in string:
-                    self.data[index + 1] = (uch >> 8) & 0x00FF
-                    self.data[index] = uch & 0x00FF
-                    index += 2
-                
-                self.data[index + 1] = 0
-                self.data[index] = 0
-                index += 2                           
+                    word = ord(uch)
+                    self.data.append(word & 0x00FF)
+                    self.data.append((word >> 8) & 0x00FF)
+
+                self.data.append(0)
+                self.data.append(0)
+
+            self.data.append(0)
+            self.data.append(0)
 
         elif (self.type == winreg.REG_QWORD):
             for i in xrange(8):
-                self.data[7 - i] = data >> (8 * i) & 0xFF
+                self.data.append(data >> (8 * i) & 0xFF)
         
         else:
             self.data = data

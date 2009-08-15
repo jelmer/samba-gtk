@@ -1,18 +1,23 @@
 
 import sys
 import os.path
+import string
 
 import gobject
+import glib
 import gtk
 import pango
 
 import samba
 from samba.dcerpc import svcctl
+from samba.dcerpc import winreg
 
 from objects import User
 from objects import Group
 from objects import Service
 from objects import Task
+from objects import RegistryKey
+from objects import RegistryValue
 
 
 class AboutDialog(gtk.AboutDialog):
@@ -39,6 +44,7 @@ class AboutDialog(gtk.AboutDialog):
             "You should have received a copy of the GNU General Public License " +
             "along with this program. If not, see <http://www.gnu.org/licenses/>."
         );
+
 
 
 class UserEditDialog(gtk.Dialog):
@@ -402,7 +408,7 @@ class GroupEditDialog(gtk.Dialog):
             self.brand_new = False
             self.thegroup = group
         
-        self.sam_manager = pipe_manager
+        self.pipe_manager = pipe_manager
         self.create()
 
         if (not self.brand_new):
@@ -458,7 +464,7 @@ class GroupEditDialog(gtk.Dialog):
             return "Name may not be empty!"
 
         if (self.brand_new):
-            for group in self.sam_manager.group_list:
+            for group in self.pipe_manager.group_list:
                 if (group.name == self.name_entry.get_text()):
                     return "Choose another group name, this one already exists!"
         
@@ -482,7 +488,7 @@ class GroupEditDialog(gtk.Dialog):
 
 class ServiceEditDialog(gtk.Dialog):
         
-    def __init__(self, pipe_manager, service = None):
+    def __init__(self, service = None):
         super(ServiceEditDialog, self).__init__()
 
         if (service == None):
@@ -492,7 +498,6 @@ class ServiceEditDialog(gtk.Dialog):
             self.brand_new = False
             self.service = service
         
-        self.pipe_manager = pipe_manager
         self.create()
         
         if (not self.brand_new):
@@ -882,9 +887,10 @@ class ServiceControlDialog(gtk.Dialog):
         if (self.close_callback != None):
             self.close_callback()
 
+
 class TaskEditDialog(gtk.Dialog):
     
-    def __init__(self, pipe_manager, task = None):
+    def __init__(self, task = None):
         super(TaskEditDialog, self).__init__()
 
         if (task == None):
@@ -896,7 +902,6 @@ class TaskEditDialog(gtk.Dialog):
         
         self.disable_signals = True
 
-        self.pipe_manager = pipe_manager
         self.create()
         
         if (not self.brand_new):
@@ -1048,7 +1053,7 @@ class TaskEditDialog(gtk.Dialog):
         column.pack_start(self.monthly_toggle_renderer, True)
         self.monthly_tree_view.append_column(column)
         column.add_attribute(self.monthly_toggle_renderer, "active", 0)
-                
+
         column = gtk.TreeViewColumn()
         column.set_title("Day")
         renderer = gtk.CellRendererText()
@@ -1259,6 +1264,442 @@ class TaskEditDialog(gtk.Dialog):
         self.update_captions()
 
 
+class RegValueEditDialog(gtk.Dialog):
+    
+    def __init__(self, reg_value, type):
+        super(RegValueEditDialog, self).__init__()
+
+        if (reg_value == None):
+            self.brand_new = True
+            self.reg_value = RegistryValue("", type, [], None)
+
+        else:
+            self.brand_new = False
+            self.reg_value = reg_value
+        
+        self.disable_signals = False
+        
+        self.create()
+        self.reg_value_to_values()
+        
+    def create(self):
+        self.set_title(["Edit registry value", "New registry value"][self.brand_new])
+        self.set_border_width(5)
+        
+        self.icon_registry_number_filename = os.path.join(sys.path[0], "images", "registry-number.png")
+        self.icon_registry_string_filename = os.path.join(sys.path[0], "images", "registry-string.png")
+        self.icon_registry_binary_filename = os.path.join(sys.path[0], "images", "registry-binary.png")
+
+        self.set_resizable(False)
+
+        
+        # value name
+        
+        hbox = gtk.HBox()
+        self.vbox.pack_start(hbox, False, False, 10)
+        
+        label = gtk.Label("Value name:")
+        hbox.pack_start(label, False, True, 10)
+        
+        self.name_entry = gtk.Entry()
+        self.name_entry.set_editable(self.brand_new)
+        hbox.pack_start(self.name_entry, True, True, 10)
+        
+
+        separator = gtk.HSeparator()
+        self.vbox.pack_start(separator, False, True, 5)
+        
+
+        # data
+
+        frame = gtk.Frame(" Value data: ")
+        self.vbox.pack_start(frame, True, True, 10)
+
+        self.type_notebook = gtk.Notebook()
+        self.type_notebook.set_border_width(5)
+        self.type_notebook.set_show_tabs(False)
+        self.type_notebook.set_show_border(False)
+        frame.add(self.type_notebook)
+
+
+        # string type page
+       
+        self.string_data_entry = gtk.Entry()
+        self.type_notebook.append_page(self.string_data_entry)
+        
+        
+        # binary type page
+        
+        # TODO: rewrite the hex editor - it sucks big time atm!!!
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_NONE)
+        self.type_notebook.append_page(scrolledwindow)
+
+        hbox = gtk.HBox()
+        scrolledwindow.add_with_viewport(hbox)
+        
+        self.binary_data_addr_text_view = gtk.TextView()
+        self.binary_data_addr_text_view.set_wrap_mode(gtk.WRAP_WORD)
+        self.binary_data_addr_text_view.set_editable(False)
+        self.binary_data_addr_text_view.modify_font(pango.FontDescription("mono 10"))
+        self.binary_data_addr_text_view.set_size_request(100, -1)
+        hbox.pack_start(self.binary_data_addr_text_view, False, False, 0)
+
+        self.binary_data_hex_text_view = gtk.TextView()
+        self.binary_data_hex_text_view.set_wrap_mode(gtk.WRAP_WORD)
+        self.binary_data_hex_text_view.set_accepts_tab(False)
+        self.binary_data_hex_text_view.modify_font(pango.FontDescription("mono bold 10"))
+        self.binary_data_hex_text_view.set_size_request(200, -1)
+        hbox.pack_start(self.binary_data_hex_text_view, False, False, 0)
+
+        self.binary_data_ascii_text_view = gtk.TextView()
+        self.binary_data_ascii_text_view.set_wrap_mode(gtk.WRAP_CHAR)
+        self.binary_data_ascii_text_view.set_editable(False)
+        self.binary_data_ascii_text_view.modify_font(pango.FontDescription("mono 10"))
+        self.binary_data_ascii_text_view.set_accepts_tab(False)
+        self.binary_data_ascii_text_view.set_size_request(100, -1)
+        hbox.pack_start(self.binary_data_ascii_text_view, False, False, 0)
+
+
+        # number type page
+        
+        hbox = gtk.HBox()
+        self.type_notebook.append_page(hbox)
+        
+        self.number_data_entry = gtk.Entry()
+        hbox.pack_start(self.number_data_entry, True, True, 5)
+        
+        self.number_data_dec_radio = gtk.RadioButton(None, "Decimal")
+        hbox.pack_start(self.number_data_dec_radio, False, True, 5)
+        
+        self.number_data_hex_radio = gtk.RadioButton(self.number_data_dec_radio, "Hexadecimal")
+        hbox.pack_start(self.number_data_hex_radio, False, True, 5)
+        
+        self.number_data_hex_radio.set_active(True)
+        
+        
+        # multi-string type page
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        self.type_notebook.append_page(scrolledwindow)
+
+        self.multi_string_data_text_view = gtk.TextView()
+        self.multi_string_data_text_view.set_wrap_mode(gtk.WRAP_NONE)
+        scrolledwindow.add(self.multi_string_data_text_view)
+
+
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.apply_button.set_flags(gtk.CAN_DEFAULT)
+        self.apply_button.set_sensitive(not self.brand_new) # disabled for new task
+        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
+        
+        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
+        
+        
+        # signals/events
+
+        # TODO: validate number entry in a change signal handler
+
+        self.binary_data_hex_text_view.get_buffer().connect("changed", self.on_binary_data_hex_text_view_buffer_changed)
+        self.binary_data_hex_text_view.connect("focus-out-event", self.on_binary_data_hex_text_view_focus_out)
+        self.number_data_dec_radio.connect("toggled", self.on_number_data_dec_radio_toggled)
+        self.number_data_hex_radio.connect("toggled", self.on_number_data_hex_radio_toggled)
+
+    def check_for_problems(self):
+        if (len(self.name_entry.get_text().strip()) == 0):
+            return "Please specify a name."
+        
+        return None
+
+    def reg_value_to_values(self):
+        if (self.reg_value == None):
+            raise Exception("registry value not set")
+        
+        self.name_entry.set_text(self.reg_value.name)
+        
+        if (self.reg_value.type in [winreg.REG_SZ, winreg.REG_EXPAND_SZ]):
+            self.set_icon_from_file(self.icon_registry_string_filename)
+            self.set_size_request(430, 200)
+            
+            self.string_data_entry.set_text(self.reg_value.get_interpreted_data())
+            
+        elif (self.reg_value.type == winreg.REG_BINARY):
+            self.set_icon_from_file(self.icon_registry_binary_filename)
+            self.set_size_request(430, 400)
+            
+            self.binary_data_hex_text_view.get_buffer().set_text(RegValueEditDialog.byte_array_to_hex(self.reg_value.get_interpreted_data(), 8))
+            self.on_binary_data_hex_text_view_buffer_changed(None)
+        
+        elif (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN, winreg.REG_QWORD]):
+            self.set_icon_from_file(self.icon_registry_number_filename)
+            self.set_size_request(430, 200)
+
+            self.number_data_entry.set_text("%d" % self.reg_value.get_interpreted_data())
+            self.on_number_data_hex_radio_toggled(self.number_data_hex_radio)
+        
+        elif (self.reg_value.type == winreg.REG_MULTI_SZ):
+            self.set_icon_from_file(self.icon_registry_string_filename)
+            self.set_size_request(430, 400)
+            
+            text = ""
+            for line in self.reg_value.get_interpreted_data():
+                text += line + "\n"
+                
+            self.multi_string_data_text_view.get_buffer().set_text(text)
+            
+    def values_to_reg_value(self):
+        if (self.reg_value == None):
+            raise Exception("registry value not set")
+        
+        self.reg_value.name = self.name_entry.get_text()
+        
+        if (self.reg_value.type in [winreg.REG_SZ, winreg.REG_EXPAND_SZ]):
+            self.reg_value.set_interpreted_data(self.string_data_entry.get_text())
+
+        elif (self.reg_value.type == winreg.REG_BINARY):
+            buffer = self.binary_data_hex_text_view.get_buffer()
+            text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
+            self.reg_value.set_interpreted_data(RegValueEditDialog.hex_to_byte_array(text))
+        
+        elif (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN, winreg.REG_QWORD]):
+            if (self.number_data_dec_radio.get_active()):
+                self.reg_value.set_interpreted_data(string.atoi(self.number_data_entry.get_text(), 10))
+            else:
+                self.reg_value.set_interpreted_data(string.atoi(self.number_data_entry.get_text(), 0x10))
+                
+        elif (self.reg_value.type == winreg.REG_MULTI_SZ):
+            lines = []
+            line = ""
+        
+            buffer = self.multi_string_data_text_view.get_buffer()
+            for ch in buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()):
+                if (ch != "\n"):
+                    line += ch
+                else:
+                    lines.append(line)
+                    line = ""
+            
+            if (len(line) > 0):
+                lines.append(line)
+                    
+            self.reg_value.set_interpreted_data(lines)
+
+    def update_type_page_after_show(self):
+        type_notebook_pages = {
+            winreg.REG_SZ:0,
+            winreg.REG_EXPAND_SZ:0,
+            winreg.REG_BINARY:1,
+            winreg.REG_DWORD:2,
+            winreg.REG_DWORD_BIG_ENDIAN:2,
+            winreg.REG_MULTI_SZ:3,
+            winreg.REG_QWORD:2
+        }
+        
+        self.type_notebook.set_current_page(type_notebook_pages[self.reg_value.type])
+        
+    def on_binary_data_hex_text_view_buffer_changed(self, widget):
+        if (self.disable_signals):
+            return 
+        
+        self.disable_signals = True
+        
+        hex_buffer = self.binary_data_hex_text_view.get_buffer()
+        ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
+        addr_buffer = self.binary_data_addr_text_view.get_buffer()
+
+        insert_mark = hex_buffer.get_insert()
+        insert_iter = hex_buffer.get_iter_at_mark(insert_mark)
+        insert_char_offs = insert_iter.get_offset()
+
+        text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
+        before_len = len(text)
+        text = RegValueEditDialog.check_hex_string(text, 8)
+        after_len = len(text)
+        
+        hex_buffer.set_text(text)
+        ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(text, 8))
+        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(text, 8))
+        
+        #print insert_char_offs
+        #if (insert_char_offs >= len(text)):
+        #    insert_char_offs += 1
+        hex_buffer.place_cursor(hex_buffer.get_iter_at_offset(insert_char_offs + (after_len - before_len)))
+        
+        self.disable_signals = False
+        
+    def on_binary_data_hex_text_view_focus_out(self, widget, event):
+        hex_buffer = self.binary_data_hex_text_view.get_buffer()
+        ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
+        addr_buffer = self.binary_data_addr_text_view.get_buffer()
+        
+        text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
+        text = RegValueEditDialog.check_hex_string(text, 8, True)
+        
+        hex_buffer.set_text(text)
+        ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(text, 8))
+        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(text, 8))
+        
+    def on_number_data_hex_radio_toggled(self, widget):
+        if (not widget.get_active()):
+            return
+        
+        if (self.reg_value.type == winreg.REG_QWORD):
+            digits = 16
+        else:
+            digits = 8
+            
+        number_str = self.number_data_entry.get_text()
+        if (len(number_str) == 0):
+            number_str = "0"
+
+        number = string.atoi(number_str, 10)
+
+        format = "%0" + str(digits) + "X"
+
+        self.number_data_entry.set_text(format % number)
+        
+    def on_number_data_dec_radio_toggled(self, widget):
+        if (not widget.get_active()):
+            return
+        
+        if (self.reg_value.type == winreg.REG_QWORD):
+            digits = 16
+        else:
+            digits = 8
+            
+        number_str = self.number_data_entry.get_text()
+        if (len(number_str) == 0):
+            number_str = "0"
+
+        number = string.atoi(number_str, 0x10)
+
+        format = "%0" + str(digits) + "d"
+
+        self.number_data_entry.set_text(format % number)
+        
+    @staticmethod
+    def check_hex_string(old_string, line_length, remove_orphaned = False):
+        new_string = ""
+        
+        length = 0
+        insert_space = False
+        for ch in old_string:
+            if (ch in string.hexdigits):
+                new_string += str.upper(ch)
+                if (insert_space):
+                    new_string += " "
+                    length += 1
+                insert_space = not insert_space
+            
+            if (length >= line_length):
+                new_string += "\n"
+                length = 0
+                
+        if (insert_space and remove_orphaned):
+            new_string = new_string.strip()[:len(new_string) - 1]
+        
+        return new_string
+    
+    @staticmethod
+    def hex_to_ascii(old_string, line_length):
+        new_string = ""
+        
+        digits = ""
+        length = 0
+        for ch in old_string:
+            if (ch in string.hexdigits):
+                digits += ch
+            
+            if (len(digits) >= 2):
+                new_chr = chr(string.atol(digits, 0x10))
+                if (new_chr in (string.punctuation + string.ascii_letters + ' ')):
+                    new_string += new_chr
+                else:
+                    new_string += "."
+                length += 1
+                digits = ""
+            
+            if (length >= line_length):
+                new_string += "\n"
+                length = 0
+
+        return new_string
+                    
+    @staticmethod
+    def ascii_to_hex(old_string):
+        new_string = ""
+        
+        for ch in old_string:
+            byte = ord(ch)
+            new_string += "%X" % ((byte >> 4) & 0x0F)
+            new_string += "%X " % (byte & 0x0F)
+
+        return new_string.strip()
+
+    @staticmethod
+    def hex_to_addr(old_string, line_length):
+        new_string = ""
+        
+        digits = ""
+        length = 0
+        addr = 0
+        for ch in old_string:
+            if (ch in string.hexdigits):
+                digits += ch
+                
+            if (len(digits) >= 2):
+                
+                if (length % line_length) == 0:
+                    new_string += "%04X\n" % addr
+                    addr += line_length
+
+                length += 1
+                digits = ""
+
+        return new_string
+
+    @staticmethod
+    def byte_array_to_hex(array, line_length):
+        new_string = ""
+        
+        for byte in array:
+            new_string += "%02x" % byte
+        
+        return RegValueEditDialog.check_hex_string(new_string, line_length, False)
+
+    @staticmethod
+    def hex_to_byte_array(hex_string):
+        array = []
+        
+        digits = ""
+        for ch in hex_string:
+            if (ch in string.hexdigits):
+                digits += ch
+            
+            if (len(digits) >= 2):
+                byte = string.atol(digits, 0x10)
+                array.append(byte)
+                digits = ""
+            
+        return array
+
+
 class SAMConnectDialog(gtk.Dialog):
     
     def __init__(self, server_address, transport_type, username):
@@ -1428,6 +1869,134 @@ class SAMConnectDialog(gtk.Dialog):
         self.update_sensitivity()
 
 
+class SvcCtlConnectDialog(gtk.Dialog):
+    
+    def __init__(self, server_address, transport_type, username):
+        super(SvcCtlConnectDialog, self).__init__()
+
+        self.server_address = server_address
+        self.transport_type = transport_type
+        self.username = username
+        
+        self.create()
+        
+        self.update_sensitivity()
+
+    def create(self):  
+        self.set_title("Connect to a server")
+        self.set_border_width(5)
+        self.set_icon_name(gtk.STOCK_CONNECT)
+        self.set_resizable(False)
+        
+        # server frame
+        
+        self.vbox.set_spacing(5)
+
+        self.server_frame = gtk.Frame("Server")
+        self.vbox.pack_start(self.server_frame, False, True, 0)
+                
+        table = gtk.Table(3, 2)
+        table.set_border_width(5)
+        self.server_frame.add(table)
+        
+        label = gtk.Label(" Server address: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 0, 1, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.server_address_entry = gtk.Entry()
+        self.server_address_entry.set_text(self.server_address)
+        self.server_address_entry.set_activates_default(True)
+        table.attach(self.server_address_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        label = gtk.Label(" Username: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 1, 2, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.username_entry = gtk.Entry()
+        self.username_entry.set_text(self.username)
+        self.username_entry.set_activates_default(True)
+        table.attach(self.username_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        label = gtk.Label(" Password: ")
+        label.set_alignment(0, 0.5)
+        table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
+        
+        self.password_entry = gtk.Entry()
+        self.password_entry.set_visibility(False)
+        self.password_entry.set_activates_default(True)
+        table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
+        
+        
+        # transport frame
+
+        self.transport_frame = gtk.Frame(" Transport type ")
+        self.vbox.pack_start(self.transport_frame, False, True, 0)
+
+        vbox = gtk.VBox()
+        vbox.set_border_width(5)
+        self.transport_frame.add(vbox)
+        
+        self.rpc_smb_tcpip_radio_button = gtk.RadioButton(None, "RPC over SMB over TCP/IP")
+        self.rpc_smb_tcpip_radio_button.set_active(self.transport_type == 0)
+        vbox.pack_start(self.rpc_smb_tcpip_radio_button)
+        
+        self.rpc_tcpip_radio_button = gtk.RadioButton(self.rpc_smb_tcpip_radio_button, "RPC over TCP/IP")
+        self.rpc_tcpip_radio_button.set_active(self.transport_type == 1)
+        vbox.pack_start(self.rpc_tcpip_radio_button)
+        
+        self.localhost_radio_button = gtk.RadioButton(self.rpc_tcpip_radio_button, "Localhost")
+        self.localhost_radio_button.set_active(self.transport_type == 2)
+        vbox.pack_start(self.localhost_radio_button)
+        
+        
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.connect_button = gtk.Button("Connect", gtk.STOCK_CONNECT)
+        self.connect_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.connect_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
+        
+        
+        # signals/events
+        
+        self.rpc_smb_tcpip_radio_button.connect("toggled", self.on_radio_button_toggled)
+        self.rpc_tcpip_radio_button.connect("toggled", self.on_radio_button_toggled)
+        self.localhost_radio_button.connect("toggled", self.on_radio_button_toggled)
+        
+    def update_sensitivity(self):
+        server_required = not self.localhost_radio_button.get_active()
+        
+        self.server_address_entry.set_sensitive(server_required)
+    
+    def get_server_address(self):
+        return self.server_address_entry.get_text().strip()
+    
+    def get_transport_type(self):
+        if (self.rpc_smb_tcpip_radio_button.get_active()):
+            return 0
+        elif (self.rpc_tcpip_radio_button.get_active()):
+            return 1
+        elif (self.localhost_radio_button.get_active()):
+            return 2
+        else:
+            return -1
+    
+    def get_username(self):
+        return self.username_entry.get_text().strip()
+    
+    def get_password(self):
+        return self.password_entry.get_text()
+    
+    def on_radio_button_toggled(self, widget):
+        self.update_sensitivity()
+
+
 class ATSvcConnectDialog(gtk.Dialog):
     
     def __init__(self, server_address, transport_type, username):
@@ -1577,133 +2146,6 @@ class WinRegConnectDialog(gtk.Dialog):
         self.set_icon_name(gtk.STOCK_CONNECT)
         self.set_resizable(False)
         
-        # server frame
-        
-        self.vbox.set_spacing(5)
-
-        self.server_frame = gtk.Frame("Server")
-        self.vbox.pack_start(self.server_frame, False, True, 0)
-                
-        table = gtk.Table(3, 2)
-        table.set_border_width(5)
-        self.server_frame.add(table)
-        
-        label = gtk.Label(" Server address: ")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 0, 1, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
-        
-        self.server_address_entry = gtk.Entry()
-        self.server_address_entry.set_text(self.server_address)
-        self.server_address_entry.set_activates_default(True)
-        table.attach(self.server_address_entry, 1, 2, 0, 1, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
-        
-        label = gtk.Label(" Username: ")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 1, 2, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
-        
-        self.username_entry = gtk.Entry()
-        self.username_entry.set_text(self.username)
-        self.username_entry.set_activates_default(True)
-        table.attach(self.username_entry, 1, 2, 1, 2, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
-        
-        label = gtk.Label(" Password: ")
-        label.set_alignment(0, 0.5)
-        table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
-        
-        self.password_entry = gtk.Entry()
-        self.password_entry.set_visibility(False)
-        self.password_entry.set_activates_default(True)
-        table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
-        
-        
-        # transport frame
-
-        self.transport_frame = gtk.Frame(" Transport type ")
-        self.vbox.pack_start(self.transport_frame, False, True, 0)
-
-        vbox = gtk.VBox()
-        vbox.set_border_width(5)
-        self.transport_frame.add(vbox)
-        
-        self.rpc_smb_tcpip_radio_button = gtk.RadioButton(None, "RPC over SMB over TCP/IP")
-        self.rpc_smb_tcpip_radio_button.set_active(self.transport_type == 0)
-        vbox.pack_start(self.rpc_smb_tcpip_radio_button)
-        
-        self.rpc_tcpip_radio_button = gtk.RadioButton(self.rpc_smb_tcpip_radio_button, "RPC over TCP/IP")
-        self.rpc_tcpip_radio_button.set_active(self.transport_type == 1)
-        vbox.pack_start(self.rpc_tcpip_radio_button)
-        
-        self.localhost_radio_button = gtk.RadioButton(self.rpc_tcpip_radio_button, "Localhost")
-        self.localhost_radio_button.set_active(self.transport_type == 2)
-        vbox.pack_start(self.localhost_radio_button)
-        
-        
-        # dialog buttons
-        
-        self.action_area.set_layout(gtk.BUTTONBOX_END)
-        
-        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
-        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
-        
-        self.connect_button = gtk.Button("Connect", gtk.STOCK_CONNECT)
-        self.connect_button.set_flags(gtk.CAN_DEFAULT)
-        self.add_action_widget(self.connect_button, gtk.RESPONSE_OK)
-        
-        self.set_default_response(gtk.RESPONSE_OK)
-        
-        
-        # signals/events
-        
-        self.rpc_smb_tcpip_radio_button.connect("toggled", self.on_radio_button_toggled)
-        self.rpc_tcpip_radio_button.connect("toggled", self.on_radio_button_toggled)
-        self.localhost_radio_button.connect("toggled", self.on_radio_button_toggled)
-        
-    def update_sensitivity(self):
-        server_required = not self.localhost_radio_button.get_active()
-        
-        self.server_address_entry.set_sensitive(server_required)
-    
-    def get_server_address(self):
-        return self.server_address_entry.get_text().strip()
-    
-    def get_transport_type(self):
-        if (self.rpc_smb_tcpip_radio_button.get_active()):
-            return 0
-        elif (self.rpc_tcpip_radio_button.get_active()):
-            return 1
-        elif (self.localhost_radio_button.get_active()):
-            return 2
-        else:
-            return -1
-    
-    def get_username(self):
-        return self.username_entry.get_text().strip()
-    
-    def get_password(self):
-        return self.password_entry.get_text()
-    
-    def on_radio_button_toggled(self, widget):
-        self.update_sensitivity()
-
-
-class SvcCtlConnectDialog(gtk.Dialog):
-    
-    def __init__(self, server_address, transport_type, username):
-        super(SvcCtlConnectDialog, self).__init__()
-
-        self.server_address = server_address
-        self.transport_type = transport_type
-        self.username = username
-        
-        self.create()
-        
-        self.update_sensitivity()
-
-    def create(self):  
-        self.set_title("Connect to a server")
-        self.set_border_width(5)
-        self.set_icon_name(gtk.STOCK_CONNECT)
-        self.set_resizable(False)
         
         # server frame
         
@@ -1813,3 +2255,20 @@ class SvcCtlConnectDialog(gtk.Dialog):
     def on_radio_button_toggled(self, widget):
         self.update_sensitivity()
 
+
+#dialog = RegValueEditDialog(winreg.REG_BINARY)
+#dialog.show_all()
+#dialog.update_type_page_after_show()
+#dialog.run()
+#dialog.values_to_reg_value()
+#dialog.hide()
+#
+#value = dialog.reg_value
+#
+##for line in value.get_interpreted_data():
+##    print "[%s]" % line
+#
+#dialog = RegValueEditDialog(value.type, value)
+#dialog.show_all()
+#dialog.update_type_page_after_show()
+#dialog.run()

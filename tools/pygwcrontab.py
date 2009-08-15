@@ -269,7 +269,7 @@ class CronTabWindow(gtk.Window):
         column.add_attribute(renderer, "text", 2)
         
         self.tasks_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING)
-        self.tasks_store.set_sort_column_id(0, gtk.SORT_ASCENDING)
+        self.tasks_store.set_sort_column_id(1, gtk.SORT_ASCENDING)
         self.tasks_tree_view.set_model(self.tasks_store)
 
 
@@ -362,7 +362,7 @@ class CronTabWindow(gtk.Window):
         return response
 
     def run_task_edit_dialog(self, task = None, apply_callback = None):
-        dialog = TaskEditDialog(self.pipe_manager, task)
+        dialog = TaskEditDialog(task)
         dialog.show_all()
         
         # loop to handle the applies

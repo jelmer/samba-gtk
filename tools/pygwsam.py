@@ -223,7 +223,6 @@ class SAMPipeManager:
             user.rid = query_info.rid
         
         user.must_change_password = (query_info.acct_flags & 0x00020000) != 0
-        #user.cannot_change_password = TODO: fix this 
         user.password_never_expires = (query_info.acct_flags & 0x00000200) != 0
         user.account_disabled = (query_info.acct_flags & 0x00000001) != 0
         # TODO: account locked out does get updated!!!

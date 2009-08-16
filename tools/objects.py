@@ -122,7 +122,7 @@ class RegistryValue:
     def get_data_string(self):
         interpreted_data = self.get_interpreted_data()
         
-        if (interpreted_data == None):
+        if (interpreted_data == None or len(self.data) == 0):
             return "(value not set)"
 
         elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
@@ -242,19 +242,21 @@ class RegistryValue:
         elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
             for uch in data:
                 word = ord(uch)
-                self.data.append(word & 0x00FF)
-                self.data.append((word >> 8) & 0x00FF)
+                self.data.append(int(word & 0x00FF))
+                self.data.append(int((word >> 8) & 0x00FF))
 
         elif (self.type == winreg.REG_BINARY):
-            self.data = data
+            self.data = []
+            for elem in data:
+                self.data.append(int(elem))
             
         elif (self.type == winreg.REG_DWORD):
             for i in xrange(4):
-                self.data.append(data >> (8 * i) & 0xFF)
+                self.data.append(int(data >> (8 * i) & 0xFF))
 
         elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
             for i in xrange(3, -1, -1):
-                self.data.append(data >> (8 * i) & 0xFF)
+                self.data.append(int(data >> (8 * i) & 0xFF))
 
         elif (self.type == winreg.REG_MULTI_SZ):
             index = 0
@@ -262,8 +264,8 @@ class RegistryValue:
             for string in data:
                 for uch in string:
                     word = ord(uch)
-                    self.data.append(word & 0x00FF)
-                    self.data.append((word >> 8) & 0x00FF)
+                    self.data.append(int(word & 0x00FF))
+                    self.data.append(int((word >> 8) & 0x00FF))
 
                 self.data.append(0)
                 self.data.append(0)
@@ -273,7 +275,7 @@ class RegistryValue:
 
         elif (self.type == winreg.REG_QWORD):
             for i in xrange(8):
-                self.data.append(data >> (8 * i) & 0xFF)
+                self.data.append(int(data >> (8 * i) & 0xFF))
         
         else:
             self.data = data

@@ -269,8 +269,10 @@ class ServiceControlThread(threading.Thread):
         self.svcctl_window = svcctl_window
         self.service_control_dialog = service_control_dialog
         self.running = False
+        self.pending = False
         
     def stop(self):
+        self.pending = True
         self.running = False
         
     def run(self):
@@ -382,9 +384,12 @@ class ServiceControlThread(threading.Thread):
         if (self.service.state == final_state[self.control]):        
             self.svcctl_window.set_status("Successfully " + control_string2[self.control] + " '" + self.service.display_name + "' service.")
         else:
-            msg = "Failed to " + control_string[self.control] + " '" + self.service.display_name + "' service."
-            self.svcctl_window.set_status(msg)
-            self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.svcctl_window)
+            if (self.pending):
+                self.svcctl_window.set_status("The " + control_string[self.control] + " operation on '" + self.service.display_name + "' service is still pending.")
+            else:
+                msg = "Failed to " + control_string[self.control] + " '" + self.service.display_name + "' service."
+                self.svcctl_window.set_status(msg)
+                self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.svcctl_window)
         gtk.gdk.threads_leave()
 
 

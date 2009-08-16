@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# TODO: setting a value to DEADBEEF results in an exception
-
 import sys
 import os.path
 import traceback
@@ -19,6 +17,8 @@ from objects import RegistryValue
 
 from dialogs import WinRegConnectDialog
 from dialogs import RegValueEditDialog
+from dialogs import RegKeyEditDialog
+from dialogs import RegRenameDialog
 from dialogs import AboutDialog
 
 
@@ -26,7 +26,6 @@ class WinRegPipeManager:
     
     def __init__(self, server_address, transport_type, username, password):
         self.service_list = []
-#        self.lock = threading.Lock()
         
         creds = credentials.Credentials()
         if (username.count("\\") > 0):
@@ -112,13 +111,32 @@ class WinRegPipeManager:
         
         return (key_list, value_list)
 
-    #def mv_key(self, key, new_name):    
+    def mk_key(self, key):
+        path_handles = self.open_path(key.parent)
+        key_handle = path_handles[len(path_handles) - 1]
+        
+        (new_handle, action_taken) = self.pipe.CreateKey(
+            key_handle,
+            WinRegPipeManager.winreg_string(key.name),
+            WinRegPipeManager.winreg_string(key.name),
+            0,
+            winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE,
+            None,
+            0
+        )
+        
+        path_handles.append(new_handle)
+        
+        self.close_path(path_handles)
+
+    def mv_key(self, key, old_name):
+        raise NotImplementedError("Not implemented")
 
     def rm_key(self, key):
         (key_list, value_list) = self.ls_key(key)
         
-        for key in key_list:
-            self.rm_key(key)
+        for subkey in key_list:
+            self.rm_key(subkey)
         
         path_handles = self.open_path(key)
         key_handle = path_handles[len(path_handles) - 2]
@@ -142,7 +160,21 @@ class WinRegPipeManager:
         path_handles = self.open_path(value.parent)
         key_handle = path_handles[len(path_handles) - 1]
         
-        self.pipe.DeleteValue(key_handle, WinRegPipeManager.winreg_string(value.name))
+        if (value.name == "(Default)"):
+            name = ""
+        else:
+            name = value.name
+        
+        self.pipe.DeleteValue(key_handle, WinRegPipeManager.winreg_string(name))
+        self.close_path(path_handles)
+
+    def mv_value(self, value, old_name):
+        path_handles = self.open_path(value.parent)
+        key_handle = path_handles[len(path_handles) - 1]
+        
+        self.pipe.DeleteValue(key_handle, WinRegPipeManager.winreg_string(old_name))
+        self.pipe.SetValue(key_handle, WinRegPipeManager.winreg_string(value.name), value.type, value.data)
+        
         self.close_path(path_handles)
 
     def open_well_known_keys(self):
@@ -221,61 +253,6 @@ class WinRegPipeManager:
         return wvnb
 
 
-#class FetchKeyThread(threading.Thread):
-#    
-#    def __init__(self, pipe_manager, regedit_window, key_to_fetch, finish_callback):
-#        super(FetchKeyThread, self).__init__()
-#        
-#        self.pipe_manager = pipe_manager
-#        self.regedit_window = regedit_window
-#        self.key_to_fetch = key_to_fetch
-#        self.finish_callback = finish_callback
-#        
-#    def run(self):
-#        try:
-#            print " trying to enter critical region: " + self.key_to_fetch.name
-#            self.pipe_manager.lock.acquire()
-#            print " entered critical region: " + self.key_to_fetch.name
-#
-##            gtk.gdk.threads_enter()
-##            self.regedit_window.set_status("Fetching key '" + self.key_to_fetch.get_absolute_path() + "'...")
-##            gtk.gdk.threads_leave()
-#            
-#            print " before RPC call: " + self.key_to_fetch.name
-#            (self.key_list, self.value_list) = self.pipe_manager.ls_key(self.key_to_fetch)
-#            print " after RPC call: " + self.key_to_fetch.name
-#       
-#        except RuntimeError, re:
-#            msg = "Failed to fetch registry key: " + re.args[1] + "."
-#            print msg
-#            traceback.print_exc()
-#            
-#            gtk.gdk.threads_enter()
-#            self.regedit_window.set_status(msg)
-#            self.regedit_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-#            gtk.gdk.threads_leave()
-#        
-#        except Exception, ex:
-#            msg = "Failed to fetch registry key: " + str(ex) + "."
-#            print msg
-#            traceback.print_exc()
-#            
-#            gtk.gdk.threads_enter()
-#            self.regedit_window.set_status(msg)
-#            self.regedit_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-#            gtk.gdk.threads_leave()
-#        
-#        finally:
-#            self.pipe_manager.lock.release()
-#            print "released critical region: " + self.key_to_fetch.name
-#        
-#        gtk.gdk.threads_enter()
-#        self.regedit_window.set_status("Key fetch done.")
-#        if (self.finish_callback != None):
-#            self.finish_callback(self.key_to_fetch, self.key_list, self.value_list)
-#        gtk.gdk.threads_leave()
-
-
 class RegEditWindow(gtk.Window):
 
     def __init__(self):
@@ -284,9 +261,9 @@ class RegEditWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = "192.168.56.102"
+        self.server_address = ""
         self.transport_type = 0
-        self.username = "administrator"
+        self.username = ""
 
         self.update_sensitivity()
         
@@ -315,6 +292,7 @@ class RegEditWindow(gtk.Window):
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
 
+        # TODO: assign keyboard shortcuts
 
         # menu
         
@@ -336,31 +314,35 @@ class RegEditWindow(gtk.Window):
         menu_separator_item = gtk.SeparatorMenuItem()
         file_menu.add(menu_separator_item)
         
-        self.import_item = gtk.MenuItem("_Import", accel_group)
-        file_menu.add(self.import_item)
+        self.import_item = gtk.MenuItem("_Import...", accel_group)
+        # TODO: implement import & export
+        #file_menu.add(self.import_item) 
         
-        self.export_item = gtk.MenuItem("_Export", accel_group)
-        file_menu.add(self.export_item)
+        self.export_item = gtk.MenuItem("_Export...", accel_group)
+        #file_menu.add(self.export_item)
         
+#        menu_separator_item = gtk.SeparatorMenuItem()
+#        file_menu.add(menu_separator_item)
+
         self.quit_item = gtk.ImageMenuItem(gtk.STOCK_QUIT, accel_group)
         file_menu.add(self.quit_item)
         
         self.edit_item = gtk.MenuItem("_Edit")
         menubar.add(self.edit_item)
         
-        edit_menu = gtk.Menu()
-        self.edit_item.set_submenu(edit_menu)
+        self.edit_menu = gtk.Menu()
+        self.edit_item.set_submenu(self.edit_menu)
 
         self.modify_item = gtk.ImageMenuItem("_Modify", accel_group)
-        edit_menu.add(self.modify_item)
+        self.edit_menu.add(self.modify_item)
 
         self.modify_binary_item = gtk.MenuItem("Modify _Binary", accel_group)
-        edit_menu.add(self.modify_binary_item)
+        self.edit_menu.add(self.modify_binary_item)
 
-        edit_menu.add(gtk.SeparatorMenuItem())
+        self.edit_menu.add(gtk.SeparatorMenuItem())
 
         self.new_item = gtk.ImageMenuItem(gtk.STOCK_NEW, accel_group)
-        edit_menu.add(self.new_item)
+        self.edit_menu.add(self.new_item)
 
         new_menu = gtk.Menu()
         self.new_item.set_submenu(new_menu)
@@ -385,32 +367,33 @@ class RegEditWindow(gtk.Window):
         self.new_expandable_item = gtk.MenuItem("_Expandable String Value", accel_group)
         new_menu.add(self.new_expandable_item)
 
-        edit_menu.add(gtk.SeparatorMenuItem())
+        self.edit_menu.add(gtk.SeparatorMenuItem())
 
         self.permissions_item = gtk.MenuItem("_Permissions", accel_group)
-        edit_menu.add(self.permissions_item)
+        # TODO: implement permissions
+        #self.edit_menu.add(self.permissions_item)
 
-        edit_menu.add(gtk.SeparatorMenuItem())
+        #self.edit_menu.add(gtk.SeparatorMenuItem())
         
         self.delete_item = gtk.ImageMenuItem(gtk.STOCK_DELETE, accel_group)
-        edit_menu.add(self.delete_item)
+        self.edit_menu.add(self.delete_item)
 
         self.rename_item = gtk.ImageMenuItem(gtk.STOCK_EDIT, accel_group)
-        edit_menu.add(self.rename_item)
+        self.edit_menu.add(self.rename_item)
 
-        edit_menu.add(gtk.SeparatorMenuItem())
+        self.edit_menu.add(gtk.SeparatorMenuItem())
 
-        self.copy_item = gtk.MenuItem("_Copy Key Name", accel_group)
-        edit_menu.add(self.copy_item)
+        self.copy_item = gtk.MenuItem("_Copy Registry Path", accel_group)
+        self.edit_menu.add(self.copy_item)
 
-        edit_menu.add(gtk.SeparatorMenuItem())
+        #self.edit_menu.add(gtk.SeparatorMenuItem())
 
         self.find_item = gtk.ImageMenuItem(gtk.STOCK_FIND, accel_group)
         self.find_item.get_child().set_text("Find...")
-        edit_menu.add(self.find_item)
+        #self.edit_menu.add(self.find_item)
 
         self.find_next_item = gtk.MenuItem("Find _Next", accel_group)
-        edit_menu.add(self.find_next_item)
+        #self.edit_menu.add(self.find_next_item)
 
         self.view_item = gtk.MenuItem("_View")
         menubar.add(self.view_item)
@@ -473,6 +456,8 @@ class RegEditWindow(gtk.Window):
         
         
         # registry tree
+        
+        # TODO: make the expanders nicely align with the icons
         
         hpaned = gtk.HPaned()
         vbox.pack_start(hpaned)
@@ -605,35 +590,61 @@ class RegEditWindow(gtk.Window):
         self.keys_tree_view.connect("row-collapsed", self.on_keys_tree_view_row_collapsed_expanded)
         self.keys_tree_view.connect("row-expanded", self.on_keys_tree_view_row_collapsed_expanded)
         self.keys_tree_view.connect("button_press_event", self.on_keys_tree_view_button_press)
+        self.keys_tree_view.connect("focus-in-event", self.on_tree_views_focus_in)
         self.values_tree_view.get_selection().connect("changed", self.on_values_tree_view_selection_changed)
         self.values_tree_view.connect("button_press_event", self.on_values_tree_view_button_press)
+        self.values_tree_view.connect("focus-in-event", self.on_tree_views_focus_in)
         
         self.add_accel_group(accel_group)
 
-    def refresh_keys_tree_view(self, iter, key_list):
+    def refresh_keys_tree_view(self, iter, key_list, select_me_key = None):
         if (not self.connected()):
             return
         
+        (model, selected_paths) = self.keys_tree_view.get_selection().get_selected_rows()
+
         if (iter == None): # well known keys
             for key in self.pipe_manager.well_known_keys:
                 self.keys_store.append(None, key.list_view_representation())
-                
-            was_expanded = False
 
         else:
-            was_expanded = self.keys_tree_view.row_expanded(self.keys_store.get_path(iter))
-
             while (self.keys_store.iter_children(iter)):
                 self.keys_store.remove(self.keys_store.iter_children(iter))
 
             for key in key_list:
                 self.keys_store.append(iter, key.list_view_representation())
 
-        if (was_expanded):
-            self.keys_tree_view.expand_row(self.keys_store.get_path(iter), False)
+        if (iter != None):
+            self.keys_tree_view.expand_row(self.keys_store.get_path(iter), True)
+            
+            if (select_me_key != None):
+                child_iter = self.keys_store.iter_children(iter)
+                while (child_iter != None):
+                    key = self.keys_store.get_value(child_iter, 1)
+                    if (key.name == select_me_key.name):
+                        self.keys_tree_view.get_selection().select_iter(child_iter)
+                        break
+                    child_iter = self.keys_store.iter_next(child_iter)
+                    
+            elif (len(selected_paths) > 0):
+                try:
+                    sel_iter = self.keys_store.get_iter(selected_paths[0])
+                    self.keys_tree_view.get_selection().select_iter(sel_iter)
+                
+                except Exception:
+                    if (self.keys_store.iter_n_children(iter) > 0):
+                        last_iter = self.keys_store.iter_nth_child(iter, 0)
+                        while (self.keys_store.iter_next(last_iter) != None):
+                            last_iter = self.keys_store.iter_next(last_iter)
+                        self.keys_tree_view.get_selection().select_iter(last_iter)
+                    else:
+                        self.keys_tree_view.get_selection().select_iter(iter)
+            else:
+                self.keys_tree_view.get_selection().select_iter(iter)
         
         self.keys_tree_view.columns_autosize()
-
+        self.update_sensitivity()
+        
     def refresh_values_tree_view(self, value_list):
         if (not self.connected()):
             return
@@ -647,11 +658,27 @@ class RegEditWindow(gtk.Window):
                         winreg.REG_MULTI_SZ:self.icon_registry_string_pixbuf,
                         winreg.REG_QWORD:self.icon_registry_number_pixbuf
                         }
+        
+        (model, selected_paths) = self.values_tree_view.get_selection().get_selected_rows()
 
         self.values_store.clear()
         
         for value in value_list:
             self.values_store.append([type_pixbufs[value.type]] + value.list_view_representation())
+            
+        if (len(selected_paths) > 0):
+            try:
+                sel_iter = self.values_store.get_iter(selected_paths[0])
+                self.values_tree_view.get_selection().select_iter(sel_iter)
+            
+            except Exception:
+                if (len(value_list) > 0):
+                    last_iter = self.values_store.get_iter_first()
+                    while (self.values_store.iter_next(last_iter) != None):
+                        last_iter = self.values_store.iter_next(last_iter)
+                    self.values_tree_view.get_selection().select_iter(last_iter)
+        
+        self.update_sensitivity()
 
     def get_selected_registry_key(self):
         if (self.pipe_manager == None): # not connected
@@ -680,9 +707,16 @@ class RegEditWindow(gtk.Window):
     def update_sensitivity(self):
         connected = (self.pipe_manager != None)
         
-        key_selected = (self.get_selected_registry_key() != None)
-        value_selected = (self.get_selected_registry_value() != None)
+        key_selected = (self.get_selected_registry_key()[1] != None)
+        value_selected = (self.get_selected_registry_value()[1] != None)
+        value_set = (value_selected and len(self.get_selected_registry_value()[1].data) > 0)
+        value_default = (value_selected and self.get_selected_registry_value()[1].name == "(Default)")
+        key_focused = self.keys_tree_view.is_focus()
+        root_key_selected = (connected and key_selected and self.get_selected_registry_key()[1] in self.pipe_manager.well_known_keys)
 
+        
+        # sensitiviy
+        
         self.connect_item.set_sensitive(not connected)
         self.disconnect_item.set_sensitive(connected)
         self.import_item.set_sensitive(connected)
@@ -696,19 +730,32 @@ class RegEditWindow(gtk.Window):
         self.new_multi_string_item.set_sensitive(connected and key_selected)
         self.new_expandable_item.set_sensitive(connected and key_selected)
         self.permissions_item.set_sensitive(connected and (key_selected or value_selected))
-        self.delete_item.set_sensitive(connected and (key_selected or value_selected))
-        self.rename_item.set_sensitive(connected and (key_selected or value_selected))
+        if (key_focused):
+            self.delete_item.set_sensitive(connected and key_selected and not root_key_selected)
+            self.rename_item.set_sensitive(connected and key_selected and not root_key_selected)
+        else:
+            self.delete_item.set_sensitive(connected and value_selected and (value_set or not value_default))
+            self.rename_item.set_sensitive(connected and value_selected and not value_default)
         self.copy_item.set_sensitive(connected and key_selected)
         self.find_item.set_sensitive(connected)
         self.find_next_item.set_sensitive(connected)
         self.refresh_item.set_sensitive(connected)
 
-        self.connect_button.set_sensitive(not connected)
-        self.disconnect_button.set_sensitive(connected)
-        self.new_key_button.set_sensitive(connected and key_selected)
-        self.new_string_button.set_sensitive(connected and key_selected)
-        self.rename_button.set_sensitive(connected and (key_selected or value_selected))
-        self.delete_button.set_sensitive(connected and (key_selected or value_selected))
+        self.connect_button.set_sensitive(self.connect_item.state != gtk.STATE_INSENSITIVE)
+        self.disconnect_button.set_sensitive(self.disconnect_item.state != gtk.STATE_INSENSITIVE)
+        self.new_key_button.set_sensitive(self.new_key_item.state != gtk.STATE_INSENSITIVE)
+        self.new_string_button.set_sensitive(self.new_string_item.state != gtk.STATE_INSENSITIVE)
+        self.rename_button.set_sensitive(self.rename_item.state != gtk.STATE_INSENSITIVE)
+        self.delete_button.set_sensitive(self.delete_item.state != gtk.STATE_INSENSITIVE)
+        
+        
+        # captions
+        
+        self.delete_item.get_child().set_text("Delete " + ["Value", "Key"][key_focused])
+        self.delete_button.set_tooltip_text("Delete the selected " + ["value", "key"][key_focused])
+        
+        self.rename_item.get_child().set_text("Rename " + ["Value", "Key"][key_focused])
+        self.rename_button.set_tooltip_text("Rename the selected " + ["value", "key"][key_focused])
         
     def run_message_dialog(self, type, buttons, message, parent = None):
         if (parent == None):
@@ -720,8 +767,18 @@ class RegEditWindow(gtk.Window):
         
         return response
 
-    def run_value_edit_dialog(self, value = None, apply_callback = None):
-        dialog = RegValueEditDialog(value, None)
+    def run_value_edit_dialog(self, value, type, apply_callback = None):
+        if (type == None):
+            type = value.type
+            
+        if (value != None):
+            original_type = value.type
+            value.type = type
+        else:
+            original_type = type
+
+        
+        dialog = RegValueEditDialog(value, type)
         dialog.show_all()
         dialog.update_type_page_after_show()
         
@@ -737,7 +794,10 @@ class RegEditWindow(gtk.Window):
                 else:
                     dialog.values_to_reg_value()
                     if (apply_callback != None):
-                        apply_callback(value)
+                        dialog.reg_value.type = original_type
+                        if (not apply_callback(dialog.reg_value)):
+                            response_id = gtk.RESPONSE_NONE
+                        dialog.reg_value.type = type
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
@@ -746,9 +806,69 @@ class RegEditWindow(gtk.Window):
                 dialog.hide()
                 return None
         
+        dialog.reg_value.type = original_type
+        
         return dialog.reg_value
    
-
+    def run_key_edit_dialog(self, key, apply_callback = None):
+        dialog = RegKeyEditDialog(key)
+        dialog.show_all()
+        
+        # loop to handle the applies
+        while True:
+            response_id = dialog.run()
+            
+            if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
+                problem_msg = dialog.check_for_problems()
+                
+                if (problem_msg != None):
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                else:
+                    dialog.values_to_reg_key()
+                    if (apply_callback != None):
+                        if (not apply_callback(dialog.reg_key)):
+                            response_id = gtk.RESPONSE_NONE
+                    if (response_id == gtk.RESPONSE_OK):
+                        dialog.hide()
+                        break
+                        
+            else:
+                dialog.hide()
+                return None
+        
+        return dialog.reg_key
+   
+    def run_rename_dialog(self, key, value, apply_callback = None):
+        dialog = RegRenameDialog(key, value)
+        dialog.show_all()
+        
+        # loop to handle the applies
+        while True:
+            response_id = dialog.run()
+            
+            if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
+                problem_msg = dialog.check_for_problems()
+                
+                if (problem_msg != None):
+                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
+                else:
+                    dialog.values_to_reg()
+                    if (apply_callback != None):
+                        if (not apply_callback([dialog.reg_value, dialog.reg_key][dialog.reg_key != None])):
+                            response_id = gtk.RESPONSE_NONE
+                    if (response_id == gtk.RESPONSE_OK):
+                        dialog.hide()
+                        break
+                        
+            else:
+                dialog.hide()
+                return None
+        
+        if (dialog.reg_key == None):
+            return dialog.reg_value
+        else:
+            return dialog.reg_key
+   
     def run_connect_dialog(self, pipe_manager, server_address, transport_type, username):
         dialog = WinRegConnectDialog(server_address, transport_type, username)
         dialog.show_all()
@@ -790,14 +910,19 @@ class RegEditWindow(gtk.Window):
         return self.pipe_manager != None
     
     def update_value_callback(self, value):
+        (iter, selected_key) = self.get_selected_registry_key()
+        if (selected_key == None):
+            return False
+        
         try:
             self.pipe_manager.set_value(value)
-            (iter, selected_key) = self.get_selected_registry_key()
-            if (selected_key != None):
-                (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
-                self.refresh_values_tree_view(value_list)
+
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.refresh_values_tree_view(value_list)
             
             self.set_status("Value '" + value.get_absolute_path() + "' updated.")
+            
+            return True
             
         except RuntimeError, re:
             msg = "Failed to update value: " + re.args[1] + "."
@@ -813,6 +938,134 @@ class RegEditWindow(gtk.Window):
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
             
+        return False
+            
+    def rename_key_callback(self, key):
+        (iter, selected_key) = self.get_selected_registry_key()
+        if (selected_key == None):
+            return False
+        
+        if (key.name == key.old_name):
+            return True
+
+        try:
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key.parent)
+            
+            if (len([k for k in key_list if k.name == key.name]) > 0):
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This key already exists. Please choose another name.", self)
+                return False
+            
+            self.pipe_manager.mv_key(key, key.old_name)
+            key.old_name = key.name
+            
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key.parent)
+            parent_iter = self.keys_store.iter_parent(iter)
+            self.refresh_keys_tree_view(parent_iter, key_list, key)
+            
+            self.set_status("Key '" + key.get_absolute_path() + "' renamed.")
+            
+            return True
+            
+        except RuntimeError, re:
+            msg = "Failed to rename key: " + re.args[1] + "."
+            print msg
+            self.set_status(msg)
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+        except Exception, ex:
+            msg = "Failed to rename key: " + str(ex) + "."
+            print msg
+            self.set_status(msg)
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+        return False
+            
+    def rename_value_callback(self, value):
+        (iter_key, selected_key) = self.get_selected_registry_key()
+        if (selected_key == None):
+            return False
+
+        (iter_value, selected_value) = self.get_selected_registry_value()
+        if (selected_value == None):
+            return False
+
+        if (value.name == value.old_name):
+            return True
+
+        try:
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+        
+            if (len([v for v in value_list if v.name == value.name]) > 0):
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This value already exists. Please choose another name.", self)
+                return False
+            
+            self.pipe_manager.mv_value(value, value.old_name)
+            value.old_name = value.name
+        
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.refresh_values_tree_view(value_list)
+            
+            self.set_status("Value '" + value.get_absolute_path() + "' renamed.")
+            
+            return True
+            
+        except RuntimeError, re:
+            msg = "Failed to rename value: " + re.args[1] + "."
+            print msg
+            self.set_status(msg)
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+        except Exception, ex:
+            msg = "Failed to rename value: " + str(ex) + "."
+            print msg
+            self.set_status(msg)
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+            
+        return False
+            
+    def new_value(self, type):
+        (iter, selected_key) = self.get_selected_registry_key()
+        if (selected_key == None):
+            return
+        
+        new_value = self.run_value_edit_dialog(None, type)
+        if (new_value == None):
+            return
+        
+        new_value.parent = selected_key
+
+        try:
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+        
+            if (len([v for v in value_list if v.name == new_value.name]) > 0):
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This value already exists.", self)
+                return False
+            
+            self.pipe_manager.set_value(new_value)
+            
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.refresh_values_tree_view(value_list)
+            
+            self.set_status("Value '" + new_value.get_absolute_path() + "' successfully added.")
+        
+        except RuntimeError, re:
+            msg = "Failed to create value: " + re.args[1] + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
+        except Exception, ex:
+            msg = "Failed to create value: " + str(ex) + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+                    
     def on_self_delete(self, widget, event):
         if (self.pipe_manager != None):
             self.on_disconnect_item_activate(self.disconnect_item)
@@ -831,9 +1084,12 @@ class RegEditWindow(gtk.Window):
             self.pipe_manager.close()
             self.pipe_manager = None
         
-        self.keys_store.clear()       
-        self.values_store.clear()       
-        self.update_sensitivity()
+        self.keys_store.clear()
+        self.values_store.clear()
+        self.keys_tree_view.columns_autosize()
+        self.update_sensitivity() 
+        
+        self.set_status("Disconnected.")
     
     def on_export_item_activate(self, widget):
         pass
@@ -846,51 +1102,188 @@ class RegEditWindow(gtk.Window):
 
     def on_modify_item_activate(self, widget):
         (iter, edit_value) = self.get_selected_registry_value()
-        self.run_value_edit_dialog(edit_value, self.update_value_callback)
+        self.run_value_edit_dialog(edit_value, None, self.update_value_callback)
 
         self.set_status("Value '" + edit_value.get_absolute_path() + "' updated.")
         
     def on_modify_binary_item_activate(self, widget):
-        pass
+        (iter, edit_value) = self.get_selected_registry_value()
+        self.run_value_edit_dialog(edit_value, winreg.REG_BINARY, self.update_value_callback)
+
+        self.set_status("Value '" + edit_value.get_absolute_path() + "' updated.")
     
     def on_new_key_item_activate(self, widget):
-        pass
+        (iter, selected_key) = self.get_selected_registry_key()
+        if (selected_key == None):
+            return
+        
+        new_key = self.run_key_edit_dialog(None)
+        if (new_key == None):
+            return
+        
+        new_key.parent = selected_key
+
+        try:
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            
+            if (len([k for k in key_list if k.name == new_key.name]) > 0):
+                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This key already exists.", self)
+                return False
+            
+            self.pipe_manager.mk_key(new_key)
+
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.refresh_keys_tree_view(iter, key_list, new_key)
+            
+            self.set_status("Key '" + new_key.get_absolute_path() + "' successfully added.")
+        
+        except RuntimeError, re:
+            msg = "Failed to create key: " + re.args[1] + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
+        except Exception, ex:
+            msg = "Failed to create key: " + str(ex) + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
 
     def on_new_string_item_activate(self, widget):
-        pass
-    
+        self.new_value(winreg.REG_SZ)
+        
     def on_new_binary_item_activate(self, widget):
-        pass
-    
+        self.new_value(winreg.REG_BINARY)
+
     def on_new_dword_item_activate(self, widget):
-        pass
+        self.new_value(winreg.REG_DWORD)
     
     def on_new_multi_string_item_activate(self, widget):
-        pass
+        self.new_value(winreg.REG_MULTI_SZ)
     
     def on_new_expandable_item_activate(self, widget):
-        pass
+        self.new_value(winreg.REG_EXPAND_SZ)
 
     def on_permissions_item_activate(self, widget):
         pass
 
     def on_delete_item_activate(self, widget):
-        pass
+        key_focused = self.keys_tree_view.is_focus()
+        
+        if (key_focused):
+            (iter, selected_key) = self.get_selected_registry_key()
+            if (selected_key == None):
+                return
+        
+            if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete key '%s'?" % selected_key.name) != gtk.RESPONSE_YES):
+                return 
+        else:
+            (iter, selected_value) = self.get_selected_registry_value()
+            if (selected_value == None):
+                return
+        
+            if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete value '%s'?" % selected_value.name) != gtk.RESPONSE_YES):
+                return 
+            
+        try:
+            if (key_focused):
+                self.pipe_manager.rm_key(selected_key)
+            
+                (key_list, value_list) = self.pipe_manager.ls_key(selected_key.parent)
+                parent_iter = self.keys_store.iter_parent(iter)
+                self.refresh_keys_tree_view(parent_iter, key_list)
+                
+                self.set_status("Key '" + selected_key.get_absolute_path() + "' successfully deleted.")
+            else:
+                self.pipe_manager.unset_value(selected_value)
+            
+                (key_list, value_list) = self.pipe_manager.ls_key(selected_value.parent)
+                self.refresh_values_tree_view(value_list)
+                
+                self.set_status("Value '" + selected_value.get_absolute_path() + "' successfully deleted.")
+        
+        except RuntimeError, re:
+            msg = "Failed to delete value: " + re.args[1] + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
+        except Exception, ex:
+            msg = "Failed to delete value: " + str(ex) + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
 
     def on_rename_item_activate(self, widget):
-        pass
-    
+        key_focused = self.keys_tree_view.is_focus()
+        
+        if (key_focused):
+            (iter, rename_key) = self.get_selected_registry_key()
+            rename_key.old_name = rename_key.name
+            self.run_rename_dialog(rename_key, None, self.rename_key_callback)
+            
+        else:
+            (iter, rename_value) = self.get_selected_registry_value()
+            rename_value.old_name = rename_value.name
+            self.run_rename_dialog(None, rename_value, self.rename_value_callback)
+
     def on_copy_item_activate(self, widget):
-        pass
+        key_focused = self.keys_tree_view.is_focus()
+        
+        if (key_focused):
+            (iter, selected_key) = self.get_selected_registry_key()
+            if (selected_key == None):
+                return
+
+            path = selected_key.get_absolute_path()
+        else:
+            (iter, selected_value) = self.get_selected_registry_value()
+            if (selected_value == None):
+                return
+
+            path = selected_value.get_absolute_path()
+            
+        clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_CLIPBOARD)
+        clipboard.set_text(path)
     
     def on_find_item_activate(self, widget):
+        # TODO: implement find
         pass
     
     def on_find_next_item_activate(self, widget):
         pass
 
     def on_refresh_item_activate(self, widget):
-        pass
+        (iter, selected_key) = self.get_selected_registry_key()
+        if (selected_key == None):
+            return
+
+        # TODO: this refresh does not reflect changes in the parent tree
+        
+        try:
+            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.refresh_keys_tree_view(iter, key_list, selected_key)
+            self.refresh_values_tree_view(value_list)
+            
+            self.set_status("Refreshed key '" + selected_key.get_absolute_path() + "'.")
+        
+        except RuntimeError, re:
+            msg = "Failed to refresh key: " + re.args[1] + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        
+        except Exception, ex:
+            msg = "Failed to refresh key: " + str(ex) + "."
+            self.set_status(msg)
+            print msg
+            traceback.print_exc()
+            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
 
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(
@@ -907,7 +1300,10 @@ class RegEditWindow(gtk.Window):
         if (selected_key != None):
             try :
                 (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
-                self.refresh_keys_tree_view(iter, key_list)
+                
+                if (self.keys_store.iter_n_children(iter) == 0):
+                    self.refresh_keys_tree_view(iter, key_list)
+                
                 self.refresh_values_tree_view(value_list)
                 self.keys_tree_view.columns_autosize()                
                 self.set_status("Selected key '" + selected_key.get_absolute_path() + "'.")
@@ -943,6 +1339,9 @@ class RegEditWindow(gtk.Window):
                 self.keys_tree_view.collapse_row(self.keys_store.get_path(iter))
             else:
                 self.keys_tree_view.expand_row(self.keys_store.get_path(iter), False)
+        elif (event.button == 3):
+            self.values_tree_view.grab_focus()
+            self.edit_menu.popup(None, None, None, event.button, int(event.time))
 
     def on_values_tree_view_selection_changed(self, widget):
         (iter, selected_key) = self.get_selected_registry_key()
@@ -954,13 +1353,20 @@ class RegEditWindow(gtk.Window):
         self.update_sensitivity()
 
     def on_values_tree_view_button_press(self, widget, event):
-        (iter, selected_value) = self.get_selected_registry_value()
-        if (selected_value == None):
-            return
-        
         if (event.type == gtk.gdk._2BUTTON_PRESS):
+            (iter, selected_value) = self.get_selected_registry_value()
+            if (selected_value == None):
+                return
+            
             self.on_modify_item_activate(self.modify_item)
-
+        elif (event.button == 3):
+            self.values_tree_view.grab_focus()
+            self.edit_menu.popup(None, None, None, event.button, int(event.time))
+            
+    def on_tree_views_focus_in(self, widget, event):
+        self.update_sensitivity()
+        
+    
 win = RegEditWindow()
 win.show_all()
 gtk.main()

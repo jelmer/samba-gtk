@@ -938,6 +938,7 @@ class TaskEditDialog(gtk.Dialog):
         hbox.pack_start(label, False, True, 5)
         
         self.command_entry = gtk.Entry()
+        self.command_entry.set_activates_default(True)
         hbox.pack_start(self.command_entry, True, True, 5)
 
         separator = gtk.HSeparator()
@@ -1276,7 +1277,7 @@ class RegValueEditDialog(gtk.Dialog):
         else:
             self.brand_new = False
             self.reg_value = reg_value
-        
+            
         self.disable_signals = False
         
         self.create()
@@ -1292,7 +1293,7 @@ class RegValueEditDialog(gtk.Dialog):
 
         self.set_resizable(False)
 
-        
+
         # value name
         
         hbox = gtk.HBox()
@@ -1302,6 +1303,7 @@ class RegValueEditDialog(gtk.Dialog):
         hbox.pack_start(label, False, True, 10)
         
         self.name_entry = gtk.Entry()
+        self.name_entry.set_activates_default(True)
         self.name_entry.set_editable(self.brand_new)
         hbox.pack_start(self.name_entry, True, True, 10)
         
@@ -1325,6 +1327,7 @@ class RegValueEditDialog(gtk.Dialog):
         # string type page
        
         self.string_data_entry = gtk.Entry()
+        self.string_data_entry.set_activates_default(True)
         self.type_notebook.append_page(self.string_data_entry)
         
         
@@ -1369,6 +1372,7 @@ class RegValueEditDialog(gtk.Dialog):
         self.type_notebook.append_page(hbox)
         
         self.number_data_entry = gtk.Entry()
+        self.number_data_entry.set_activates_default(True)
         hbox.pack_start(self.number_data_entry, True, True, 5)
         
         self.number_data_dec_radio = gtk.RadioButton(None, "Decimal")
@@ -1414,16 +1418,36 @@ class RegValueEditDialog(gtk.Dialog):
         
         # signals/events
 
-        # TODO: validate number entry in a change signal handler
-
         self.binary_data_hex_text_view.get_buffer().connect("changed", self.on_binary_data_hex_text_view_buffer_changed)
         self.binary_data_hex_text_view.connect("focus-out-event", self.on_binary_data_hex_text_view_focus_out)
         self.number_data_dec_radio.connect("toggled", self.on_number_data_dec_radio_toggled)
         self.number_data_hex_radio.connect("toggled", self.on_number_data_hex_radio_toggled)
+        self.number_data_entry.connect("changed", self.on_number_data_entry_changed)
 
     def check_for_problems(self):
         if (len(self.name_entry.get_text().strip()) == 0):
             return "Please specify a name."
+        
+        if (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN, winreg.REG_QWORD]):
+            number_str = self.number_data_entry.get_text()
+            if (len(number_str) == 0):
+                return "Please enter a number."
+            
+            if (self.number_data_dec_radio.get_active()):
+                try:
+                    number = string.atoi(number_str, 10)
+                    number_str_hex = "%X" % number
+                    
+                    if (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN]):
+                        max_hex_len = 8
+                    else:
+                        max_hex_len = 16
+                    
+                    if (len(number_str_hex) > max_hex_len):
+                        return "Please enter a smaller decimal number."
+                
+                except Exception:
+                    return "Please enter a valid decimal number."
         
         return None
 
@@ -1450,8 +1474,10 @@ class RegValueEditDialog(gtk.Dialog):
             self.set_icon_from_file(self.icon_registry_number_filename)
             self.set_size_request(430, 200)
 
-            self.number_data_entry.set_text("%d" % self.reg_value.get_interpreted_data())
-            self.on_number_data_hex_radio_toggled(self.number_data_hex_radio)
+            if (self.reg_value.type == winreg.REG_QWORD):
+                self.number_data_entry.set_text("%016X" % self.reg_value.get_interpreted_data())
+            else:
+                self.number_data_entry.set_text("%08X" % self.reg_value.get_interpreted_data())
         
         elif (self.reg_value.type == winreg.REG_MULTI_SZ):
             self.set_icon_from_file(self.icon_registry_string_filename)
@@ -1501,18 +1527,37 @@ class RegValueEditDialog(gtk.Dialog):
             self.reg_value.set_interpreted_data(lines)
 
     def update_type_page_after_show(self):
-        type_notebook_pages = {
-            winreg.REG_SZ:0,
-            winreg.REG_EXPAND_SZ:0,
-            winreg.REG_BINARY:1,
-            winreg.REG_DWORD:2,
-            winreg.REG_DWORD_BIG_ENDIAN:2,
-            winreg.REG_MULTI_SZ:3,
-            winreg.REG_QWORD:2
-        }
-        
-        self.type_notebook.set_current_page(type_notebook_pages[self.reg_value.type])
-        
+        if (self.reg_value.type == winreg.REG_SZ):
+            self.type_notebook.set_current_page(0)
+            self.string_data_entry.grab_focus()
+            
+        if (self.reg_value.type == winreg.REG_EXPAND_SZ):
+            self.type_notebook.set_current_page(0)
+            self.string_data_entry.grab_focus()
+            
+        if (self.reg_value.type == winreg.REG_BINARY):
+            self.type_notebook.set_current_page(1)
+            self.binary_data_hex_text_view.grab_focus()
+                
+        if (self.reg_value.type == winreg.REG_DWORD):
+            self.type_notebook.set_current_page(2)
+            self.number_data_entry.grab_focus()
+                
+        if (self.reg_value.type == winreg.REG_DWORD_BIG_ENDIAN):
+            self.type_notebook.set_current_page(2)
+            self.number_data_entry.grab_focus()
+                
+        if (self.reg_value.type == winreg.REG_MULTI_SZ):
+            self.type_notebook.set_current_page(3)
+            self.multi_string_data_text_view.grab_focus()
+                
+        if (self.reg_value.type == winreg.REG_QWORD):
+            self.type_notebook.set_current_page(2)    
+            self.number_data_entry.grab_focus()
+            
+        if (self.brand_new):
+            self.name_entry.grab_focus()
+
     def on_binary_data_hex_text_view_buffer_changed(self, widget):
         if (self.disable_signals):
             return 
@@ -1592,6 +1637,29 @@ class RegValueEditDialog(gtk.Dialog):
         format = "%0" + str(digits) + "d"
 
         self.number_data_entry.set_text(format % number)
+        
+    def on_number_data_entry_changed(self, widget):
+        old_text = self.number_data_entry.get_text()
+
+        if (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN]):
+            max_len = 8
+        else:
+            max_len = 16
+
+        new_text = ""
+        if (self.number_data_hex_radio.get_active()):
+            for ch in old_text:
+                if (ch in string.hexdigits):
+                    new_text += ch
+            if (len(new_text) > max_len):
+                new_text = new_text[:max_len]
+
+        else:
+            for ch in old_text:
+                if (ch in string.digits):
+                    new_text += ch
+
+        self.number_data_entry.set_text(new_text)
         
     @staticmethod
     def check_hex_string(old_string, line_length, remove_orphaned = False):
@@ -1698,6 +1766,160 @@ class RegValueEditDialog(gtk.Dialog):
                 digits = ""
             
         return array
+
+
+class RegKeyEditDialog(gtk.Dialog):
+    
+    def __init__(self, reg_key):
+        super(RegKeyEditDialog, self).__init__()
+
+        if (reg_key == None):
+            self.brand_new = True
+            self.reg_key = RegistryKey("", None)
+
+        else:
+            self.brand_new = False
+            self.reg_key = reg_key
+            
+        self.create()
+        self.reg_key_to_values()
+        
+    def create(self):
+        self.set_title(["Edit registry key", "New registry key"][self.brand_new])
+        self.set_border_width(5)
+        
+        self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
+        self.set_icon_from_file(self.icon_registry_filename)
+
+        self.set_resizable(False)
+
+
+        # value name
+        
+        hbox = gtk.HBox()
+        self.vbox.pack_start(hbox, False, False, 10)
+        
+        label = gtk.Label("Key name:")
+        hbox.pack_start(label, False, True, 10)
+        
+        self.name_entry = gtk.Entry()
+        self.name_entry.set_activates_default(True)
+        hbox.pack_start(self.name_entry, True, True, 10)
+        
+
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.apply_button.set_flags(gtk.CAN_DEFAULT)
+        self.apply_button.set_sensitive(not self.brand_new) # disabled for new task
+        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
+        
+        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
+        
+        
+        # signals/events
+
+    def check_for_problems(self):
+        if (len(self.name_entry.get_text().strip()) == 0):
+            return "Please specify a name."
+        
+        return None
+
+    def reg_key_to_values(self):
+        if (self.reg_key == None):
+            raise Exception("registry key not set")
+        
+        self.name_entry.set_text(self.reg_key.name)
+            
+    def values_to_reg_key(self):
+        if (self.reg_key == None):
+            raise Exception("registry key not set")
+        
+        self.reg_key.name = self.name_entry.get_text()
+
+
+class RegRenameDialog(gtk.Dialog):
+    
+    def __init__(self, reg_key, reg_value):
+        super(RegRenameDialog, self).__init__()
+
+        self.reg_key = reg_key
+        self.reg_value = reg_value
+            
+        self.create()
+        self.reg_to_values()
+        
+    def create(self):
+        self.set_title(["Rename registry key", "Rename registry value"][self.reg_value != None])
+        self.set_border_width(5)
+        
+        self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
+        self.set_icon_from_file(self.icon_registry_filename)
+
+        self.set_resizable(False)
+
+
+        # name
+        
+        hbox = gtk.HBox()
+        self.vbox.pack_start(hbox, False, False, 10)
+        
+        label = gtk.Label("Name:")
+        hbox.pack_start(label, False, True, 10)
+        
+        self.name_entry = gtk.Entry()
+        self.name_entry.set_activates_default(True)
+        hbox.pack_start(self.name_entry, True, True, 10)
+        
+
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.apply_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.apply_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.apply_button, gtk.RESPONSE_APPLY)
+        
+        self.ok_button = gtk.Button("OK", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
+        
+        
+        # signals/events
+
+    def check_for_problems(self):
+        if (len(self.name_entry.get_text().strip()) == 0):
+            return "Please specify a name."
+        
+        return None
+
+    def reg_to_values(self):
+        if (self.reg_key == None):
+            self.name_entry.set_text(self.reg_value.name)
+        else:
+            self.name_entry.set_text(self.reg_key.name)
+            
+    def values_to_reg(self):
+        if (self.reg_key == None):
+            self.reg_value.name = self.name_entry.get_text()
+        else:
+            self.reg_key.name = self.name_entry.get_text()
 
 
 class SAMConnectDialog(gtk.Dialog):

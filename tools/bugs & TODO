@@ -1,10 +1,11 @@
 pygwcrontab
 -----------
 
-Tested creating/modifying/deleteing schedules using utilitiy and on the server. All changes are reflected correctly on both utility and server.
+Tested creating/modifying/deleteing schedules using utilitiy and on the server.
 Dare I say, it looks like this one works perfectly!
 
 -Added refresh on F5
+-Connect dialog is now displayed first.
 
 
 
@@ -12,6 +13,9 @@ Dare I say, it looks like this one works perfectly!
 pygwregedit
 -----------
 
+-unable to get any sub key listings (only able to get the first 5 keys)
+-selecting any key returns an error, selecting HKEY_CLASSES_ROOT causes a Fatal python error: deallocating None (error seems to happen outside of our code, maybe in the GTK code)
+-
 
 
 
@@ -25,12 +29,11 @@ pygwsam
 	-SAMPipeManager.fetch_user() always returns flags 0x20015 for a new user (option must_change_pass & [unknown?] lower 4 flags)
 	-SAMPipeManager.fetch_user() always returns a blank description
 -"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able changes it.
--"user cannot change password" option doesn't disable must_change_password option (FIXED)
 -"user cannot change password" option isn't read properly from server
 -"user cannot change password" option isn't updated on the server
 -"account is locked out" option is not saved
 -Groups arn't displayed properly, only the "none" group appears.
--Access denied when attempted to create a new user group (possibly why groups arn't listed?)
+-Access denied when attempted to create a new user group (also possibly why groups arn't listed?)
 -
 
 
@@ -39,14 +42,15 @@ pygwsam
 -TODO: cannot_change_password in update_user() ?
 
 my TODO list:
--test "user cannot change password", maybe not be updated in query_info_to_user()
--refresh should unselect any selected users/groups. Not sure how to do that, so far I've always got it wrong.
+-test "user cannot change password", maybe not be updated in query_info_to_user() (confirmed, it's not updated anywhere)
+-refresh should unselect any selected users/groups. Not sure how to do that, no luck so far.
 
 What works completely:
 -displaying list of users and refreshing (Implemented refresh on F5)
 -deleting users
 -modifying user home DIR, login scripts, home path, and home DIR drive letter.
 -connecting via RCP over SMB over TCP/IP (access denided without SMB)
+-"user cannot change password" option doesn't disable must_change_password option (FIXED)
 -
 
 
@@ -54,7 +58,19 @@ What works completely:
 pygwsvcctl
 ----------
 
+-Access denied error when fetching services, but still displays a list (maybe some are missing? -a quick count says no, may be inaccurate)
+-NT_STATUS_RPC_BAD_STUB_DATA error when updating a service.
+-After updating a list of services, the list should be refreshed (the utility assumes the services was updated, so list displays incorrect info if the service was not successfully updated)
+-
 
+
+
+
+
+What works:
+-start/stop services
+-pause/resume services
+-
 
 
 
@@ -62,3 +78,4 @@ pygwsvcctl
 All
 ---
 -remove default server/username values
+

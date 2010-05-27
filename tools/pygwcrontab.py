@@ -107,11 +107,14 @@ class CronTabWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = ""
+        self.server_address = "192.168.2.100"
         self.transport_type = 0
-        self.username = ""
+        self.username = "shatterz"
                 
         self.update_sensitivity()
+        
+        #present the connection disalog first, since that's probably what the user wants to do
+        self.on_connect_item_activate(None)
         
     def create(self):
         
@@ -125,6 +128,7 @@ class CronTabWindow(gtk.Window):
         self.icon_filename = os.path.join(sys.path[0], "images", "crontab.png")
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
+        self.connect("key-press-event", self.on_key_press) #to handle key presses
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -301,6 +305,11 @@ class CronTabWindow(gtk.Window):
         self.tasks_tree_view.connect("button_press_event", self.on_tasks_tree_view_button_press)
         
         self.add_accel_group(accel_group)
+        
+    def on_key_press(self, widget, event):
+        if event.keyval == gtk.keysyms.F5: 
+            #refresh when F5 is pressed
+            self.on_refresh_item_activate(None)
 
     def refresh_tasks_tree_view(self):
         if not self.connected():

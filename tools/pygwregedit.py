@@ -261,11 +261,14 @@ class RegEditWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = ""
+        self.server_address = "192.168.2.100"
         self.transport_type = 0
-        self.username = ""
+        self.username = "shatterz"
 
         self.update_sensitivity()
+        
+        #display connect dialog, since that's probably what the user wants to do
+        self.on_connect_item_activate(None)
         
     def create(self):
         

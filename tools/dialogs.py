@@ -292,17 +292,22 @@ class UserEditDialog(gtk.Dialog):
         if (self.brand_new):
             for user in self.pipe_manager.user_list:
                 if (user.username == self.username_entry.get_text()):
-                    return "Choose another username, this one already exists!"
+                    return "User \"" + self.username_entry.get_text() + "\" already exists!"
         
         return None
 
     def update_sensitivity(self):
         existing_selected = (self.existing_groups_tree_view.get_selection().count_selected_rows() > 0)
         available_selected = (self.available_groups_tree_view.get_selection().count_selected_rows() > 0)
-
-        self.must_change_password_check.set_sensitive(not self.password_never_expires_check.get_active())
+        
+        if (self.password_never_expires_check.get_active() or self.cannot_change_password_check.get_active()):
+            self.must_change_password_check.set_sensitive(False)
+        else:
+            self.must_change_password_check.set_sensitive(True)
+            
         self.cannot_change_password_check.set_sensitive(not self.must_change_password_check.get_active())
         self.password_never_expires_check.set_sensitive(not self.must_change_password_check.get_active())
+        
         
         self.add_group_button.set_sensitive(available_selected)
         self.del_group_button.set_sensitive(existing_selected)

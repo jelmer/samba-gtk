@@ -24,33 +24,33 @@ pygwsam
 -------
 
 -passwords are not updated
--description field is ignored when creating a new user, but works when updated a current user
--options are ignored when creating a new user: must_change_password and account_disabled are always enabled, others always disabled.
-	-SAMPipeManager.fetch_user() always returns flags 0x20015 for a new user (option must_change_pass & [unknown?] lower 4 flags)
-	-SAMPipeManager.fetch_user() always returns a blank description
--"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able changes it.
+-"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able change it.
+	-flags are correct when sent to and accepted from the server, it appears the changes are simply rejected.
 -"user cannot change password" option isn't read properly from server
 -"user cannot change password" option isn't updated on the server
--"account is locked out" option is not saved
+	-It doesn't change any of the acct_flags, this is gonna be tricky
+	-not in samr_UserInfo21.allow_password_change...
+	-not in samr_UserInfo21.parameters
+	-not in samr_UserInfo20.UserParametersInformation
+	-not in samr_UserInfo21.
+		-samr_UserInfo21.fields_present = 0xffffff so all fields should be accepted
 -Groups arn't displayed properly, only the "none" group appears.
 -Access denied when attempted to create a new user group (also possibly why groups arn't listed?)
 -
 
 
--TODO: account locked out does get updated in query_info_to_user() ?
--TODO: implement policies functionality
--TODO: cannot_change_password in update_user() ?
-
-my TODO list:
--test "user cannot change password", maybe not be updated in query_info_to_user() (confirmed, it's not updated anywhere)
+TODO list:
 -refresh should unselect any selected users/groups. Not sure how to do that, no luck so far.
 
-What works completely:
+
+What works & finished bugfixes:
 -displaying list of users and refreshing (Implemented refresh on F5)
 -deleting users
 -modifying user home DIR, login scripts, home path, and home DIR drive letter.
 -connecting via RCP over SMB over TCP/IP (access denided without SMB)
 -"user cannot change password" option doesn't disable must_change_password option (FIXED)
+-description field is ignored when creating a new user, but works when updated a current user (FIXED)
+-options are ignored when creating a new user: must_change_password and account_disabled are always enabled, others always disabled. (FIXED)
 -
 
 

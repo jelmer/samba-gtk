@@ -45,6 +45,9 @@ class SAMPipeManager:
         self.pipe = samr.samr(binding % (server_address), credentials = creds)
         self.connect_handle = self.pipe.Connect2(None, security.SEC_FLAG_MAXIMUM_ALLOWED)
         
+        #TODO: remove this, this was only for testing
+        self.last = None
+        
     def close(self):
         if (self.pipe != None):
             self.pipe.Close(self.connect_handle)
@@ -87,13 +90,23 @@ class SAMPipeManager:
 
         
     def add_user(self, user):
-        (user_handle, rid) = self.pipe.CreateUser(self.domain_handle, self.set_lsa_string(user.username), security.SEC_FLAG_MAXIMUM_ALLOWED)        
-        user = self.fetch_user(rid, user)
+        """Creates 'user' on the remote computer. This function will update user's RID.
         
-        self.update_user(user)
+        Returns 'user' with updated RID"""
+        
+        #Creates the new user on the server using default values for everything. Only the username is taken into account here.
+        (user_handle, rid) = self.pipe.CreateUser(self.domain_handle, self.set_lsa_string(user.username), security.SEC_FLAG_MAXIMUM_ALLOWED)        
+        new_user = self.fetch_user(rid)
+        
+        user.rid = rid #update the user's RID
+        if user.group_list == []: #The user must be part of a group. If the user is not part of any groups, the user is actually part of the "None" group! 
+            user.group_list = new_user.group_list #use the default values assigned to the user when it was created on the server, which is probably "None"
+        
+        self.update_user(user) #send the other user information to the server.
         user = self.fetch_user(rid, user) # just to make sure we have the updated user properties
-
         self.user_list.append(user)
+        
+        return user
 
     def add_group(self, group):
         (group_handle, rid) = self.pipe.CreateDomainGroup(self.domain_handle, self.set_lsa_string(group.name), security.SEC_FLAG_MAXIMUM_ALLOWED)        
@@ -107,10 +120,13 @@ class SAMPipeManager:
         self.group_list.append(group)
 
     def update_user(self, user):
+        """Submit any changes to 'user' to the server. The User's RID must be correct for this to work.
+        
+        """
         user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserNameInformation)
-        info.account_name = self.set_lsa_string(user.username)
+        #info.account_name = self.set_lsa_string(user.username) #Account name should never be changed.
         info.full_name = self.set_lsa_string(user.fullname)
         self.pipe.SetUserInfo(user_handle, samr.UserNameInformation, info)
         
@@ -120,27 +136,42 @@ class SAMPipeManager:
         
         info = self.pipe.QueryUserInfo(user_handle, samr.UserControlInformation)
         if (user.must_change_password):
-            info.acct_flags |= 0x00020000
+            info.acct_flags |= samr.ACB_PW_EXPIRED
         else:
-            info.acct_flags &= ~0x00020000
+            info.acct_flags &= ~samr.ACB_PW_EXPIRED
 
         if (user.password_never_expires):
-            info.acct_flags |= 0x00000200
+            info.acct_flags |= samr.ACB_PWNOEXP
         else:
-            info.acct_flags &= ~0x00000200
+            info.acct_flags &= ~samr.ACB_PWNOEXP
             
         if (user.account_disabled):
-            info.acct_flags |= 0x00000001
+            info.acct_flags |= samr.ACB_DISABLED
         else:
-            info.acct_flags &= ~0x00000001
+            info.acct_flags &= ~samr.ACB_DISABLED
 
         if (user.account_locked_out):
-            info.acct_flags |= 0x00000400
+            info.acct_flags |= samr.ACB_AUTOLOCK
         else:
-            info.acct_flags &= ~0x00000400
+            info.acct_flags &= ~samr.ACB_AUTOLOCK
         self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
-            
+        
+        
+        #TODO: this is a test implementation for cannot_change_password
+#        if user.rid == 1035:
+#            info = None #because i'm angry at info!
+#            info = self.pipe.QueryUserInfo(user_handle, samr.UserLogonInformation)
+#            print info.allow_password_change
+#            #info.allow_password_change = 0
+#            self.pipe.SetUserInfo(user_handle, samr.UserLogonInformation, info)
+        if user.rid == 1035:
+            info = self.pipe.QueryUserInfo(user_handle, samr.UserParametersInformation)
+            pass
+        
+        
         # TODO: cannot_change_password
+
+
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserProfileInformation)
         info.profile_path = self.set_lsa_string(user.profile_path)
@@ -161,16 +192,16 @@ class SAMPipeManager:
         self.pipe.SetUserInfo(user_handle, samr.UserHomeInformation, info)
         
         
-        # update user's groups
+        # get the user's old groups list
         group_list = self.rwa_list_to_group_list(self.pipe.GetGroupsForUser(user_handle).rids)
  
-        # groups to remove
+        # remove the user from groups
         for group in group_list:
             if (user.group_list.count(group) == 0):
                 group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
                 self.pipe.DeleteGroupMember(group_handle, user.rid)
 
-        # groups to add
+        # add the user to groups
         for group in user.group_list:
             if (group_list.count(group) == 0):
                 group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
@@ -194,9 +225,13 @@ class SAMPipeManager:
         self.pipe.DeleteDomainGroup(group_handle)
     
     def fetch_user(self, rid, user = None):
+        """Fetch the User whose RID is 'rid'. A new User structure is created if the 'user' argument is left out.
+        
+        Returns a User"""
         user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
         info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-        user = self.query_info_to_user(info, user)
+        user = self.info_to_user(info, user)
+        
         group_rwa_list = self.pipe.GetGroupsForUser(user_handle).rids
         user.group_list = self.rwa_list_to_group_list(group_rwa_list)
         
@@ -205,12 +240,15 @@ class SAMPipeManager:
     def fetch_group(self, rid, group = None):
         group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
         info = self.pipe.QueryGroupInfo(group_handle, 1)
-        group = self.query_info_to_group(info, group)
+        group = self.info_to_group(info, group)
         group.rid = rid
         
         return group
     
-    def query_info_to_user(self, query_info, user = None):
+    def info_to_user(self, query_info, user = None):
+        """Converts 'query_info' information into a user type. Values in 'user' will be overwriten by this function. If called with 'None' then a new User structure will be created
+        
+        returns 'user'"""
         if (user == None):
             user = User(self.get_lsa_string(query_info.account_name), 
                         self.get_lsa_string(query_info.full_name), 
@@ -222,14 +260,23 @@ class SAMPipeManager:
             user.description = self.get_lsa_string(query_info.description)
             user.rid = query_info.rid
         
-        user.must_change_password = (query_info.acct_flags & 0x00020000) != 0
-        user.password_never_expires = (query_info.acct_flags & 0x00000200) != 0
-        user.account_disabled = (query_info.acct_flags & 0x00000001) != 0
-        # TODO: account locked out does get updated!!!
-        user.account_locked_out = (query_info.acct_flags & 0x00000400) != 0
+        user.must_change_password = (query_info.acct_flags & samr.ACB_PW_EXPIRED) != 0
+        user.password_never_expires = (query_info.acct_flags & samr.ACB_PWNOEXP) != 0
+        user.account_disabled = (query_info.acct_flags & samr.ACB_DISABLED) != 0
+        user.account_locked_out = (query_info.acct_flags & samr.ACB_AUTOLOCK) != 0
+        #cannot_change_password doesn't get set in a flag, it's a little different
         user.profile_path = self.get_lsa_string(query_info.profile_path)
         user.logon_script = self.get_lsa_string(query_info.logon_script)
         user.homedir_path = self.get_lsa_string(query_info.home_directory)
+        
+        
+        #TODO: user cannot change password
+        if query_info.rid == 1035:
+            if self.last != None:
+                pass
+            self.last = query_info #so we can check if anything is new next time
+            pass
+            
         
         drive = self.get_lsa_string(query_info.home_drive)
         if (len(drive) == 2):
@@ -258,7 +305,7 @@ class SAMPipeManager:
             
         return group_list
 
-    def query_info_to_group(self, query_info, group = None):
+    def info_to_group(self, query_info, group = None):
         if (group == None):
             group = Group(self.get_lsa_string(query_info.name), 
                           self.get_lsa_string(query_info.description),  
@@ -299,13 +346,17 @@ class SAMWindow(gtk.Window):
         
         self.pipe_manager = None
         self.users_groups_notebook_page_num = 0
-        self.server_address = ""
+        self.server_address = "192.168.2.100"
         self.transport_type = 0
-        self.username = ""
+        self.username = "shatterz"
         self.domain_index = 0;
         
         self.update_captions()
         self.update_sensitivity()
+        
+        #present the connection dialog first, since that's probably what the user wants to do
+        self.on_connect_item_activate(None)
+        
         
     def create(self):
         
@@ -321,6 +372,7 @@ class SAMWindow(gtk.Window):
         self.group_icon_filename = os.path.join(sys.path[0], "images", "group.png")
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
+        self.connect("key-press-event", self.on_key_press) #to handle key presses
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -596,6 +648,15 @@ class SAMWindow(gtk.Window):
         self.users_groups_notebook.connect("switch-page", self.on_users_groups_notebook_switch_page)
         
         self.add_accel_group(accel_group)
+        
+        
+        
+        
+    def on_key_press(self, widget, event):
+        if event.keyval == gtk.keysyms.F5: 
+            self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.Delete:
+            self.on_delete_item_activate(None)
 
     def refresh_user_list_view(self):
         if not self.connected():
@@ -712,7 +773,7 @@ class SAMWindow(gtk.Window):
                 else:
                     dialog.values_to_user()
                     
-                    if (apply_callback != None):
+                    if (apply_callback != None): #seems like there's only a callback when a user is modified, never when creating a new user.
                         apply_callback(dialog.user)
                         dialog.user_to_values()
                         
@@ -829,7 +890,7 @@ class SAMWindow(gtk.Window):
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         finally:
-            self.pipe_manager.fetch_user(user.rid, user) # just to make sure we have the updated user properties
+            self.pipe_manager.fetch_user(user.rid, user) # to make sure we have the updated user properties. This has caught bugs already!
             self.refresh_user_list_view()
 
     def update_group_callback(self, group):
@@ -951,17 +1012,20 @@ class SAMWindow(gtk.Window):
             
         self.refresh_user_list_view()
         self.refresh_group_list_view()
+
+
         
     def on_new_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
             new_user = self.run_user_edit_dialog()
             if (new_user == None):
+                self.set_status("User creation canceled")
                 return
             
             try:
                 self.pipe_manager.add_user(new_user)
                 self.pipe_manager.fetch_users_and_groups()
-            
+                
                 self.set_status("Successfully created user '" + new_user.username + "'.")
             
             except RuntimeError, re:

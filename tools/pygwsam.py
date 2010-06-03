@@ -156,18 +156,48 @@ class SAMPipeManager:
             info.acct_flags &= ~samr.ACB_AUTOLOCK
         self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
         
+        #TODO: this is a test fix for the must_change_password bug
+#        info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+#        if (user.must_change_password):
+#            info.acct_flags |= samr.ACB_PW_EXPIRED
+#        else:
+#            info.acct_flags &= ~samr.ACB_PW_EXPIRED
+#        self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
+        #We can't ever submit samr.UserLogonInformation (lvl 3) because something is HORRIBLY WRONG! It's always rejected, even if we just sent it back to the server without making any changes.
+        #Maybe the lower level functions arn't handling this level properly.
         
-        #TODO: this is a test implementation for cannot_change_password
-#        if user.rid == 1035:
-#            info = None #because i'm angry at info!
-#            info = self.pipe.QueryUserInfo(user_handle, samr.UserLogonInformation)
-#            print info.allow_password_change
-#            #info.allow_password_change = 0
-#            self.pipe.SetUserInfo(user_handle, samr.UserLogonInformation, info)
+        
+        #TODO: this is a test
         if user.rid == 1035:
-            info = self.pipe.QueryUserInfo(user_handle, samr.UserParametersInformation)
-            pass
-        
+            try: #this section will work fine.
+                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+                info.fields_present = samr.SAMR_FIELD_DESCRIPTION
+                info.description = self.set_lsa_string("testing123")
+                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
+            except Exception, ex:
+                print str(ex)
+            try: #This section will raise 'Unexpected information received', even tho we didn't change anything
+                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+                info.fields_present = samr.SAMR_FIELD_ALLOW_PWD_CHANGE
+                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
+            except Exception, ex:
+                print str(ex)
+            try: #This section will raise 'Unexpected information received' when we call SetUserInfo()
+                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+                info.fields_present = samr.SAMR_FIELD_ALLOW_PWD_CHANGE
+                info.allow_password_change = 1
+                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
+            except Exception, ex:
+                print str(ex)
+            try: #This section will raise 'Expected type int' on line 195 even tho that value appears to be a long and not an integer
+                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+                info.fields_present = samr.SAMR_FIELD_ALLOW_PWD_CHANGE
+                info.allow_password_change = long(1)
+                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
+            except Exception, ex:
+                print str(ex)
+
+
         
         # TODO: cannot_change_password
 

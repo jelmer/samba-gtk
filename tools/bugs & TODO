@@ -1,42 +1,80 @@
 pygwcrontab
 -----------
 
+Windows XP SP2:
 Tested creating/modifying/deleteing schedules using utilitiy and on the server.
 Dare I say, it looks like this one works perfectly!
 
 -Added refresh on F5
 -Connect dialog is now displayed first.
 
+Windows Vista Home Premium:
+-'NT_STATUS_RESOURCE_NAME_NOT_FOUND' error when connecting, happens on line 40 in __init__()
+-unable to connect
 
 
 
 pygwregedit
 -----------
 
+Windows XP SP2:
 -unable to get any sub key listings (only able to get the first 5 keys)
 -selecting any key returns an error, selecting HKEY_CLASSES_ROOT causes a Fatal python error: deallocating None (error seems to happen outside of our code, maybe in the GTK code)
 -
 
+Windows Vista Home Premium:
+-'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 44 in __init__()
+-unable to connect
 
 
 
 pygwsam
 -------
 
+Windows XP SP2:
 -passwords are not updated
 -"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able change it.
+	-enabling "password never expires" does disable "user must change password" on the server as expected. However, disabling "password never expires" will once again enable "user must change password" if it was previously enabled on the server. 
 	-flags are correct when sent to and accepted from the server, it appears the changes are simply rejected.
+	-changing security settings have no effect
+	
+-using UserLogonInformation (lvl 3) always returns Invalid information class, even if no changes were made
+-using UserAccountInformation (lvl 5) always returns Invalid information class, even if no changes were made
+-using UserAllInformation (lvl 21) always returns Unexpected information received, even if no changes were made
+	-Attempting to return field 'allow_password_change' causes this error (type: NTTIME, long?)
+		-This field is of type long but only accepts vales of type int; makes me scratch my head
+	-Attempting to return field 'force_password_change' causes this error (type: NTTIME, long?)
+		-This field is of type long but only accepts vales of type int
+
+	-Attempting to return field 'bad_pwd_count' causes 'Access denied' error (makes sense, should have been obvious really)
+	-Attempting to return field 'last_logoff' causes 'Access denied' error 
+	-Attempting to return field 'last_logon' causes 'Access denied' error 
+	-Attempting to return field 'last_password_change' causes 'Access denied' error 
+	-Attempting to return field 'num_logins' causes 'Access denied' error
+	-Attempting to return field 'owf_pass' causes 'Access denied' error
+	-Attempting to return field 'private_data' causes 'Access denied' error
+	-Attempting to return field 'sec_desc' causes 'Access denied' error
+	-Attempting to change the user's RID causes 'Unexpected information received' error (would it make more sense if it was access_denied? But who understands MS anyways)
+	
+
+	
 -"user cannot change password" option isn't read properly from server
 -"user cannot change password" option isn't updated on the server
 	-It doesn't change any of the acct_flags, this is gonna be tricky
 	-not in samr_UserInfo21.allow_password_change...
 	-not in samr_UserInfo21.parameters
 	-not in samr_UserInfo20.UserParametersInformation
-	-not in samr_UserInfo21.
+	-samr_UserInfo21 may not be accepted back (maybe it's read-only?)
 		-samr_UserInfo21.fields_present = 0xffffff so all fields should be accepted
+		
 -Groups arn't displayed properly, only the "none" group appears.
 -Access denied when attempted to create a new user group (also possibly why groups arn't listed?)
 -
+
+Windows Vista Home Premium: 
+-Able to view users but not create or edit anything. Possibly because it's home premium which doesn't allow this kind of advanced editing through it's own utilities
+	-creating/editing doesn't work through windows' remote management either. I'm almost certain this isn't supported by Home Premium.
+-Groups arn't displayed properly, only the "none" group appears.
 
 
 TODO list:
@@ -55,14 +93,20 @@ What works & finished bugfixes:
 
 
 
+
+
 pygwsvcctl
 ----------
 
+Windows XP SP2:
 -Access denied error when fetching services, but still displays a list (maybe some are missing? -a quick count says no, may be inaccurate)
 -NT_STATUS_RPC_BAD_STUB_DATA error when updating a service.
 -After updating a list of services, the list should be refreshed (the utility assumes the services was updated, so list displays incorrect info if the service was not successfully updated)
 -
 
+Windows Vista Home Premium:
+-"WERR_ACCESS_DENIED" when attempting to connect
+-unable to connect
 
 
 
@@ -78,4 +122,5 @@ What works:
 All
 ---
 -remove default server/username values
+-Test on Windows 7!
 

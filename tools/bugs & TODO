@@ -18,13 +18,29 @@ pygwregedit
 -----------
 
 Windows XP SP2:
--unable to get any sub key listings (only able to get the first 5 keys)
--selecting any key returns an error, selecting HKEY_CLASSES_ROOT causes a Fatal python error: deallocating None (error seems to happen outside of our code, maybe in the GTK code)
--
+-problems listed before were because of missing constants. This has been fixed now.
+-Getting keys happens in alphabetical order, which a few more (seemingly random) keys coming last. Not a bug, just something I noticed.
+
 
 Windows Vista Home Premium:
--'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 44 in __init__()
+-'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 45 in __init__()
 -unable to connect
+
+TODO:
+-add progress bar when loading keys
+-improve editing REG_BINARY values, it's very poor right now (FIXED, but introduced new bugs)
+	-Inserting text at the beginning moves the cursor in an unexpected way
+	-Pressing backspace when the previous character is a space does nothing.
+	-editing ascii field doesn't update the formatting correctly ('\n's are not removed or added properly)
+-refresh_keys_tree_view() is less robust now since putting the root keys in order. Fix this once you know more python :)
+
+
+What works & fixed problems:
+listing, adding, deleting, editing. Everything seems to work correctly, but could be improved
+-editing a value says it was updated in the status bar, even if the user pressed cancel (FIXED)
+-fixed the hex editor part, works very well now!
+
+
 
 
 
@@ -64,8 +80,6 @@ Windows XP SP2:
 	-not in samr_UserInfo21.allow_password_change...
 	-not in samr_UserInfo21.parameters
 	-not in samr_UserInfo20.UserParametersInformation
-	-samr_UserInfo21 may not be accepted back (maybe it's read-only?)
-		-samr_UserInfo21.fields_present = 0xffffff so all fields should be accepted
 		
 -Groups arn't displayed properly, only the "none" group appears.
 -Access denied when attempted to create a new user group (also possibly why groups arn't listed?)
@@ -122,5 +136,7 @@ What works:
 All
 ---
 -remove default server/username values
+-Add argument support so they can easily be launched from command line
+-remove references to samba.dcerpc.misc when no longer needed
 -Test on Windows 7!
 

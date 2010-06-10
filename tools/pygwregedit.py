@@ -11,6 +11,7 @@ import pango
 
 from samba import credentials
 from samba.dcerpc import winreg
+from samba.dcerpc import misc #TODO: This is temporary, hopefully
 
 from objects import RegistryKey
 from objects import RegistryValue
@@ -56,10 +57,9 @@ class WinRegPipeManager:
         key_handle = path_handles[len(path_handles) - 1]
 
         index = 0
-        while True:
+        while True: #get a list of subkeys
             try:
-                (subkey_name, subkey_class, subkey_changed_time) = self.pipe.EnumKey(
-                                                                                     key_handle, 
+                (subkey_name, subkey_class, subkey_changed_time) = self.pipe.EnumKey(key_handle, 
                                                                                      index, 
                                                                                      WinRegPipeManager.winreg_string_buf(""), 
                                                                                      WinRegPipeManager.winreg_string_buf(""), 
@@ -72,13 +72,13 @@ class WinRegPipeManager:
                 index += 1
 
             except RuntimeError as re:
-                if (re.args[0] == 0x103): # no more items
+                if (re.args[0] == 0x103): #0x103 is WERR_NO_MORE_ITEMS, so we're done
                     break
                 else:
                     raise re
 
         index = 0
-        while True:
+        while True: #get a list of values for the key that was clicked! (not the subkeys)
             try:
                 (value_name, value_type, value_data, value_length) = self.pipe.EnumValue(
                                                                                          key_handle,
@@ -95,7 +95,7 @@ class WinRegPipeManager:
                 index += 1
 
             except RuntimeError as re:
-                if (re.args[0] == 0x103): # no more items
+                if (re.args[0] == 0x103): #0x103 is WERR_NO_MORE_ITEMS
                     break
                 else:
                     raise re
@@ -104,7 +104,7 @@ class WinRegPipeManager:
         
         default_value_list = [value for value in value_list if value.name == ""]
         if (len(default_value_list) == 0):
-            value = RegistryValue("(Default)", winreg.REG_SZ, [], key)
+            value = RegistryValue("(Default)", misc.REG_SZ, [], key)
             value_list.append(value)
         else:
             default_value_list[0].name = "(Default)"
@@ -291,6 +291,7 @@ class RegEditWindow(gtk.Window):
         self.icon_registry_binary_pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(self.icon_registry_binary_filename, 22, 22)
 
         self.set_icon(self.icon_pixbuf)
+        self.connect("key-press-event", self.on_key_press) #to handle key presses
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -599,6 +600,13 @@ class RegEditWindow(gtk.Window):
         self.values_tree_view.connect("focus-in-event", self.on_tree_views_focus_in)
         
         self.add_accel_group(accel_group)
+        
+        
+    def on_key_press(self, widget, event):
+        if event.keyval == gtk.keysyms.F5: 
+            self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.Delete:
+            self.on_delete_item_activate(None)
 
     def refresh_keys_tree_view(self, iter, key_list, select_me_key = None):
         if (not self.connected()):
@@ -606,9 +614,24 @@ class RegEditWindow(gtk.Window):
         
         (model, selected_paths) = self.keys_tree_view.get_selection().get_selected_rows()
 
-        if (iter == None): # well known keys
-            for key in self.pipe_manager.well_known_keys:
-                self.keys_store.append(None, key.list_view_representation())
+        if (iter == None): #Order is important! Especially if you're a long time user
+            well_known_keys = self.pipe_manager.well_known_keys
+            for key in well_known_keys:
+                if key.name == "HKEY_CLASSES_ROOT":
+                    self.keys_store.append(None, key.list_view_representation())
+            for key in well_known_keys:
+                if key.name == "HKEY_CURRENT_USER":
+                    self.keys_store.append(None, key.list_view_representation())
+            for key in well_known_keys:
+                if key.name == "HKEY_LOCAL_MACHINE":
+                    self.keys_store.append(None, key.list_view_representation())
+            for key in well_known_keys:
+                if key.name == "HKEY_USERS":
+                    self.keys_store.append(None, key.list_view_representation())
+            for key in well_known_keys:
+                if key.name == "HKEY_CURRENT_CONFIG":
+                    self.keys_store.append(None, key.list_view_representation())
+            #TODO: need to figure out a way to add any keys not explicitly listed above. Couldn't figure it out
 
         else:
             while (self.keys_store.iter_children(iter)):
@@ -652,14 +675,14 @@ class RegEditWindow(gtk.Window):
         if (not self.connected()):
             return
         
-        type_pixbufs = {
-                        winreg.REG_SZ:self.icon_registry_string_pixbuf,
-                        winreg.REG_EXPAND_SZ:self.icon_registry_string_pixbuf,
-                        winreg.REG_BINARY:self.icon_registry_binary_pixbuf,
-                        winreg.REG_DWORD:self.icon_registry_number_pixbuf,
-                        winreg.REG_DWORD_BIG_ENDIAN:self.icon_registry_number_pixbuf,
-                        winreg.REG_MULTI_SZ:self.icon_registry_string_pixbuf,
-                        winreg.REG_QWORD:self.icon_registry_number_pixbuf
+        type_pixbufs = { #TODO: change misc back to winreg when the constants are in the right place
+                        misc.REG_SZ:self.icon_registry_string_pixbuf,
+                        misc.REG_EXPAND_SZ:self.icon_registry_string_pixbuf,
+                        misc.REG_BINARY:self.icon_registry_binary_pixbuf,
+                        misc.REG_DWORD:self.icon_registry_number_pixbuf,
+                        misc.REG_DWORD_BIG_ENDIAN:self.icon_registry_number_pixbuf,
+                        misc.REG_MULTI_SZ:self.icon_registry_string_pixbuf,
+                        misc.REG_QWORD:self.icon_registry_number_pixbuf
                         }
         
         (model, selected_paths) = self.values_tree_view.get_selection().get_selected_rows()
@@ -1080,7 +1103,6 @@ class RegEditWindow(gtk.Window):
         self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
 
         self.refresh_keys_tree_view(None, None)
-        self.update_sensitivity()
 
     def on_disconnect_item_activate(self, widget):
         if (self.pipe_manager != None):
@@ -1106,12 +1128,10 @@ class RegEditWindow(gtk.Window):
     def on_modify_item_activate(self, widget):
         (iter, edit_value) = self.get_selected_registry_value()
         self.run_value_edit_dialog(edit_value, None, self.update_value_callback)
-
-        self.set_status("Value '" + edit_value.get_absolute_path() + "' updated.")
         
     def on_modify_binary_item_activate(self, widget):
         (iter, edit_value) = self.get_selected_registry_value()
-        self.run_value_edit_dialog(edit_value, winreg.REG_BINARY, self.update_value_callback)
+        self.run_value_edit_dialog(edit_value, misc.REG_BINARY, self.update_value_callback)
 
         self.set_status("Value '" + edit_value.get_absolute_path() + "' updated.")
     
@@ -1155,19 +1175,19 @@ class RegEditWindow(gtk.Window):
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
 
     def on_new_string_item_activate(self, widget):
-        self.new_value(winreg.REG_SZ)
+        self.new_value(misc.REG_SZ)
         
     def on_new_binary_item_activate(self, widget):
-        self.new_value(winreg.REG_BINARY)
+        self.new_value(misc.REG_BINARY)
 
     def on_new_dword_item_activate(self, widget):
-        self.new_value(winreg.REG_DWORD)
+        self.new_value(misc.REG_DWORD)
     
     def on_new_multi_string_item_activate(self, widget):
-        self.new_value(winreg.REG_MULTI_SZ)
+        self.new_value(misc.REG_MULTI_SZ)
     
     def on_new_expandable_item_activate(self, widget):
-        self.new_value(winreg.REG_EXPAND_SZ)
+        self.new_value(misc.REG_EXPAND_SZ)
 
     def on_permissions_item_activate(self, widget):
         pass
@@ -1208,10 +1228,14 @@ class RegEditWindow(gtk.Window):
                 self.set_status("Value '" + selected_value.get_absolute_path() + "' successfully deleted.")
         
         except RuntimeError, re:
-            msg = "Failed to delete value: " + re.args[1] + "."
-            self.set_status(msg)
-            print msg
-            traceback.print_exc()
+            if re.args[1] == 'WERR_BADFILE':
+                msg = "Failed to delete value: it's already gone!"
+                self.on_refresh_item_activate(None)
+            else:
+                msg = "Failed to delete value: " + re.args[1] + "."
+                self.set_status(msg)
+                print msg
+                traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
@@ -1331,7 +1355,7 @@ class RegEditWindow(gtk.Window):
         self.keys_tree_view.columns_autosize()
 
     def on_keys_tree_view_button_press(self, widget, event):
-        if (event.type == gtk.gdk._2BUTTON_PRESS):
+        if (event.type == gtk.gdk._2BUTTON_PRESS): #double click
             (iter, selected_key) = self.get_selected_registry_key()
             if (selected_key == None):
                 return
@@ -1342,7 +1366,7 @@ class RegEditWindow(gtk.Window):
                 self.keys_tree_view.collapse_row(self.keys_store.get_path(iter))
             else:
                 self.keys_tree_view.expand_row(self.keys_store.get_path(iter), False)
-        elif (event.button == 3):
+        elif (event.button == 3): #right click
             self.values_tree_view.grab_focus()
             self.edit_menu.popup(None, None, None, event.button, int(event.time))
 

@@ -11,6 +11,7 @@ import pango
 import samba
 from samba.dcerpc import svcctl
 from samba.dcerpc import winreg
+from samba.dcerpc import misc #TODO: remove this when not longer needed
 
 from objects import User
 from objects import Group
@@ -292,7 +293,7 @@ class UserEditDialog(gtk.Dialog):
         if (self.brand_new):
             for user in self.pipe_manager.user_list:
                 if (user.username == self.username_entry.get_text()):
-                    return "User \"" + self.username_entry.get_text() + "\" already exists!"
+                    return "User \"" + user.username + "\" already exists!"
         
         return None
 
@@ -1296,7 +1297,7 @@ class RegValueEditDialog(gtk.Dialog):
         self.icon_registry_string_filename = os.path.join(sys.path[0], "images", "registry-string.png")
         self.icon_registry_binary_filename = os.path.join(sys.path[0], "images", "registry-binary.png")
 
-        self.set_resizable(False)
+        self.set_resizable(True)
 
 
         # value name
@@ -1309,7 +1310,7 @@ class RegValueEditDialog(gtk.Dialog):
         
         self.name_entry = gtk.Entry()
         self.name_entry.set_activates_default(True)
-        self.name_entry.set_editable(self.brand_new)
+        self.name_entry.set_sensitive(self.brand_new)
         hbox.pack_start(self.name_entry, True, True, 10)
         
 
@@ -1339,9 +1340,8 @@ class RegValueEditDialog(gtk.Dialog):
         # binary type page
         
         # TODO: rewrite the hex editor - it sucks big time atm!!!
-        
         scrolledwindow = gtk.ScrolledWindow(None, None)
-        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
         scrolledwindow.set_shadow_type(gtk.SHADOW_NONE)
         self.type_notebook.append_page(scrolledwindow)
 
@@ -1352,19 +1352,19 @@ class RegValueEditDialog(gtk.Dialog):
         self.binary_data_addr_text_view.set_wrap_mode(gtk.WRAP_WORD)
         self.binary_data_addr_text_view.set_editable(False)
         self.binary_data_addr_text_view.modify_font(pango.FontDescription("mono 10"))
-        self.binary_data_addr_text_view.set_size_request(100, -1)
+        self.binary_data_addr_text_view.set_size_request(60, -1)
         hbox.pack_start(self.binary_data_addr_text_view, False, False, 0)
 
         self.binary_data_hex_text_view = gtk.TextView()
         self.binary_data_hex_text_view.set_wrap_mode(gtk.WRAP_WORD)
         self.binary_data_hex_text_view.set_accepts_tab(False)
         self.binary_data_hex_text_view.modify_font(pango.FontDescription("mono bold 10"))
-        self.binary_data_hex_text_view.set_size_request(200, -1)
+        self.binary_data_hex_text_view.set_size_request(275, -1)
         hbox.pack_start(self.binary_data_hex_text_view, False, False, 0)
 
         self.binary_data_ascii_text_view = gtk.TextView()
         self.binary_data_ascii_text_view.set_wrap_mode(gtk.WRAP_CHAR)
-        self.binary_data_ascii_text_view.set_editable(False)
+        #self.binary_data_ascii_text_view.set_editable(False)
         self.binary_data_ascii_text_view.modify_font(pango.FontDescription("mono 10"))
         self.binary_data_ascii_text_view.set_accepts_tab(False)
         self.binary_data_ascii_text_view.set_size_request(100, -1)
@@ -1424,7 +1424,14 @@ class RegValueEditDialog(gtk.Dialog):
         # signals/events
 
         self.binary_data_hex_text_view.get_buffer().connect("changed", self.on_binary_data_hex_text_view_buffer_changed)
-        self.binary_data_hex_text_view.connect("focus-out-event", self.on_binary_data_hex_text_view_focus_out)
+        self.binary_data_hex_text_view.connect("focus-out-event", self.on_binary_data_hex_text_view_focus_out) #TODO: might not need this, "changed" should catch everything
+        
+        #Ascii text view callbacks. This view requires special attention to facilitate the crazy editing it needs to do
+        self.binary_data_ascii_text_view.get_buffer().connect("insert-text", self.on_binary_data_ascii_text_view_buffer_insert_text) #manually handles inserting text
+        self.binary_data_ascii_text_view.get_buffer().connect("delete-range", self.on_binary_data_ascii_text_view_buffer_delete_range) #manually handles deleting text
+        #self.binary_data_ascii_text_view.get_buffer().connect("changed", self.on_binary_data_ascii_text_view_buffer_changed)
+        #self.binary_data_ascii_text_view.connect("focus-out-event", self.on_binary_data_ascii_text_view_focus_out)
+        
         self.number_data_dec_radio.connect("toggled", self.on_number_data_dec_radio_toggled)
         self.number_data_hex_radio.connect("toggled", self.on_number_data_hex_radio_toggled)
         self.number_data_entry.connect("changed", self.on_number_data_entry_changed)
@@ -1433,7 +1440,7 @@ class RegValueEditDialog(gtk.Dialog):
         if (len(self.name_entry.get_text().strip()) == 0):
             return "Please specify a name."
         
-        if (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN, winreg.REG_QWORD]):
+        if (self.reg_value.type in [misc.REG_DWORD, misc.REG_DWORD_BIG_ENDIAN, misc.REG_QWORD]):
             number_str = self.number_data_entry.get_text()
             if (len(number_str) == 0):
                 return "Please enter a number."
@@ -1443,7 +1450,7 @@ class RegValueEditDialog(gtk.Dialog):
                     number = string.atoi(number_str, 10)
                     number_str_hex = "%X" % number
                     
-                    if (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN]):
+                    if (self.reg_value.type in [misc.REG_DWORD, misc.REG_DWORD_BIG_ENDIAN]):
                         max_hex_len = 8
                     else:
                         max_hex_len = 16
@@ -1462,29 +1469,29 @@ class RegValueEditDialog(gtk.Dialog):
         
         self.name_entry.set_text(self.reg_value.name)
         
-        if (self.reg_value.type in [winreg.REG_SZ, winreg.REG_EXPAND_SZ]):
+        if (self.reg_value.type in [misc.REG_SZ, misc.REG_EXPAND_SZ]):
             self.set_icon_from_file(self.icon_registry_string_filename)
             self.set_size_request(430, 200)
             
             self.string_data_entry.set_text(self.reg_value.get_interpreted_data())
             
-        elif (self.reg_value.type == winreg.REG_BINARY):
+        elif (self.reg_value.type == misc.REG_BINARY):
             self.set_icon_from_file(self.icon_registry_binary_filename)
-            self.set_size_request(430, 400)
+            self.set_size_request(483, 400) #extra few pixels for the scroll bar
             
             self.binary_data_hex_text_view.get_buffer().set_text(RegValueEditDialog.byte_array_to_hex(self.reg_value.get_interpreted_data(), 8))
-            self.on_binary_data_hex_text_view_buffer_changed(None)
+            #self.on_binary_data_hex_text_view_buffer_changed(None) #this is already called with the statement above
         
-        elif (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN, winreg.REG_QWORD]):
+        elif (self.reg_value.type in [misc.REG_DWORD, misc.REG_DWORD_BIG_ENDIAN, misc.REG_QWORD]):
             self.set_icon_from_file(self.icon_registry_number_filename)
             self.set_size_request(430, 200)
 
-            if (self.reg_value.type == winreg.REG_QWORD):
+            if (self.reg_value.type == misc.REG_QWORD):
                 self.number_data_entry.set_text("%016X" % self.reg_value.get_interpreted_data())
             else:
                 self.number_data_entry.set_text("%08X" % self.reg_value.get_interpreted_data())
         
-        elif (self.reg_value.type == winreg.REG_MULTI_SZ):
+        elif (self.reg_value.type == misc.REG_MULTI_SZ):
             self.set_icon_from_file(self.icon_registry_string_filename)
             self.set_size_request(430, 400)
             
@@ -1500,21 +1507,21 @@ class RegValueEditDialog(gtk.Dialog):
         
         self.reg_value.name = self.name_entry.get_text()
         
-        if (self.reg_value.type in [winreg.REG_SZ, winreg.REG_EXPAND_SZ]):
+        if (self.reg_value.type in [misc.REG_SZ, misc.REG_EXPAND_SZ]):
             self.reg_value.set_interpreted_data(self.string_data_entry.get_text())
 
-        elif (self.reg_value.type == winreg.REG_BINARY):
+        elif (self.reg_value.type == misc.REG_BINARY):
             buffer = self.binary_data_hex_text_view.get_buffer()
             text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
             self.reg_value.set_interpreted_data(RegValueEditDialog.hex_to_byte_array(text))
         
-        elif (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN, winreg.REG_QWORD]):
+        elif (self.reg_value.type in [misc.REG_DWORD, misc.REG_DWORD_BIG_ENDIAN, misc.REG_QWORD]):
             if (self.number_data_dec_radio.get_active()):
                 self.reg_value.set_interpreted_data(string.atoi(self.number_data_entry.get_text(), 10))
             else:
                 self.reg_value.set_interpreted_data(string.atoi(self.number_data_entry.get_text(), 0x10))
                 
-        elif (self.reg_value.type == winreg.REG_MULTI_SZ):
+        elif (self.reg_value.type == misc.REG_MULTI_SZ):
             lines = []
             line = ""
         
@@ -1532,84 +1539,161 @@ class RegValueEditDialog(gtk.Dialog):
             self.reg_value.set_interpreted_data(lines)
 
     def update_type_page_after_show(self):
-        if (self.reg_value.type == winreg.REG_SZ):
+        if (self.reg_value.type == misc.REG_SZ):
             self.type_notebook.set_current_page(0)
             self.string_data_entry.grab_focus()
             
-        if (self.reg_value.type == winreg.REG_EXPAND_SZ):
+        if (self.reg_value.type == misc.REG_EXPAND_SZ):
             self.type_notebook.set_current_page(0)
             self.string_data_entry.grab_focus()
             
-        if (self.reg_value.type == winreg.REG_BINARY):
+        if (self.reg_value.type == misc.REG_BINARY):
             self.type_notebook.set_current_page(1)
             self.binary_data_hex_text_view.grab_focus()
                 
-        if (self.reg_value.type == winreg.REG_DWORD):
+        if (self.reg_value.type == misc.REG_DWORD):
             self.type_notebook.set_current_page(2)
             self.number_data_entry.grab_focus()
                 
-        if (self.reg_value.type == winreg.REG_DWORD_BIG_ENDIAN):
+        if (self.reg_value.type == misc.REG_DWORD_BIG_ENDIAN):
             self.type_notebook.set_current_page(2)
             self.number_data_entry.grab_focus()
                 
-        if (self.reg_value.type == winreg.REG_MULTI_SZ):
+        if (self.reg_value.type == misc.REG_MULTI_SZ):
             self.type_notebook.set_current_page(3)
             self.multi_string_data_text_view.grab_focus()
                 
-        if (self.reg_value.type == winreg.REG_QWORD):
+        if (self.reg_value.type == misc.REG_QWORD):
             self.type_notebook.set_current_page(2)    
             self.number_data_entry.grab_focus()
             
         if (self.brand_new):
             self.name_entry.grab_focus()
 
-    def on_binary_data_hex_text_view_buffer_changed(self, widget):
+    def on_binary_data_hex_text_view_buffer_changed(self, widget, update_cursor=True):
         if (self.disable_signals):
             return 
-        
         self.disable_signals = True
         
         hex_buffer = self.binary_data_hex_text_view.get_buffer()
         ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
         addr_buffer = self.binary_data_addr_text_view.get_buffer()
-
+        
         insert_mark = hex_buffer.get_insert()
         insert_iter = hex_buffer.get_iter_at_mark(insert_mark)
         insert_char_offs = insert_iter.get_offset()
-
+        
         text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
         before_len = len(text)
-        text = RegValueEditDialog.check_hex_string(text, 8)
+        text = RegValueEditDialog.check_hex_string(text, 8).strip()
         after_len = len(text)
         
         hex_buffer.set_text(text)
         ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(text, 8))
         addr_buffer.set_text(RegValueEditDialog.hex_to_addr(text, 8))
         
-        #print insert_char_offs
-        #if (insert_char_offs >= len(text)):
-        #    insert_char_offs += 1
-        hex_buffer.place_cursor(hex_buffer.get_iter_at_offset(insert_char_offs + (after_len - before_len)))
+        if (update_cursor):
+            hex_buffer.place_cursor(hex_buffer.get_iter_at_offset(insert_char_offs + (after_len - before_len)))
+        self.disable_signals = False
+        
+    #TODO: remove this function. it shouldn't be needed anymore
+#    def on_binary_data_ascii_text_view_buffer_changed(self, widget):
+#        print "-----on_binary_data_ascii_text_view_buffer_changed IS DEPRECATED-----"
+#        if (self.disable_signals):
+#            return
+#        self.disable_signals = True
+#        
+#        #get stuff that we need
+#        hex_buffer = self.binary_data_hex_text_view.get_buffer()
+#        ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
+#        addr_buffer = self.binary_data_addr_text_view.get_buffer()
+#        insert_mark = hex_buffer.get_insert()
+#        insert_iter = hex_buffer.get_iter_at_mark(insert_mark)
+#        insert_char_offs = insert_iter.get_offset()
+#        
+#        ascii_text = ascii_buffer.get_text(ascii_buffer.get_start_iter(), ascii_buffer.get_end_iter()) #get ascii text
+#        hex_text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
+#        converted_hex_text = self.ascii_to_hex(ascii_text, hex_text) #this function needs the hex text too. It's a tricky one
+#        
+#        
+#        hex_buffer.set_text(hex_text) #set the text for the hex section
+#        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(converted_hex_text, 8)) #update the addr section
+#        
+#        self.disable_signals = False
+        
+    def on_binary_data_ascii_text_view_buffer_insert_text(self, widget, iter, text, length):
+        if (self.disable_signals):
+            return
+        self.disable_signals = True
+        
+        pos = iter.get_offset()
+        hex_pos = int(pos * 3) #because each ascii character is 2 hex characters, plus a space
+        
+        #get stuff that we need
+        hex_buffer = self.binary_data_hex_text_view.get_buffer()
+        #ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
+        #the widget is the text buffer here 
+        addr_buffer = self.binary_data_addr_text_view.get_buffer()
+        hex_text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter()) 
+        
+        #insert into hex_text up to the point where the new character was inserted
+        new_hex = ""
+        for ch in hex_text:
+            if len(new_hex) >= hex_pos:
+                break
+            new_hex += ch
+        #insert the new character(s)        
+        for i in range(length):
+            new_hex += "%X" % ((ord(text[i]) >> 4) & 0x0F) #handle the upper 4 bits of the char
+            new_hex += "%X " % (ord(text[i]) & 0x0F)       #handle the lower 4 bits of the char
+        #insert the rest of the old characters into new_hex
+        while hex_pos < len(hex_text):
+            new_hex += hex_text[hex_pos]
+            hex_pos += 1
+        
+        hex_buffer.set_text(RegValueEditDialog.check_hex_string(new_hex, 8).strip()) #set the text
+        #self.on_binary_data_hex_text_view_buffer_changed(None, False)
+        #ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(new_hex, 8)) #set our own ascii text again. this function will ensure the line breaks are inserted correctly
+        
+        self.disable_signals = False
+        
+    def on_binary_data_ascii_text_view_buffer_delete_range(self, widget, start, end):
+        if (self.disable_signals):
+            return
+        self.disable_signals = True
+        
+        hex_start = int(start.get_offset() * 3) #because each ascii character is 2 hex characters, plus a space
+        hex_end = int(end.get_offset() * 3)
+        
+        #get stuff that we need
+        hex_buffer = self.binary_data_hex_text_view.get_buffer()
+        addr_buffer = self.binary_data_addr_text_view.get_buffer()
+        hex_text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
+        
+        new_hex = ""
+        #insert into hex_text up to the point where characters were deleted
+        for i in range(hex_start):
+            new_hex += hex_text[i]
+        #insert the characters after the deleted characters. We simply ignore the deleted characters
+        for i in range(hex_end, len(hex_text)):
+            new_hex += hex_text[i] 
+        
+        hex_buffer.set_text(RegValueEditDialog.check_hex_string(new_hex, 8).strip()) #set the text
+        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(new_hex, 8)) #can't forget to update the address text!
         
         self.disable_signals = False
         
     def on_binary_data_hex_text_view_focus_out(self, widget, event):
-        hex_buffer = self.binary_data_hex_text_view.get_buffer()
-        ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
-        addr_buffer = self.binary_data_addr_text_view.get_buffer()
+        self.on_binary_data_hex_text_view_buffer_changed(None, False)
         
-        text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
-        text = RegValueEditDialog.check_hex_string(text, 8, True)
-        
-        hex_buffer.set_text(text)
-        ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(text, 8))
-        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(text, 8))
+    def on_binary_data_ascii_text_view_focus_out(self, widget, event):
+        self.on_binary_data_ascii_text_view_buffer_changed(None)
         
     def on_number_data_hex_radio_toggled(self, widget):
         if (not widget.get_active()):
             return
         
-        if (self.reg_value.type == winreg.REG_QWORD):
+        if (self.reg_value.type == misc.REG_QWORD):
             digits = 16
         else:
             digits = 8
@@ -1628,7 +1712,7 @@ class RegValueEditDialog(gtk.Dialog):
         if (not widget.get_active()):
             return
         
-        if (self.reg_value.type == winreg.REG_QWORD):
+        if (self.reg_value.type == misc.REG_QWORD):
             digits = 16
         else:
             digits = 8
@@ -1646,7 +1730,7 @@ class RegValueEditDialog(gtk.Dialog):
     def on_number_data_entry_changed(self, widget):
         old_text = self.number_data_entry.get_text()
 
-        if (self.reg_value.type in [winreg.REG_DWORD, winreg.REG_DWORD_BIG_ENDIAN]):
+        if (self.reg_value.type in [misc.REG_DWORD, misc.REG_DWORD_BIG_ENDIAN]):
             max_len = 8
         else:
             max_len = 16
@@ -1669,7 +1753,6 @@ class RegValueEditDialog(gtk.Dialog):
     @staticmethod
     def check_hex_string(old_string, line_length, remove_orphaned = False):
         new_string = ""
-        
         length = 0
         insert_space = False
         for ch in old_string:
@@ -1690,40 +1773,60 @@ class RegValueEditDialog(gtk.Dialog):
         return new_string
     
     @staticmethod
-    def hex_to_ascii(old_string, line_length):
-        new_string = ""
+    def hex_to_ascii(hex_string, line_length):
+        ascii_string = ""
         
         digits = ""
         length = 0
-        for ch in old_string:
+        for ch in hex_string:
             if (ch in string.hexdigits):
                 digits += ch
             
             if (len(digits) >= 2):
                 new_chr = chr(string.atol(digits, 0x10))
                 if (new_chr in (string.punctuation + string.ascii_letters + ' ')):
-                    new_string += new_chr
+                    ascii_string += new_chr
                 else:
-                    new_string += "."
+                    ascii_string += "."
                 length += 1
                 digits = ""
             
             if (length >= line_length):
-                new_string += "\n"
+                ascii_string += "\n"
                 length = 0
 
-        return new_string
+        return ascii_string
                     
+                    
+    #TODO: remove this section when it's no longer needed
     @staticmethod
-    def ascii_to_hex(old_string):
-        new_string = ""
+    def ascii_to_hex(ascii, hex):
+        new_hex = ""
+        print "-----CALLED DEPRECATED FUNCTION!-----"
         
-        for ch in old_string:
-            byte = ord(ch)
-            new_string += "%X" % ((byte >> 4) & 0x0F)
-            new_string += "%X " % (byte & 0x0F)
+        for ch in ascii:
+            if (ch != "."):
+#THIS METHOD DOESN'T WORK!!! Gotta try something different
+#thought: if we disable pasting then we could do things based on the position of the cursor (pasting from the clipboard would screw this up)
+#                #if it's a printable character, convert it to ascii
+#                byte = ord(ch)
+#                new_hex += "%X" % ((byte >> 4) & 0x0F) #handle the upper 4 bits of the char
+#                new_hex += "%X " % (byte & 0x0F)       #handle the lower 4 bits of the char
+#            else:
+#                #if it's not a printable character then it was probably converted to a '.' as a placeholder
+#                pos = int(len(new_hex) + (len(new_hex)/2.0))
+#                #sys.stdout.write("%s" % (hex[pos],))
+#                try:
+#                    new_hex += "%s%s " % (hex[pos],hex[pos+1])
+#                    print "%s%s" % (hex[pos], hex[pos+1])
+#                except:
+#                    print "something bad happened in RegValueEditDialog.ascii_to_hex"
+                    pass
+                
+                
+                
 
-        return new_string.strip()
+        return new_hex.strip()
 
     @staticmethod
     def hex_to_addr(old_string, line_length):
@@ -2483,7 +2586,7 @@ class WinRegConnectDialog(gtk.Dialog):
         self.update_sensitivity()
 
 
-#dialog = RegValueEditDialog(winreg.REG_BINARY)
+#dialog = RegValueEditDialog(misc.REG_BINARY)
 #dialog.show_all()
 #dialog.update_type_page_after_show()
 #dialog.run()
@@ -2499,3 +2602,14 @@ class WinRegConnectDialog(gtk.Dialog):
 #dialog.show_all()
 #dialog.update_type_page_after_show()
 #dialog.run()
+
+
+if __name__ == '__main__':
+    pass
+    
+    
+    
+    
+    
+    
+

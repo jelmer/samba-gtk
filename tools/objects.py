@@ -5,6 +5,7 @@ import gtk;
 
 from samba.dcerpc import svcctl
 from samba.dcerpc import winreg
+from samba.dcerpc import misc #TODO: remove this when no longer needed
 
 
 class User:
@@ -125,10 +126,10 @@ class RegistryValue:
         if (interpreted_data == None or len(self.data) == 0):
             return "(value not set)"
 
-        elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+        elif (self.type == misc.REG_SZ or self.type == misc.REG_EXPAND_SZ):
             return interpreted_data
 
-        elif (self.type == winreg.REG_BINARY):
+        elif (self.type == misc.REG_BINARY):
             result = ""
             
             for byte in interpreted_data:
@@ -136,13 +137,13 @@ class RegistryValue:
                 
             return result
 
-        elif (self.type == winreg.REG_DWORD):
+        elif (self.type == misc.REG_DWORD):
             return "0x%08X" % (interpreted_data)
 
-        elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
+        elif (self.type == misc.REG_DWORD_BIG_ENDIAN):
             return "0x%08X" % (interpreted_data)
 
-        elif (self.type == winreg.REG_MULTI_SZ):
+        elif (self.type == misc.REG_MULTI_SZ):
             result = ""
             
             for string in interpreted_data:
@@ -150,7 +151,7 @@ class RegistryValue:
 
             return result
 
-        elif (self.type == winreg.REG_QWORD):
+        elif (self.type == misc.REG_QWORD):
             return "0x%016X" % (interpreted_data)
 
         else:
@@ -160,7 +161,7 @@ class RegistryValue:
         if (self.data == None):
             return None
         
-        if (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+        if (self.type == misc.REG_SZ or self.type == misc.REG_EXPAND_SZ):
             result = ""
             
             index = 0
@@ -172,10 +173,10 @@ class RegistryValue:
 
             return result
 
-        elif (self.type == winreg.REG_BINARY):
+        elif (self.type == misc.REG_BINARY):
             return self.data
             
-        elif (self.type == winreg.REG_DWORD):
+        elif (self.type == misc.REG_DWORD):
             result = 0L
             
             if (len(self.data) < 4):
@@ -186,7 +187,7 @@ class RegistryValue:
             
             return result
 
-        elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
+        elif (self.type == misc.REG_DWORD_BIG_ENDIAN):
             result = 0L
             
             if (len(self.data) < 4):
@@ -197,7 +198,7 @@ class RegistryValue:
                 
             return result
 
-        elif (self.type == winreg.REG_MULTI_SZ):
+        elif (self.type == misc.REG_MULTI_SZ):
             result = []
             string = ""
             
@@ -219,7 +220,7 @@ class RegistryValue:
 
             return result
 
-        elif (self.type == winreg.REG_QWORD):
+        elif (self.type == misc.REG_QWORD):
             result = 0L
             
             if (len(self.data) < 8):
@@ -239,26 +240,26 @@ class RegistryValue:
         if (data == None):
             self.data = None
         
-        elif (self.type == winreg.REG_SZ or self.type == winreg.REG_EXPAND_SZ):
+        elif (self.type == misc.REG_SZ or self.type == misc.REG_EXPAND_SZ):
             for uch in data:
                 word = ord(uch)
                 self.data.append(int(word & 0x00FF))
                 self.data.append(int((word >> 8) & 0x00FF))
 
-        elif (self.type == winreg.REG_BINARY):
+        elif (self.type == misc.REG_BINARY):
             self.data = []
             for elem in data:
                 self.data.append(int(elem))
             
-        elif (self.type == winreg.REG_DWORD):
+        elif (self.type == misc.REG_DWORD):
             for i in xrange(4):
                 self.data.append(int(data >> (8 * i) & 0xFF))
 
-        elif (self.type == winreg.REG_DWORD_BIG_ENDIAN):
+        elif (self.type == misc.REG_DWORD_BIG_ENDIAN):
             for i in xrange(3, -1, -1):
                 self.data.append(int(data >> (8 * i) & 0xFF))
 
-        elif (self.type == winreg.REG_MULTI_SZ):
+        elif (self.type == misc.REG_MULTI_SZ):
             index = 0
 
             for string in data:
@@ -273,7 +274,7 @@ class RegistryValue:
             self.data.append(0)
             self.data.append(0)
 
-        elif (self.type == winreg.REG_QWORD):
+        elif (self.type == misc.REG_QWORD):
             for i in xrange(8):
                 self.data.append(int(data >> (8 * i) & 0xFF))
         
@@ -286,13 +287,13 @@ class RegistryValue:
     @staticmethod
     def get_type_string(type):
         type_strings = {
-                        winreg.REG_SZ:"String", 
-                        winreg.REG_BINARY:"Binary Data", 
-                        winreg.REG_EXPAND_SZ:"Expandable String", 
-                        winreg.REG_DWORD:"32-bit Number (little endian)",
-                        winreg.REG_DWORD_BIG_ENDIAN:"32-bit Number (big endian)",
-                        winreg.REG_MULTI_SZ:"Multi-String",
-                        winreg.REG_QWORD:"64-bit Number (little endian)"
+                        misc.REG_SZ:"String", 
+                        misc.REG_BINARY:"Binary Data", 
+                        misc.REG_EXPAND_SZ:"Expandable String", 
+                        misc.REG_DWORD:"32-bit Number (little endian)",
+                        misc.REG_DWORD_BIG_ENDIAN:"32-bit Number (big endian)",
+                        misc.REG_MULTI_SZ:"Multi-String",
+                        misc.REG_QWORD:"64-bit Number (little endian)"
                         }
         
         return type_strings[type]

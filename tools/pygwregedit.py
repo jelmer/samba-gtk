@@ -11,7 +11,7 @@ import pango
 
 from samba import credentials
 from samba.dcerpc import winreg
-from samba.dcerpc import misc #TODO: This is temporary, hopefully
+from samba.dcerpc import misc
 
 from objects import RegistryKey
 from objects import RegistryValue
@@ -607,6 +607,10 @@ class RegEditWindow(gtk.Window):
             self.on_refresh_item_activate(None)
         elif event.keyval == gtk.keysyms.Delete:
             self.on_delete_item_activate(None)
+        elif event.keyval == gtk.keysyms.Return:
+            myev = event #emulate a double-click
+            print event.type
+            self.on_values_tree_view_button_press(None, myev)
 
     def refresh_keys_tree_view(self, iter, key_list, select_me_key = None):
         if (not self.connected()):
@@ -815,7 +819,7 @@ class RegEditWindow(gtk.Window):
             if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
                 
-                if (problem_msg != None):
+                if (problem_msg != None): 
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
                 else:
                     dialog.values_to_reg_value()
@@ -918,10 +922,17 @@ class RegEditWindow(gtk.Window):
                     break
                 
                 except RuntimeError, re:
-                    msg = "Failed to connect: " + re.args[1] + "."
-                    print msg
-                    traceback.print_exc()                        
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
+                    if re.args[1] == 'Logon failure': #user got the password wrong
+                        #TODO: this is wrong but has the right idea goin'. FIX IT!
+                        #select all the text in the password box
+                        dialog.password_entry.select_region(1, -1)
+                        #tb.select_range(tb.get_start_iter(), tb.get_end_iter())
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: " + re.args[1] + ".", dialog)
+                    else:
+                        msg = "Failed to connect: " + re.args[1] + "."
+                        print msg
+                        traceback.print_exc()                        
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception, ex:
                     msg = "Failed to connect: " + str(ex) + "."

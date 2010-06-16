@@ -11,7 +11,7 @@ import pango
 import samba
 from samba.dcerpc import svcctl
 from samba.dcerpc import winreg
-from samba.dcerpc import misc #TODO: remove this when not longer needed
+from samba.dcerpc import misc
 
 from objects import User
 from objects import Group
@@ -1285,6 +1285,8 @@ class RegValueEditDialog(gtk.Dialog):
             self.reg_value = reg_value
             
         self.disable_signals = False
+        self.ascii_cursor_shift = 0 #because moving the cursor in some functions has no effect, we need to keep this value and apply it at the right time
+        self.hex_cursor_shift = 0
         
         self.create()
         self.reg_value_to_values()
@@ -1339,7 +1341,6 @@ class RegValueEditDialog(gtk.Dialog):
         
         # binary type page
         
-        # TODO: rewrite the hex editor - it sucks big time atm!!!
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
         scrolledwindow.set_shadow_type(gtk.SHADOW_NONE)
@@ -1424,13 +1425,14 @@ class RegValueEditDialog(gtk.Dialog):
         # signals/events
 
         self.binary_data_hex_text_view.get_buffer().connect("changed", self.on_binary_data_hex_text_view_buffer_changed)
-        self.binary_data_hex_text_view.connect("focus-out-event", self.on_binary_data_hex_text_view_focus_out) #TODO: might not need this, "changed" should catch everything
+        self.binary_data_hex_text_view.get_buffer().connect("insert-text", self.on_binary_data_hex_text_view_buffer_insert_text)
+        self.binary_data_hex_text_view.get_buffer().connect("delete-range", self.on_binary_data_hex_text_view_buffer_delete_range)        
         
         #Ascii text view callbacks. This view requires special attention to facilitate the crazy editing it needs to do
         self.binary_data_ascii_text_view.get_buffer().connect("insert-text", self.on_binary_data_ascii_text_view_buffer_insert_text) #manually handles inserting text
         self.binary_data_ascii_text_view.get_buffer().connect("delete-range", self.on_binary_data_ascii_text_view_buffer_delete_range) #manually handles deleting text
-        #self.binary_data_ascii_text_view.get_buffer().connect("changed", self.on_binary_data_ascii_text_view_buffer_changed)
-        #self.binary_data_ascii_text_view.connect("focus-out-event", self.on_binary_data_ascii_text_view_focus_out)
+        self.binary_data_ascii_text_view.get_buffer().connect("changed", self.on_binary_data_ascii_text_view_buffer_changed)
+        self.binary_data_ascii_text_view.connect("move-cursor", self.on_binary_data_ascii_text_view_move_cursor)
         
         self.number_data_dec_radio.connect("toggled", self.on_number_data_dec_radio_toggled)
         self.number_data_hex_radio.connect("toggled", self.on_number_data_hex_radio_toggled)
@@ -1570,75 +1572,123 @@ class RegValueEditDialog(gtk.Dialog):
         if (self.brand_new):
             self.name_entry.grab_focus()
 
-    def on_binary_data_hex_text_view_buffer_changed(self, widget, update_cursor=True):
+    def on_binary_data_hex_text_view_buffer_changed(self, widget):
         if (self.disable_signals):
             return 
         self.disable_signals = True
         
-        hex_buffer = self.binary_data_hex_text_view.get_buffer()
-        ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
+        hex_buffer = self.binary_data_hex_text_view.get_buffer() #this is the same as 'widget'
+        ascii_buffer = self.binary_data_ascii_text_view.get_buffer() 
         addr_buffer = self.binary_data_addr_text_view.get_buffer()
         
-        insert_mark = hex_buffer.get_insert()
-        insert_iter = hex_buffer.get_iter_at_mark(insert_mark)
+        insert_iter = hex_buffer.get_iter_at_mark(hex_buffer.get_insert())
         insert_char_offs = insert_iter.get_offset()
+        #print "cursor at:", insert_char_offs
         
         text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
         before_len = len(text)
-        text = RegValueEditDialog.check_hex_string(text, 8).strip()
+        text = RegValueEditDialog.check_hex_string(text).strip()
         after_len = len(text)
         
         hex_buffer.set_text(text)
-        ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(text, 8))
-        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(text, 8))
+        ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(text))
+        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(text))
         
-        if (update_cursor):
-            hex_buffer.place_cursor(hex_buffer.get_iter_at_offset(insert_char_offs + (after_len - before_len)))
+        #print "cursor now at:", insert_char_offs + (after_len - before_len)
+        hex_buffer.place_cursor(hex_buffer.get_iter_at_offset(insert_char_offs + self.hex_cursor_shift))
+        self.hex_cursor_shift = 0
         self.disable_signals = False
         
-    #TODO: remove this function. it shouldn't be needed anymore
-#    def on_binary_data_ascii_text_view_buffer_changed(self, widget):
-#        print "-----on_binary_data_ascii_text_view_buffer_changed IS DEPRECATED-----"
-#        if (self.disable_signals):
-#            return
-#        self.disable_signals = True
-#        
-#        #get stuff that we need
-#        hex_buffer = self.binary_data_hex_text_view.get_buffer()
-#        ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
-#        addr_buffer = self.binary_data_addr_text_view.get_buffer()
-#        insert_mark = hex_buffer.get_insert()
-#        insert_iter = hex_buffer.get_iter_at_mark(insert_mark)
-#        insert_char_offs = insert_iter.get_offset()
-#        
-#        ascii_text = ascii_buffer.get_text(ascii_buffer.get_start_iter(), ascii_buffer.get_end_iter()) #get ascii text
-#        hex_text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
-#        converted_hex_text = self.ascii_to_hex(ascii_text, hex_text) #this function needs the hex text too. It's a tricky one
-#        
-#        
-#        hex_buffer.set_text(hex_text) #set the text for the hex section
-#        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(converted_hex_text, 8)) #update the addr section
-#        
-#        self.disable_signals = False
+    def on_binary_data_hex_text_view_buffer_insert_text(self, widget, iter, text, length):
+        """callback for text inserted into the hex field. \nThe purpose of this function is only to update the cursor"""
+        if (self.disable_signals):
+            return
+        self.disable_signals = True
+        
+        offset = iter.get_offset()
+        whole_text = widget.get_text(widget.get_start_iter(), widget.get_end_iter())
+        
+        #construct the final text
+        final_text = "" 
+        for i in range(offset):
+            final_text += whole_text[i]
+        for ch in text:
+            final_text += ch
+        for i in range(offset, len(whole_text)):
+            final_text += whole_text[i]
+        final_text = self.check_hex_string(final_text)
+
+        #here we properly adjust the cursor
+        count = 0
+        limit = len(final_text) #it could be that the user typed an invalid character, so we'll play it safe
+        for i in range(offset, offset + length + count + 1): #go through the inserted characters and see if any have been replaced by white space
+            if (i < limit) and ((final_text[i] == ' ') or (final_text[i] == '\n')):
+                count += 1
+        self.hex_cursor_shift = count
+        
+        self.disable_signals = False
+        
+    def on_binary_data_hex_text_view_buffer_delete_range(self, widget, start, end):
+        """callback for text inserted into the hex field. \nThe purpose of this function is only to update the cursor"""
+        if (self.disable_signals):
+            return
+        self.disable_signals = True
+        
+        text = widget.get_text(start, end)
+        if (text == ' ') or (text == '\n'):
+            #if the user deleted whitespace, they probably wanted to delete whatever was before it
+            new_start = widget.get_iter_at_offset(start.get_offset() - 1)
+            #widget.delete(new_start, start) #if this worked as expected, programming would be too easy :P
+        
+        self.disable_signals = False
+        
+    def on_binary_data_ascii_text_view_buffer_changed(self, widget):
+        """this function formats the text in the ascii field whenever it's changed""" 
+        if (self.disable_signals):
+            return
+        
+        self.disable_signals = True
+        if widget == None:
+            widget = self.binary_data_ascii_text_view.get_buffer()
+        
+        #stuff we need to move the cursor properly later
+        cursor_iter = widget.get_iter_at_mark(widget.get_insert()) #insert means cursor, or "the insertion point" as gtk calls it
+        cursor_offset = cursor_iter.get_offset()
+        
+        text = widget.get_text(widget.get_start_iter(), widget.get_end_iter())
+        text = self.check_ascii_string(text)
+        widget.set_text(text)
+        
+        #Calling this function below will translate the hex back into our ascii box, making errors easier to spot
+        self.disable_signals = False
+        self.on_binary_data_hex_text_view_buffer_changed(None)
+        self.disable_signals = True
+        
+        #now that we've overwritten everything in the textbuffer, we have to put the cursor back in the same spot
+        widget.place_cursor(widget.get_iter_at_offset(cursor_offset + self.ascii_cursor_shift))
+        self.ascii_cursor_shift = 0
+                                            
+        self.disable_signals = False
         
     def on_binary_data_ascii_text_view_buffer_insert_text(self, widget, iter, text, length):
         if (self.disable_signals):
             return
         self.disable_signals = True
-        
-        pos = iter.get_offset()
-        hex_pos = int(pos * 3) #because each ascii character is 2 hex characters, plus a space
+        if widget == None:
+            widget = self.binary_data_ascii_text_view.get_buffer()
         
         #get stuff that we need
+        offset = iter.get_offset()
+        inclusive_text = widget.get_text(widget.get_start_iter(), iter)
+        hex_pos = int(iter.get_offset() * 3) #because each ascii character is 2 hex characters, plus a space
+        hex_pos -= inclusive_text.count('\n') * 2 #because '\n' counts as a character, but it doesn't take up 3 spaces in the hex string.
         hex_buffer = self.binary_data_hex_text_view.get_buffer()
-        #ascii_buffer = self.binary_data_ascii_text_view.get_buffer()
-        #the widget is the text buffer here 
         addr_buffer = self.binary_data_addr_text_view.get_buffer()
         hex_text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter()) 
         
         #insert into hex_text up to the point where the new character was inserted
         new_hex = ""
-        for ch in hex_text:
+        for ch in hex_text: #this works best because the hex_pos can be greater than len(hex_text) when inserting at the end
             if len(new_hex) >= hex_pos:
                 break
             new_hex += ch
@@ -1650,11 +1700,17 @@ class RegValueEditDialog(gtk.Dialog):
         while hex_pos < len(hex_text):
             new_hex += hex_text[hex_pos]
             hex_pos += 1
-        
-        hex_buffer.set_text(RegValueEditDialog.check_hex_string(new_hex, 8).strip()) #set the text
-        #self.on_binary_data_hex_text_view_buffer_changed(None, False)
-        #ascii_buffer.set_text(RegValueEditDialog.hex_to_ascii(new_hex, 8)) #set our own ascii text again. this function will ensure the line breaks are inserted correctly
-        
+        new_hex = self.check_hex_string(new_hex)
+            
+        #here we properly adjust the cursor
+        final_text = self.hex_to_ascii(new_hex)
+        count = 0
+        for i in range(offset, offset + length + count): #go through the inserted characters and see if any have been replaced by '\n's
+            if (final_text[i] == '\n'):
+                count += 1
+        hex_buffer.set_text(new_hex) #set the text
+        self.ascii_cursor_shift = count #tell the on_changed() function to shift the cursor, since it has no effect if we call place_cursor() from here
+        addr_buffer.set_text(self.hex_to_addr(new_hex)) #can't forget to update the address text!        
         self.disable_signals = False
         
     def on_binary_data_ascii_text_view_buffer_delete_range(self, widget, start, end):
@@ -1662,13 +1718,24 @@ class RegValueEditDialog(gtk.Dialog):
             return
         self.disable_signals = True
         
-        hex_start = int(start.get_offset() * 3) #because each ascii character is 2 hex characters, plus a space
-        hex_end = int(end.get_offset() * 3)
-        
         #get stuff that we need
+        text = widget.get_text(start, end)
+        beginning_text = widget.get_text(widget.get_start_iter(), start)
+        inclusive_text = widget.get_text(widget.get_start_iter(), end)
         hex_buffer = self.binary_data_hex_text_view.get_buffer()
         addr_buffer = self.binary_data_addr_text_view.get_buffer()
         hex_text = hex_buffer.get_text(hex_buffer.get_start_iter(), hex_buffer.get_end_iter())
+        new_end_iter = None #this will tell us if any extra characters need to be deleted later
+        
+        if text == '\n': #we assume that the user pressed backspace and NOT delete. We don't get any indicator of which key was pressed so without adding another complex function, this is the best we can do
+            new_end_iter = start #so later we can delete from a new start to the current start
+            start = widget.get_iter_at_offset(start.get_offset() - 1) #also delete the character before the '\n'
+        
+        #Adjust the values for use in the hex field. this is basically the same as count('\n') + 1
+        hex_start = int(start.get_offset() * 3) #because each ascii character is 2 hex characters, plus a space
+        hex_start -= beginning_text.count('\n') * 2 #because '\n' counts as a character, but it doesn't take up 3 spaces in the hex string.
+        hex_end = int(end.get_offset() * 3)
+        hex_end -= inclusive_text.count('\n') * 2
         
         new_hex = ""
         #insert into hex_text up to the point where characters were deleted
@@ -1678,16 +1745,34 @@ class RegValueEditDialog(gtk.Dialog):
         for i in range(hex_end, len(hex_text)):
             new_hex += hex_text[i] 
         
-        hex_buffer.set_text(RegValueEditDialog.check_hex_string(new_hex, 8).strip()) #set the text
-        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(new_hex, 8)) #can't forget to update the address text!
+        hex_buffer.set_text(RegValueEditDialog.check_hex_string(new_hex)) #set the text
+        addr_buffer.set_text(RegValueEditDialog.hex_to_addr(new_hex)) #can't forget to update the address text!
+        
+        if (new_end_iter != None):
+            widget.delete(start, new_end_iter) #this causes a warning because of bad iterators! Makes no sense
         
         self.disable_signals = False
         
-    def on_binary_data_hex_text_view_focus_out(self, widget, event):
-        self.on_binary_data_hex_text_view_buffer_changed(None, False)
-        
-    def on_binary_data_ascii_text_view_focus_out(self, widget, event):
-        self.on_binary_data_ascii_text_view_buffer_changed(None)
+    def on_binary_data_ascii_text_view_move_cursor(self, textview, step_size, count, extend_selection):
+        """This function handles cursor movement. For now it only responds to text selection"""
+        print "ext_sel", extend_selection
+        #The following doesn't work... even if extend_selection is true, get_selection_bounds() still returns nothing
+#        if (not extend_selection) or (self.disable_signals):
+#            return
+#        self.disable_signals = True
+#        
+#        #get stuff we need
+#        ascii_buffer = textview.get_buffer()
+#        (start, end) = ascii_buffer.get_selection_bounds() #This function returns 2 iterators
+#        hex_buffer = self.binary_data_hex_text_view.get_buffer()
+#        
+#        hex_start = int(start.get_offset() * 3) #because each ascii character is 2 hex characters, plus a space
+#        hex_start -= (hex_start/25) * 2 #because '\n' counts as a character, but it doesn't take up 3 spaces in the hex string.
+#        hex_end = int(end.get_offset() * 3)
+#        hex_end -= (hex_end/25) * 2
+#        hex_buffer.select_range(hex_buffer.get_iter_at_offset(hex_start), hex_buffer.get_iter_at_offset(hex_end))
+#            
+#        self.disable_signals = False
         
     def on_number_data_hex_radio_toggled(self, widget):
         if (not widget.get_active()):
@@ -1750,14 +1835,19 @@ class RegValueEditDialog(gtk.Dialog):
 
         self.number_data_entry.set_text(new_text)
         
+        
     @staticmethod
-    def check_hex_string(old_string, line_length, remove_orphaned = False):
+    def remove_string_white_space(str):
+        return string.join(str.split(), "")
+        
+    @staticmethod
+    def check_hex_string(old_string, line_length=8, remove_orphaned = False):
         new_string = ""
         length = 0
         insert_space = False
         for ch in old_string:
             if (ch in string.hexdigits):
-                new_string += str.upper(ch)
+                new_string += string.upper(ch)
                 if (insert_space):
                     new_string += " "
                     length += 1
@@ -1773,7 +1863,23 @@ class RegValueEditDialog(gtk.Dialog):
         return new_string
     
     @staticmethod
-    def hex_to_ascii(hex_string, line_length):
+    def check_ascii_string(string, line_length=8):
+        new_string = ""
+        digits = ""
+        length = 0
+        #insert a '\n' every line_length characters.
+        for ch in string:
+            if ch != '\n': #ignore carrage returns alreadys present
+                new_string += ch
+                length += 1
+                if (length >= line_length):
+                    new_string += "\n"
+                    length = 0
+
+        return new_string.strip()
+    
+    @staticmethod
+    def hex_to_ascii(hex_string, line_length=8):
         ascii_string = ""
         
         digits = ""
@@ -1784,7 +1890,7 @@ class RegValueEditDialog(gtk.Dialog):
             
             if (len(digits) >= 2):
                 new_chr = chr(string.atol(digits, 0x10))
-                if (new_chr in (string.punctuation + string.ascii_letters + ' ')):
+                if (new_chr in (string.punctuation + string.digits + string.ascii_letters + ' ')): #We don't just use string.printables because that inclues '\n' and '\r' which we don't want to put into the ascii box
                     ascii_string += new_chr
                 else:
                     ascii_string += "."
@@ -1796,40 +1902,9 @@ class RegValueEditDialog(gtk.Dialog):
                 length = 0
 
         return ascii_string
-                    
-                    
-    #TODO: remove this section when it's no longer needed
-    @staticmethod
-    def ascii_to_hex(ascii, hex):
-        new_hex = ""
-        print "-----CALLED DEPRECATED FUNCTION!-----"
-        
-        for ch in ascii:
-            if (ch != "."):
-#THIS METHOD DOESN'T WORK!!! Gotta try something different
-#thought: if we disable pasting then we could do things based on the position of the cursor (pasting from the clipboard would screw this up)
-#                #if it's a printable character, convert it to ascii
-#                byte = ord(ch)
-#                new_hex += "%X" % ((byte >> 4) & 0x0F) #handle the upper 4 bits of the char
-#                new_hex += "%X " % (byte & 0x0F)       #handle the lower 4 bits of the char
-#            else:
-#                #if it's not a printable character then it was probably converted to a '.' as a placeholder
-#                pos = int(len(new_hex) + (len(new_hex)/2.0))
-#                #sys.stdout.write("%s" % (hex[pos],))
-#                try:
-#                    new_hex += "%s%s " % (hex[pos],hex[pos+1])
-#                    print "%s%s" % (hex[pos], hex[pos+1])
-#                except:
-#                    print "something bad happened in RegValueEditDialog.ascii_to_hex"
-                    pass
-                
-                
-                
-
-        return new_hex.strip()
 
     @staticmethod
-    def hex_to_addr(old_string, line_length):
+    def hex_to_addr(old_string, line_length=8):
         new_string = ""
         
         digits = ""
@@ -1851,7 +1926,7 @@ class RegValueEditDialog(gtk.Dialog):
         return new_string
 
     @staticmethod
-    def byte_array_to_hex(array, line_length):
+    def byte_array_to_hex(array, line_length=8):
         new_string = ""
         
         for byte in array:

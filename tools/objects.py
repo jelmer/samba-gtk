@@ -5,7 +5,7 @@ import gtk;
 
 from samba.dcerpc import svcctl
 from samba.dcerpc import winreg
-from samba.dcerpc import misc #TODO: remove this when no longer needed
+from samba.dcerpc import misc
 
 
 class User:
@@ -312,6 +312,12 @@ class RegistryKey:
             return self.name
         else:
             return self.parent.get_absolute_path() + "\\" + self.name
+        
+    def get_root_key(self):
+        if self.parent == None:
+            return key
+        else:
+            return self.get_root_key(self.parent)
         
     def list_view_representation(self):
         return [self.name, self]

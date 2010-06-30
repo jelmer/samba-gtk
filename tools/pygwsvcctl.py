@@ -48,23 +48,39 @@ class SvcCtlPipeManager():
     def close(self):
         pass # apparently there's no .Close() method for this pipe
             
-    def fetch_services(self):
+    def fetch_services(self, svcctl_window):
+        """Feteches a list of services from the server. svcctl_window is used to update the GUI."""
+        #note: this function is designed to be called by a secondary thread only. 
+        #      If the main thread calls this then THERE WILL BE A DEADLOCK!
         del self.service_list[:]
         
-        (buffer, needed, count, resume_handle) = self.pipe.EnumServicesStatusW(
-            self.scm_handle,
+        (buffer, needed, count, resume_handle) = self.pipe.EnumServicesStatusW(self.scm_handle,
             svcctl.SERVICE_TYPE_WIN32_OWN_PROCESS | svcctl.SERVICE_TYPE_WIN32_SHARE_PROCESS,
             svcctl.SERVICE_STATE_ALL, 256 * 1024,
             0)
 
         error_msg = None
+        current = 0.0
+        gtk.gdk.threads_enter()
+        svcctl_window.progressbar.show()
+        gtk.gdk.threads_leave()
+        
         for enum_service_status in SvcCtlPipeManager.enum_service_status_list_from_buffer(buffer, count):
             try:
+                gtk.gdk.threads_enter()
+                svcctl_window.set_status("Fetching service: " + enum_service_status.service_name)
+                svcctl_window.progressbar.set_fraction(current / count)
+                gtk.gdk.threads_leave()
+                current += 1.0
                 service = SvcCtlPipeManager.fetch_service(self, enum_service_status.service_name)
                 self.service_list.append(service)
             except Exception as ex:
                 error_msg = "Failed to fetch service '" + enum_service_status.service_name + "': " + str(ex)
 
+        gtk.gdk.threads_enter()
+        svcctl_window.progressbar.hide()
+        gtk.gdk.threads_leave()
+        
         if (error_msg != None):
             raise Exception(error_msg)
 
@@ -77,17 +93,18 @@ class SvcCtlPipeManager():
     def update_service(self, service):
         (service_config, needed) = self.pipe.QueryServiceConfigW(service.handle, 8192)
         # TODO: this gives a "DCERPC Fault NDR" error
+        #TODO: this gives me a "NT_STATUS_RPC_BAD_STUB_DATA" error
         self.pipe.ChangeServiceConfigW(
-            service.handle, 
-            service_config.service_type,
-            service.start_type,
-            service_config.error_control,
-            unicode(service.path_to_exe),
-            unicode(service_config.loadordergroup),
-            service_config.dependencies,
-            unicode(service.account),
-            unicode(service.account_password),
-            unicode(service.display_name))
+            service.handle,                      #policy_handle *handle
+            service_config.service_type,                #uint32 type
+            service.start_type,               #svcctl_StartType start_type
+            service_config.error_control,  #svcctl_ErrorControl error_control
+            unicode(service.path_to_exe),               #uint16 *binary_path
+            unicode(service_config.loadordergroup),     #uint16 *load_order_group
+            unicode(service_config.dependencies),       #uint16 *dependencies
+            unicode(service.account),                                #uint16 *service_start_name
+            unicode(service.account_password),          #uint16 *password
+            unicode(service.display_name))              #uint16 *display_name
 
         service_status = self.pipe.QueryServiceStatus(service.handle)
         
@@ -227,8 +244,8 @@ class FetchServicesThread(threading.Thread):
     def run(self):
         try:
             self.pipe_manager.lock.acquire()
-            self.pipe_manager.fetch_services()
-       
+            self.pipe_manager.fetch_services(self.svcctl_window)
+            
         except RuntimeError, re:
             msg = "Failed to retrieve the service list: " + re.args[1] + "."
             print msg
@@ -597,12 +614,20 @@ class SvcCtlWindow(gtk.Window):
         self.services_tree_view.set_model(self.services_store)
 
 
-        # status bar
-
+        # status bar & progress bar
+        
         self.statusbar = gtk.Statusbar()
         self.statusbar.set_has_resize_grip(True)
-        vbox.pack_start(self.statusbar, False, False, 0)
         
+        self.progressbar = gtk.ProgressBar()
+        self.progressbar.set_no_show_all(True)
+        self.progressbar.hide()
+        
+        hbox = gtk.HBox(False, 0)
+        hbox.pack_start(self.progressbar, False, False, 0)
+        hbox.pack_start(self.statusbar, True, True, 0)
+        
+        vbox.pack_start(hbox, False, False, 0)
         
         # signals/events
         
@@ -630,9 +655,11 @@ class SvcCtlWindow(gtk.Window):
 
 
     def on_key_press(self, widget, event):
-        if event.keyval == gtk.keysyms.F5: 
-            #refresh when F5 is pressed
+        if event.keyval == gtk.keysyms.F5: #refresh when F5 is pressed
             self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.Return:
+            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
+            self.on_services_tree_view_button_press(None, myev)
 
     def refresh_services_tree_view(self):
         if not self.connected():
@@ -784,10 +811,19 @@ class SvcCtlWindow(gtk.Window):
                     break
                 
                 except RuntimeError, re:
-                    msg = "Failed to connect: " + re.args[1] + "."
-                    print msg
-                    traceback.print_exc()                        
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
+                    if (re.args[0] == -0x3fffff93) or (re.args[1] == 'Logon failure'): #user got the password wrong
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
+                        dialog.password_entry.grab_focus()
+                        dialog.password_entry.select_region(0, -1) #select all the text in the password box
+                    elif (re.args[0] == -0x3ffffdc3) or (re.args[1] == 'NT_STATUS_HOST_UNREACHABLE'): #TODO: find the constants
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The server could not be reached", dialog)
+                        dialog.server_address_entry.grab_focus()
+                        dialog.server_address_entry.select_region(0, -1)
+                    else:
+                        msg = "Failed to connect: " + re.args[1] + "."
+                        print msg
+                        traceback.print_exc()                        
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception, ex:
                     msg = "Failed to connect: " + str(ex) + "."

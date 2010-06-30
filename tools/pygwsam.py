@@ -679,14 +679,17 @@ class SAMWindow(gtk.Window):
         
         self.add_accel_group(accel_group)
         
-        
-        
-        
     def on_key_press(self, widget, event):
         if event.keyval == gtk.keysyms.F5: 
             self.on_refresh_item_activate(None)
         elif event.keyval == gtk.keysyms.Delete:
             self.on_delete_item_activate(None)
+        elif event.keyval == gtk.keysyms.Return:
+            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
+            if self.users_groups_notebook_page_num == 0:
+                self.on_users_tree_view_button_press(None, myev)
+            else:
+                self.on_groups_tree_view_button_press(None, myev)
 
     def refresh_user_list_view(self):
         if not self.connected():
@@ -869,14 +872,22 @@ class SAMWindow(gtk.Window):
                         
                         pipe_manager = SAMPipeManager(self.server_address, self.transport_type, self.username, password)
                         domains = pipe_manager.fetch_and_get_domain_names()
-                        
                         break
                     
                     except RuntimeError, re:
-                        msg = "Failed to connect: " + re.args[1] + "."
-                        print msg
-                        traceback.print_exc()                        
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
+                        if re.args[1] == 'Logon failure': #user got the password wrong
+                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
+                            dialog.password_entry.grab_focus()
+                            dialog.password_entry.select_region(0, -1) #select all the text in the password box
+                        elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
+                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The server could not be reached.", dialog)
+                            dialog.server_address_entry.grab_focus()
+                            dialog.server_address_entry.select_region(0, -1)
+                        else:
+                            msg = "Failed to connect: " + re.args[1] + "."
+                            print msg
+                            traceback.print_exc()                        
+                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                         
                     except Exception, ex:
                         msg = "Failed to connect: " + str(ex) + "."

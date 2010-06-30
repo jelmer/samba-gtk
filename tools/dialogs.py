@@ -2089,7 +2089,6 @@ class RegRenameDialog(gtk.Dialog):
     def check_for_problems(self):
         if (len(self.name_entry.get_text().strip()) == 0):
             return "Please specify a name."
-        
         return None
 
     def reg_to_values(self):
@@ -2104,6 +2103,90 @@ class RegRenameDialog(gtk.Dialog):
         else:
             self.reg_key.name = self.name_entry.get_text()
 
+class RegSearchDialog(gtk.Dialog):
+    
+    def __init__(self):
+        super(RegSearchDialog, self).__init__()
+        
+        self.warned = False
+        
+        self.create()
+        
+    def create(self):
+        self.set_title("Search the registry")
+        self.set_border_width(5)
+        
+        self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
+        self.set_icon_from_file(self.icon_registry_filename)
+
+        self.set_resizable(True) #TODO: false
+
+
+        # name
+        
+        hbox = gtk.HBox()
+        self.vbox.pack_start(hbox, False, False, 10)
+        
+        label = gtk.Label("Search for: ")
+        hbox.pack_start(label, False, True, 10)
+        
+        self.search_entry = gtk.Entry()
+        self.search_entry.set_activates_default(True)
+        hbox.pack_start(self.search_entry, True, True, 10)
+        
+        
+        # options
+        
+        frame = gtk.Frame("Match:")
+        self.vbox.pack_start(frame, False, True, 0)
+        
+        vbox = gtk.VBox()
+        vbox.set_border_width(4)
+        frame.add(vbox)
+        
+        self.check_match_keys = gtk.CheckButton("Keys")
+        self.check_match_keys.set_active(True)
+        vbox.pack_start(self.check_match_keys, False, False, 0)
+        self.check_match_values = gtk.CheckButton("Values")
+        self.check_match_values.set_active(True)
+        vbox.pack_start(self.check_match_values, False, False, 0)
+        self.check_match_data = gtk.CheckButton("Data")
+        self.check_match_data.set_active(True)
+        vbox.pack_start(self.check_match_data, False, False, 0)
+        
+        self.check_match_whole_string = gtk.CheckButton("Match whole string only")
+        self.vbox.pack_start(self.check_match_whole_string, False, False, 5)
+        
+
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.ok_button = gtk.Button("Search", gtk.STOCK_FIND)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.set_default_response(gtk.RESPONSE_OK)
+        
+        
+        # signals/events
+
+    def check_for_problems(self):
+        if self.search_entry.get_text() == "":
+            return ("You must enter text to search for!", gtk.MESSAGE_ERROR)
+        elif not self.check_match_data.get_active() and not self.check_match_keys.get_active() and not self.check_match_values.get_active():
+            return ("You much select at least one of: keys, values, or data to search", gtk.MESSAGE_ERROR)
+        elif not self.check_match_whole_string.get_active() and not self.warned:
+            for ch in self.search_entry.get_text():
+                if ch in string.punctuation:
+                    self.warned = True
+                    return ("Search items should be separated by a space. Punctuation (such as commas) will be considered part of the search string.\n\nPress find again to continue anyways.", gtk.MESSAGE_INFO)
+            
+        return None
 
 class SAMConnectDialog(gtk.Dialog):
     
@@ -2680,7 +2763,7 @@ class WinRegConnectDialog(gtk.Dialog):
 
 
 if __name__ == '__main__':
-    pass
+    RegSearchDialog().run()
     
     
     

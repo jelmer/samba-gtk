@@ -5,37 +5,13 @@ Windows XP SP2:
 Tested creating/modifying/deleteing schedules using utilitiy and on the server.
 Dare I say, it looks like this one works perfectly!
 
--Added refresh on F5
--Connect dialog is now displayed first.
-
 Windows Vista Home Premium:
 -'NT_STATUS_RESOURCE_NAME_NOT_FOUND' error when connecting, happens on line 40 in __init__()
 -unable to connect
 
 
 
-pygwregedit
------------
 
-Windows XP SP2:
--problems listed before were because of missing constants. This has been fixed now.
--Getting keys happens in alphabetical order, which a few more (seemingly random) keys coming last. Not a bug, just something I noticed. (FIXED)
-
-
-Windows Vista Home Premium:
--'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 45 in __init__()
--unable to connect
-
-TODO:
--Implement the enter key (requires adding a function and moving stuff around, requires a bit of time)
--make adding only 4bits (one hex character) impossible in the hex editor?
--refresh_keys_tree_view() is less robust now since putting the root keys in order. Fix this once you know more python :)
-
-
-What works & fixed problems:
-listing, adding, deleting, editing. Everything seems to work correctly, but could be improved
--editing a value says it was updated in the status bar, even if the user pressed cancel (FIXED)
--fixed everything in the REG_BINARY editor. Took a long time to get it right, but it's finally done!
 
 
 
@@ -86,9 +62,9 @@ Windows Vista Home Premium:
 -Groups arn't displayed properly, only the "none" group appears.
 
 
-TODO list:
--refresh should unselect any selected users/groups. Not sure how to do that, no luck so far.
 
+TODO list:
+# TODO: assign keyboard shortcuts
 
 What works & finished bugfixes:
 -displaying list of users and refreshing (Implemented refresh on F5)
@@ -104,13 +80,48 @@ What works & finished bugfixes:
 
 
 
+
+
+pygwregedit
+-----------
+
+Windows XP SP2:
+-problems listed before were because of missing constants. This has been fixed now.
+-Getting keys happens in alphabetical order, which a few more (seemingly random) keys coming last. Not a bug, just something I noticed. (FIXED)
+
+
+Windows Vista Home Premium:
+-'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 45 in __init__()
+-unable to connect
+
+
+TODO:
+-Add support for REG_NONE type values, currently they are ignored and a warning is printed
+-calls to ls_key should append new keys to the key tree view
+-Add an option to fetch everything (view -> fetch everything)
+-Implement find_next
+-split ls_key function into two parts: one for keys and one for values
+-move error handling outside of ls_key()
+-Implement move_key()
+-assign keyboard shortcuts
+-implement import/export
+-implement permissions
+-
+-make adding only 4bits (one hex character) impossible in the hex editor?
+-clean up ls_hey(), it's a bit of a mess!
+
+
+
+
+
+
+
+
 pygwsvcctl
 ----------
 
 Windows XP SP2:
 -Access denied error when fetching services, but still displays a list (maybe some are missing? -a quick count says no, may be inaccurate)
--NT_STATUS_RPC_BAD_STUB_DATA error when updating a service.
--After updating a list of services, the list should be refreshed (the utility assumes the services was updated, so list displays incorrect info if the service was not successfully updated)
 -
 
 Windows Vista Home Premium:
@@ -118,12 +129,17 @@ Windows Vista Home Premium:
 -unable to connect
 
 
+TODO:
+-Unable to update services
+	-NT_STATUS_RPC_BAD_STUB_DATA error
+	-happens when sending back the new service info. I checked the data and it looks right. (This is hard to troubleshoot because you can't send partial data back so you can't test each field to see if it's the cause of the problem)
+	-SvcCtlPipeManager.update_service() line 78
+-After updating a list of services, the list should be refreshed (the utility assumes the services was updated, so list displays incorrect info if the service was not successfully updated)
+# TODO: assign keyboard shortcuts
 
 
-What works:
--start/stop services
--pause/resume services
--
+
+
 
 
 

@@ -94,13 +94,16 @@ Windows Vista Home Premium:
 -'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 45 in __init__()
 -unable to connect
 
+Bugs:
+-fetching subkeys or values can't be interrupted (ie. when disconnecting) (Minor)
+-WERR_MORE_DATA in WinRegPipeManager.get_values_for_key() and ls_key (for values). It might be happening because the c-based function doesn't allocate enough space for the incoming data? The error is thrown from rpc_winreg.c it seems.
+
 
 TODO:
+-test if searching the entire registry works
+-clean up ls_hey(), it's a bit of a mess!
 -Add support for REG_NONE type values, currently they are ignored and a warning is printed
--calls to ls_key should append new keys to the key tree view
 -Add an option to fetch everything (view -> fetch everything)
--Implement find_next
--split ls_key function into two parts: one for keys and one for values
 -move error handling outside of ls_key()
 -Implement move_key()
 -assign keyboard shortcuts
@@ -108,8 +111,6 @@ TODO:
 -implement permissions
 -
 -make adding only 4bits (one hex character) impossible in the hex editor?
--clean up ls_hey(), it's a bit of a mess!
-
 
 
 

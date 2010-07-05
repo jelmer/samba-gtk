@@ -63,20 +63,16 @@ class WinRegPipeManager:
         
         update_GUI = (regedit_window != None)
         
-        try:
+        try: #this can cause access denied errors
             self.lock.acquire()
             path_handles = self.open_path(key)
-        except RuntimeError as re:
-            msg = "Failed to open a handle to " + key.get_absolute_path() + ": " + re.args[1] + "."
-            print msg
-            raise re
         finally:
             self.lock.release()
         
         key_handle = path_handles[-1]
         
         if (update_GUI and progress_bar):
-            total = 5200.0 #This is a guess of how many keys/values there are. Because people like progress bars
+            total = 5100.0 #This is a guess of how many keys/values there are. Because people like progress bars
 
         index = 0
         while True: #get a list of subkeys
@@ -105,8 +101,8 @@ class WinRegPipeManager:
                 index += 1
 
             except RuntimeError as re:
+                self.lock.release()
                 if (re.args[0] == 0x103): #0x103 is WERR_NO_MORE_ITEMS, so we're done
-                    self.lock.release()
                     if (update_GUI and progress_bar):
                         gtk.gdk.threads_enter()
                         regedit_window.progressbar.hide()
@@ -116,7 +112,7 @@ class WinRegPipeManager:
                     raise re
 
         index = 0
-        while True: #get a list of values for the key that was clicked! (not the subkeys)
+        while True: #get a list of values for the key
             try:
                 self.lock.acquire()
                 (value_name, value_type, value_data, value_length) = self.pipe.EnumValue(key_handle,
@@ -133,16 +129,13 @@ class WinRegPipeManager:
                 
                 #there's no need to update GUI here since there's usually few Values. 
                 #Additionally, many values are named "" which is later changed to "(Default)". 
-                #So printing '"fetching: "+value.name' will probably appear to be a glitch to the user.
-                #gtk.gdk.threads_enter()
-                #regedit_window.set_status("Fetching values...")
-                #gtk.gdk.threads_leave()
+                #So printing '"fetching: "+value.name' might look like a glitch to the user.
                 
                 index += 1
 
             except RuntimeError as re:
+                self.lock.release()
                 if (re.args[0] == 0x103): #0x103 is WERR_NO_MORE_ITEMS
-                    self.lock.release()
                     break
                 else:
                     raise re
@@ -165,9 +158,89 @@ class WinRegPipeManager:
             regedit_window.set_status("Successfully fetched keys and values of " + key.name)
             gtk.gdk.threads_leave()
             
-        print "Finish ls_key()", sys.getrefcount(None) #TODO: remove
-        
+#        #The reference count to Py_None is still not right: It climbs to infinity!
+#        print "Finish ls_key()", sys.getrefcount(None)
         return (key_list, value_list)
+    
+    def get_subkeys_for_key(self, key):
+        """this function gets a list subkeys for 'key'
+        
+        returns subkey_list"""
+        subkey_list = []
+        
+        path_handles = self.open_path(key)
+        blank_buff = WinRegPipeManager.winreg_string_buf("")
+        
+        key_handle = path_handles[-1]
+
+        index = 0
+        while True: #get a list of subkeys
+            try:
+                (subkey_name, 
+                 subkey_class, 
+                 subkey_changed_time) = self.pipe.EnumKey(key_handle, index, blank_buff, blank_buff, None)
+                
+                subkey = RegistryKey(subkey_name.name, key)
+                subkey_list.append(subkey)
+                
+                index += 1
+
+            except RuntimeError as re:
+                if (re.args[0] == 0x103): #0x103 is WERR_NO_MORE_ITEMS, so we're done
+                    break
+                else:
+                    raise re
+
+        self.close_path(path_handles)
+        
+        return subkey_list
+    
+    def get_values_for_key(self, key):
+        """this function gets a list of values for 'key'
+        
+        returns a list of values"""
+        
+        value_list = []
+        
+        path_handles = self.open_path(key)
+        key_handle = path_handles[-1]
+
+        index = 0
+        while True: #get a list of values for the key
+            try:
+                (value_name, 
+                 value_type, 
+                 value_data, 
+                 value_length) = self.pipe.EnumValue(key_handle,
+                                                     index, 
+                                                     WinRegPipeManager.winreg_val_name_buf(""), 
+                                                     0, 
+                                                     [], 
+                                                     8192
+                                                     )
+                
+                value = RegistryValue(value_name.name, value_type, value_data, key)
+                value_list.append(value)
+
+                index += 1
+
+            except RuntimeError as re:
+                if (re.args[0] == 0x103): #0x103 is WERR_NO_MORE_ITEMS
+                    break
+                else:
+                    raise re
+
+        self.close_path(path_handles)
+        
+        #Every key is supposted to have a default value. If this key doesn't have one, we'll display a blank one
+        default_value_list = [value for value in value_list if value.name == ""]
+        if (len(default_value_list) == 0):
+            value = RegistryValue("(Default)", misc.REG_SZ, [], key)
+            value_list.append(value)
+        else:
+            default_value_list[0].name = "(Default)"
+        
+        return value_list
 
     def create_key(self, key):
         path_handles = self.open_path(key.parent)
@@ -192,9 +265,12 @@ class WinRegPipeManager:
         raise NotImplementedError("Not implemented")
 
     def remove_key(self, key):
-        (key_list, value_list) = self.ls_key(key)
+        """Deletes 'key' and recursively deletes all subkeys under it.
         
-        for subkey in key_list:
+        """
+        subkey_list = self.get_subkeys_for_key(key)
+        
+        for subkey in subkey_list:
             self.remove_key(subkey)
         
         path_handles = self.open_path(key)
@@ -312,7 +388,7 @@ class WinRegPipeManager:
         return wvnb
 
 class KeyFetchThread(threading.Thread):
-    def __init__(self, pipe_manager, regedit_window, selected_key, iter=None):
+    def __init__(self, pipe_manager, regedit_window, selected_key, iter):
         super(KeyFetchThread, self).__init__()
         
         self.name = "KeyFetchThread"
@@ -329,20 +405,14 @@ class KeyFetchThread(threading.Thread):
             
             gtk.gdk.threads_enter()
             self.regedit_window.refresh_keys_tree_view(self.iter, key_list)
-            self.regedit_window.keys_tree_view.get_selection().select_iter(self.iter)
+            #self.regedit_window.keys_tree_view.get_selection().select_iter(self.iter) #select the key, in case selection has changed which fetching
             #columns_autosize() already called by refresh_keys_tree_view()
             
             self.regedit_window.refresh_values_tree_view(value_list)
             self.regedit_window.update_sensitivity()
             #threads_leave in the finally: section
-            
-        except RuntimeError, re:
-            msg = "Failure in the secondary thread: " + re.args[1] + "."
-            print msg
-            traceback.print_exc()
-        
         except Exception, ex:
-            msg = "Failure in the secondary thread: " + str(ex) + "."
+            msg = "Failed to fetch information about " + self.selected_key.get_absolute_path() + ": " + str(ex) + "."
             print msg
             traceback.print_exc()
         
@@ -357,12 +427,17 @@ class KeyFetchThread(threading.Thread):
 
 
 class SearchThread(threading.Thread):
-    def __init__(self, pipe_manager, regedit_window, options):
+    def __init__(self, pipe_manager, regedit_window, options, starting_key_iter=None):
+        """This thread searches the registry using the options specified in 'options'. 
+        If 'starting_key_iter' is supplied then it will search only from that key onward."""
         super(SearchThread, self).__init__()
+        
+        self.explode = False; #so we can kill this thread if we want to
         
         self.name = "SearchThread"
         self.pipe_manager = pipe_manager
         self.regedit_window = regedit_window
+        self.starting_key_iter = starting_key_iter
         
         #options are passed in a bit of a weird way.
         (self.text, 
@@ -371,45 +446,67 @@ class SearchThread(threading.Thread):
          self.search_data, 
          self.match_whole_string) = options
         
-        
     def run(self):
         if (self.match_whole_string):
             search_items = [self.text]
         else:
             search_items = self.text.split()
         
-        #this will be a depth-first traversal of the key tree
-        stack = [] #we'll push keys onto this stack
-        
-        self.pipe_manager.lock.acquire()
-        well_known_keys = self.pipe_manager.well_known_keys
-        self.pipe_manager.lock.release()
-        
-        for key in well_known_keys: #push the root keys onto the stack
-            stack.append(key)
-        stack.reverse() #we pop keys from the end of the list. Without this we'd be searching from the last root key first
+        if self.starting_key_iter == None: #Add root keys, start a normal search
+            #this will be a depth-first traversal of the key tree
+            stack = [] #we'll push keys onto this stack
             
+            self.pipe_manager.lock.acquire()
+            well_known_keys = self.pipe_manager.well_known_keys
+            self.pipe_manager.lock.release()
+            
+            for key in well_known_keys: #push the root keys onto the stack
+                stack.append(key)
+            stack.reverse() #we pop keys from the end of the list. Without this we'd be searching from the last root key first
+                
+        else: #The user pressed find next.
+            #create the stack with only the keys we haven't searched yet
+            gtk.gdk.threads_enter() #the function below requires the GUI lock because it has to get info from the gtk data structures. But i'm not positive this lock is needed
+            stack = self.fill_stack()
+            gtk.gdk.threads_leave()
+            
+        #stuff we need
+        model = self.regedit_window.keys_tree_view.get_model()
+                
         while stack != []:
+            if self.explode:
+                return
+            
             key = stack.pop()
+            
+            gtk.gdk.threads_enter()
+            self.regedit_window.set_status("Searching " + key.get_absolute_path())
+            gtk.gdk.threads_leave()
             
             #check if this key's name matches any of our search queries
             if (self.search_keys):
                 for text in search_items:
                     if (key.name.find(text) >= 0): #find() returns the index, so anything greater than -1 means found
                         gtk.gdk.threads_enter()
-                        self.regedit_window.highlight_search_result(key)
-                        msg = "Found key at: " + key.get_absolute_path() #TODO: remove this msg box
+                        key_iter = self.regedit_window.get_iter_for_key(key)
+                        self.regedit_window.highlight_search_result(key_iter)
+                        msg = "Found key at: " + key.get_absolute_path()
                         self.regedit_window.set_status(msg)
+                        self.regedit_window.search_thread = None
                         gtk.gdk.threads_leave()
                         return
             
-            #get a list of subkeys and values for this key
-            try: 
-                (subkey_list, value_list) = self.pipe_manager.ls_key(key, self.regedit_window, False, False)
-            except:
-                #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
-                print "Failed to fetch subkeys and values for " + key.name
-                continue
+            #fetch a list of values for this key
+            if (self.search_values or self.search_data):
+                self.pipe_manager.lock.acquire()
+                try:
+                        value_list = self.pipe_manager.get_values_for_key(key)
+                except RuntimeError as ex:
+                    #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
+                    print "Failed to fetch values for " + key.get_absolute_path() + ": " + ex.args[1] + "."
+                    continue
+                finally:
+                    self.pipe_manager.lock.release()
             
             #Check this key's Values to see if any of their names match the search queries
             if (self.search_values): #if we're searching values
@@ -417,9 +514,13 @@ class SearchThread(threading.Thread):
                     for text in search_items: #and check those values for each search string
                         if (value.name.find(text) >= 0): #check if it's in the value's name
                             gtk.gdk.threads_enter()
-                            self.regedit_window.highlight_search_result(key, value)
+                            self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
+                            key_iter = self.regedit_window.get_iter_for_key(key)
+                            value_iter = self.regedit_window.get_iter_for_value(value)
+                            self.regedit_window.highlight_search_result(key_iter, value_iter)
                             msg = "Found value at: " + value.get_absolute_path()
                             self.regedit_window.set_status(msg)
+                            self.regedit_window.search_thread = None
                             gtk.gdk.threads_leave()
                             return
                             
@@ -427,17 +528,48 @@ class SearchThread(threading.Thread):
             if (self.search_data): #if we're searching values
                 for value in value_list: #go through every value for this key
                     for text in search_items: #and check those values for each search string
-                        try: #TODO: remove this.
-                            if (value.get_data_string().find(text) >= 0): #check if it's in the value's data
-                                gtk.gdk.threads_enter()
-                                self.regedit_window.highlight_search_result(key, value)
-                                msg = "Found data at: " + value.get_absolute_path()
-                                self.regedit_window.set_status(msg)
-                                gtk.gdk.threads_leave()
-                                return
-                        except Exception:
-                            print "We got a problem with " + value.name + " not playing nice. Value is of type " + str(value.type) + "."
-                            print value.get_absolute_path()
+                        if (value.get_data_string().find(text) >= 0): #check if it's in the value's data
+                            gtk.gdk.threads_enter()
+                            self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
+                            key_iter = self.regedit_window.get_iter_for_key(key)
+                            value_iter = self.regedit_window.get_iter_for_value(value)
+                            self.regedit_window.highlight_search_result(key_iter, value_iter)
+                            msg = "Found data at: " + value.get_absolute_path()
+                            self.regedit_window.set_status(msg)
+                            self.regedit_window.search_thread = None
+                            gtk.gdk.threads_leave()
+                            return
+                
+            #fetch a list of subkeys for this key
+            gtk.gdk.threads_enter() #we might acquire both locks, but it's ok since the gdk lock was acquired first
+            key_iter = self.regedit_window.get_iter_for_key(key)
+            subkey_iter = model.iter_children(key_iter)
+            if subkey_iter != None: #if the subkeys already exist in the tree view
+                subkey_list = []
+                while subkey_iter != None:
+                    subkey_list.append(model.get_value(subkey_iter, 1))
+                    subkey_iter = model.iter_next(subkey_iter)
+                else:
+                    gtk.gdk.threads_leave()
+            else: #If we don't already have them, we have to get them
+                gtk.gdk.threads_leave()
+                try: 
+                    self.pipe_manager.lock.acquire()
+                    subkey_list = self.pipe_manager.get_subkeys_for_key(key)
+                except Exception as ex:
+                    #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
+                    print "Failed to fetch subkeys for " + key.get_absolute_path() + ": " + ex.args[1] + "."
+                    continue
+                finally:
+                    self.pipe_manager.lock.release()
+            
+            
+            #Append these keys to the parent in the TreeStore.
+            #Since we're fetching them we might as well add them to the TreeStore so that we don't have to fetch them again later
+            key_iter = self.regedit_window.get_iter_for_key(key)
+            if model.iter_children(key_iter) == None: #if this key doesn't have any children already (if it does then those children might also have subkeys, which we don't want to erase)
+                for current_key in subkey_list:
+                    self.regedit_window.keys_store.append(key_iter, current_key.list_view_representation())
                 
             #Looks like we didn't find anything, lets push this key's subkeys onto the stack
             append_list = []
@@ -450,8 +582,81 @@ class SearchThread(threading.Thread):
         msg = "Search query not found."
         if match_whole_string: msg += "\n\nConsider searching again with 'Match whole string' unchecked"
         gtk.gdk.threads_enter()
-        self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, msg)
+        self.regedit_window.search_thread = None
+        self.regedit_window.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, msg)
         gtk.gdk.threads_leave()
+        
+    def fill_stack(self): 
+        """Fills the stack with the keys we need to search. This only gets called to create the stack when the user presses 'find next'.
+        NOTE: This function requires the gdk lock. Make sure to acquire the lock before calling this function."""
+        model = self.regedit_window.keys_tree_view.get_model()
+        key = model.get_value(self.starting_key_iter, 1)
+        root_key = key.get_root_key()
+        stack = []
+        
+        self.pipe_manager.lock.acquire()
+        well_known_keys = self.pipe_manager.well_known_keys
+        self.pipe_manager.lock.release()
+        
+        #we need to add all keys below the current root key into the stack
+        append_list = []
+        for n in range(len(well_known_keys)):
+            if well_known_keys[n].name == root_key.name: #so our root key is the nth key.
+                break
+        n += 1 #we don't want to add the current root key to the stack
+        while n < len(well_known_keys):
+            append_list.append(well_known_keys[n])
+            n += 1
+        append_list.reverse()
+        stack.extend(append_list)
+        
+        
+        key_parents = [] #no key_parents, WOOHOO!
+        iter_parents = []
+        iter_current_parent = self.starting_key_iter #yes, we consider the current key a parent also
+        while iter_current_parent != None:
+            #we'll add each iter's iter_current_parent to the key_parents list until we get to the root
+            iter_parents.append(iter_current_parent)
+            key_parents.append(model.get_value(iter_current_parent, 1)) #add this key to the key_parents list
+            iter_current_parent = model.iter_parent(iter_current_parent)
+        
+        #this section is really tricky and I imagine it's not very fast. There might be a better way of doing this...
+        for parent in iter_parents:
+            #This is tricky, we have to add all keys after 'iter' to the stack
+            iter = model.iter_children(parent) #get an iter to the first child
+            if iter != None:
+                current_key = model.get_value(iter, 1)
+                #iter until we get to the next parent
+                while (not current_key in key_parents):
+                    iter = model.iter_next(iter)
+                    if (iter == None): break
+                    current_key = model.get_value(iter, 1)
+            
+            append_list = []
+            if iter != None: #This may be the case when we reach the last iter (which is the key matching the search result) if that key has no children
+                iter = model.iter_next(iter) #we want to skip the iter we're on now, since it's already been processed by the search
+                while iter != None:
+                    append_list.append(model.get_value(iter, 1))
+                    iter = model.iter_next(iter)
+                append_list.reverse()
+                stack.extend(append_list)
+                
+        #Can't forget to add the starting key's children
+        key_iter = model.iter_children(self.starting_key_iter)
+        append_list = []
+        while key_iter != None:
+            append_list.append(model.get_value(key_iter, 1))
+            key_iter = model.iter_next(key_iter)
+        append_list.reverse()
+        stack.extend(append_list)
+
+        return stack
+        
+    def self_destruct(self):
+        """This function will only stop the thread, it will not clean up anything or display anything to the user.
+        This way the calling thread can do it and it's guaranteed to happen right away."""
+        #TODO: this probably isn't safe
+        self.explode = True
 
 
 class RegEditWindow(gtk.Window):
@@ -465,8 +670,12 @@ class RegEditWindow(gtk.Window):
         self.server_address = "192.168.2.100"
         self.transport_type = 0
         self.username = "shatterz"
+        
+        self.search_thread = None
+        self.search_last_options = None
 
         self.update_sensitivity()
+        
         #display connect dialog, since that's probably what the user wants to do
         self.on_connect_item_activate(None)
         
@@ -829,7 +1038,7 @@ class RegEditWindow(gtk.Window):
         (model, selected_paths) = self.keys_tree_view.get_selection().get_selected_rows()
 
         if (iter == None):
-            #get the root keys and put them into the keys_store
+            #If iter is None then the tree is empty.
             self.pipe_manager.lock.acquire()
             well_known_keys = self.pipe_manager.well_known_keys
             self.pipe_manager.lock.release()
@@ -849,7 +1058,7 @@ class RegEditWindow(gtk.Window):
             self.keys_tree_view.expand_row(self.keys_store.get_path(iter), False)
             
             #Select the key select_me_key. Select_me_key is a key and not an iter, so this isn't as straight forward as it could be
-            #but we know it's a child of iter.
+            #but we know it's a child of the key pointed to by 'iter' and an element of 'key_list.
             if (select_me_key != None):
                 child_iter = self.keys_store.iter_children(iter) #get the first (at index 0) child of 'iter'
                 while (child_iter != None): #child_iter will equal none if call iter_children() or iter_next() and there is no next child.
@@ -859,19 +1068,15 @@ class RegEditWindow(gtk.Window):
                         break
                     child_iter = self.keys_store.iter_next(child_iter)
                     
+            #if 'select_me_key' isn't given, then select whatever was selected before
             elif (len(selected_paths) > 0):
-                try:
-                    sel_iter = self.keys_store.get_iter(selected_paths[0])
-                    self.keys_tree_view.get_selection().select_iter(sel_iter)
-                
-                except Exception: #why would this cause an Exception? Why is this the solution?
-                    if (self.keys_store.iter_n_children(iter) > 0): #if 'iter' has any children
-                        last_iter = self.keys_store.iter_nth_child(iter, 0) 
-                        while (self.keys_store.iter_next(last_iter) != None):
-                            last_iter = self.keys_store.iter_next(last_iter)
-                        self.keys_tree_view.get_selection().select_iter(last_iter) #select the last child?
-                    else:
-                        self.keys_tree_view.get_selection().select_iter(iter) #if 'iter' has no children, select 'iter'
+                for path in selected_paths: #there's almost certainly only one, but o well
+                    try: #try them until one works.
+                        sel_iter = self.keys_store.get_iter(path)
+                        self.keys_tree_view.get_selection().select_iter(sel_iter)
+                        break
+                    except Exception:
+                            self.keys_tree_view.get_selection().select_iter(iter) #highlight (select) 'iter'
             else:
                 self.keys_tree_view.get_selection().select_iter(iter) #highlight (select) 'iter'
         
@@ -899,15 +1104,13 @@ class RegEditWindow(gtk.Window):
         for value in value_list:
             try: #sometimes this can fail when we get a value of a type that isn't in type_pixbufs (such as REG_NONE)
                 self.values_store.append([type_pixbufs[value.type]] + value.list_view_representation())
-            except KeyError as er:
+            except KeyError or IndexError as er:
                 #TODO: handle REG_NONE types better.
                 if value.type == misc.REG_NONE: 
                     print "Warning: Not displaying a hidden value at " + value.get_absolute_path()
                 else:
-                    print "Warning: Failed to display " + value.name + " in the value tree: value of type " + str(value.type) + " could not be handled."
-                
-                
-            
+                    print "Warning: Failed to display " + value.get_absolute_path() + " in the value tree: value of type " + str(value.type) + " could not be handled."
+                    
         if (len(selected_paths) > 0):
             try:
                 sel_iter = self.values_store.get_iter(selected_paths[0])
@@ -947,6 +1150,44 @@ class RegEditWindow(gtk.Window):
             return (None, None)
         else:
             return (iter, model.get_value(iter, 4))
+        
+    def get_iter_for_value(self, value):
+        """This function takes a value and gets the iterator for that value in the gtk.TreeStore.
+        
+        Returns an iterator or None"""
+        model = self.values_tree_view.get_model()
+        iter = model.get_iter_first()
+        while iter != None:
+            current_value = model.get_value(iter, 4)
+            if (current_value.name == value.name):
+                return iter
+            iter = model.iter_next(iter)
+        return None
+    
+    def get_iter_for_key(self, key):
+        """This function takes a key and gets the iterator for that key in the gtk.TreeStore.
+        
+        Returns an iterator or None"""
+        model = self.keys_tree_view.get_model()
+        path = key.get_absolute_path()
+        
+        key_names = path.split("\\")
+        
+        model = self.keys_tree_view.get_model()
+        current_key_iter = model.get_iter_first() #get iter to the first root node
+        
+        step = 0 #currently checking this index in key_names
+        while (current_key_iter != None):
+            current_key = model.get_value(current_key_iter, 1)
+            if current_key.name == key_names[step]:
+                if (step >= len(key_names) - 1): #if this is the last step then we've found the key! (cue audio from Zelda)
+                    return current_key_iter
+                current_key_iter = model.iter_children(current_key_iter) #step to the decendant, start itering their children (that sounds wrong...)
+                step += 1
+            else:
+                current_key_iter = model.iter_next(current_key_iter)
+            
+        return None
 
     def set_status(self, message):
         self.statusbar.pop(0)
@@ -1199,12 +1440,10 @@ class RegEditWindow(gtk.Window):
         try:
             self.pipe_manager.lock.acquire()
             self.pipe_manager.set_value(value)
+            value_list = self.pipe_manager.get_values_for_key(selected_key)
             self.pipe_manager.lock.release()
             
-            #TODO: ls_keys to the new thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
             self.refresh_values_tree_view(value_list)
-            
             self.set_status("Value '" + value.get_absolute_path() + "' updated.")
             
             return True
@@ -1234,8 +1473,9 @@ class RegEditWindow(gtk.Window):
             return True
 
         try:
-            #TODO: ls_keys to the other thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key.parent)
+            self.pipe_manager.lock.acquire()
+            key_list = self.pipe_manager.get_subkeys_for_key(selected_key.parent)
+            self.pipe_manager.lock.release()
             
             #check if a key with that name already exists
             if (len([k for k in key_list if k.name == key.name]) > 0):
@@ -1244,11 +1484,10 @@ class RegEditWindow(gtk.Window):
             
             self.pipe_manager.lock.acquire()
             self.pipe_manager.move_key(key, key.old_name)
+            key_list = self.pipe_manager.get_subkeys_for_key(selected_key.parent)
             self.pipe_manager.lock.release()
-            key.old_name = key.name
             
-            #TODO: ls_keys to the other thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key.parent)
+            key.old_name = key.name
             parent_iter = self.keys_store.iter_parent(iter)
             self.refresh_keys_tree_view(parent_iter, key_list, key)
             
@@ -1285,8 +1524,9 @@ class RegEditWindow(gtk.Window):
             return True
 
         try:
-            #TODO: ls_key to the new thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.pipe_manager.lock.acquire()
+            value_list = self.pipe_manager.get_values_for_key(selected_key)
+            self.pipe_manager.lock.release()
         
             if (len([v for v in value_list if v.name == value.name]) > 0):
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This value already exists. Please choose another name.", self)
@@ -1294,11 +1534,10 @@ class RegEditWindow(gtk.Window):
             
             self.pipe_manager.lock.acquire()
             self.pipe_manager.move_value(value, value.old_name)
+            value_list = self.pipe_manager.get_values_for_key(selected_key)
             self.pipe_manager.lock.release()
+            
             value.old_name = value.name
-        
-            #TODO: ls_key to the new thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
             self.refresh_values_tree_view(value_list)
             
             self.set_status("Value '" + value.get_absolute_path() + "' renamed.")
@@ -1333,8 +1572,9 @@ class RegEditWindow(gtk.Window):
         new_value.parent = selected_key
 
         try:
-            #TODO: ls_key to the other thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.pipe_manager.lock.acquire()
+            value_list = self.pipe_manager.get_values_for_key(selected_key)
+            self.pipe_manager.lock.release()
         
             if (len([v for v in value_list if v.name == new_value.name]) > 0):
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This value already exists.", self)
@@ -1342,10 +1582,9 @@ class RegEditWindow(gtk.Window):
             
             self.pipe_manager.lock.acquire()
             self.pipe_manager.set_value(new_value)
+            value_list = self.pipe_manager.get_values_for_key(selected_key)
             self.pipe_manager.lock.release()
             
-            #TODO: ls_key to the other thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
             self.refresh_values_tree_view(value_list)
             
             self.set_status("Value '" + new_value.get_absolute_path() + "' successfully added.")
@@ -1364,24 +1603,52 @@ class RegEditWindow(gtk.Window):
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
             
-    def highlight_search_result(self, key, value=None):
-        if value == None:
-            #highlight a key
-            pass
-        else:
-            #highlight a value
-            pass
+        #TODO: 
+    def highlight_search_result(self, key_iter, value_iter=None):
+        """Select key_iter in the tree store. If value_iter is not none then value_iter will also be selected.
+        
+        returns True if a key was successfully selected"""
+        if key_iter == None:
+            return
+        
+        result = False
+        
+        tree_selection = self.keys_tree_view.get_selection() #this is NOT the current selection, it's a gtk.TreeSelection object.
+        try:
+            model = self.keys_tree_view.get_model()
+            self.keys_tree_view.set_cursor(model.get_path(key_iter))
+            self.keys_tree_view.expand_to_path(model.get_path(key_iter))
+            tree_selection.select_iter(key_iter)
+            result = True
+        except Exception as ex:
+            print "Problem selecting key:", str(ex)
+        
+        if value_iter != None:
+            tree_selection = self.values_tree_view.get_selection()
+            try:
+                model = self.values_tree_view.get_model()
+                self.values_tree_view.set_cursor(model.get_path(value_iter))
+                self.values_tree_view.expand_to_path(model.get_path(value_iter))
+                tree_selection.select_iter(value_iter)
+            except Exception as ex:
+                print "Problem selecting value:", str(ex)
+                
+        return result
              
     def on_key_press(self, widget, event):
         if event.keyval == gtk.keysyms.F5:
             self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.F3:
+            self.on_find_next_item_activate(None)
+        elif event.keyval == gtk.keysyms.F2:
+            self.on_rename_item_activate(None)
         elif event.keyval == gtk.keysyms.Delete:
             self.on_delete_item_activate(None)
         elif event.keyval == gtk.keysyms.Return:
             myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
             self.on_values_tree_view_button_press(None, myev)
 #        else:
-#            print event.keyval
+#            print "Key pressed:", event.keyval
                     
     def on_self_delete(self, widget, event):
         if (self.pipe_manager != None):
@@ -1396,6 +1663,9 @@ class RegEditWindow(gtk.Window):
         self.refresh_keys_tree_view(None, None)
 
     def on_disconnect_item_activate(self, widget):
+        if self.search_thread != None:
+            self.search_thread.self_destruct()
+            self.search_thread = None
         if (self.pipe_manager != None):
             self.pipe_manager.close()
             self.pipe_manager = None
@@ -1438,8 +1708,9 @@ class RegEditWindow(gtk.Window):
         new_key.parent = selected_key
 
         try:
-            #TODO: ls_key to the other thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
+            self.pipe_manager.lock.acquire()
+            key_list - self.pipe_manager.get_subkeys_for_key(selected_key)
+            self.pipe_manager.lock.release()
             
             if (len([k for k in key_list if k.name == new_key.name]) > 0):
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This key already exists.", self)
@@ -1447,10 +1718,8 @@ class RegEditWindow(gtk.Window):
             
             self.pipe_manager.lock.acquire()
             self.pipe_manager.create_key(new_key)
+            key_list - self.pipe_manager.get_subkeys_for_key(selected_key)
             self.pipe_manager.lock.release()
-
-            #TODO: ls_key to the other thread
-            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
             self.refresh_keys_tree_view(iter, key_list, new_key)
             
             self.set_status("Key '" + new_key.get_absolute_path() + "' successfully added.")
@@ -1510,9 +1779,10 @@ class RegEditWindow(gtk.Window):
                 self.pipe_manager.lock.acquire()
                 self.pipe_manager.remove_key(selected_key)
                 self.pipe_manager.lock.release()
-                
-                #TODO: ls-key to the other thread
-                (key_list, value_list) = self.pipe_manager.ls_key(selected_key.parent)
+
+                self.pipe_manager.lock.acquire()
+                key_list = self.pipe_manager.get_subkeys_for_key(selected_key.parent)
+                self.pipe_manager.lock.release()
                 parent_iter = self.keys_store.iter_parent(iter)
                 self.refresh_keys_tree_view(parent_iter, key_list)
                 
@@ -1520,10 +1790,8 @@ class RegEditWindow(gtk.Window):
             else:
                 self.pipe_manager.lock.acquire()
                 self.pipe_manager.unset_value(selected_value)
+                value_list = self.pipe_manager.get_values_for_key(selected_value.parent)
                 self.pipe_manager.lock.release()
-                
-                #TODO: ls_key to the other thread
-                (key_list, value_list) = self.pipe_manager.ls_key(selected_value.parent)
                 self.refresh_values_tree_view(value_list)
                 
                 self.set_status("Value '" + selected_value.get_absolute_path() + "' successfully deleted.")
@@ -1579,116 +1847,94 @@ class RegEditWindow(gtk.Window):
         clipboard.set_text(path)
     
     def on_find_item_activate(self, widget):
-        result = self.run_search_dialog()
-        if result == None: #most likely because the user pressed cancel
+        if not self.connected():
             return
         
-        SearchThread(self.pipe_manager, self, result).start()
-        
-#        (text, search_keys, search_values, search_data, match_whole_string) = result
-#        
-#        if (match_whole_string):
-#            search_items = [text]
-#        else:
-#            search_items = text.split()
-#        
-#        #this will be a depth-first traversal of the key tree
-#        stack = [] #we'll push keys onto this stack
-#        
-#        self.pipe_manager.lock.acquire()
-#        well_known_keys = self.pipe_manager.well_known_keys
-#        self.pipe_manager.lock.release()
-#        
-#        for key in well_known_keys: #push the root keys onto the stack
-#            stack.append(key)
-#        stack.reverse() #we pop keys from the end of the list. Without this we'd be searching from the last root key first
-#            
-#        while stack != []:
-#            key = stack.pop()
-#            
-#            if (search_keys):
-#                for text in search_items:
-#                    if (key.name.find(text) >= 0): #find() returns the index, so anything greater than -1 means found
-#                        self.highlight_search_result(key)
-#                        msg = "Found key at: " + key.get_absolute_path() #TODO: remove this msg box
-#                        self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, msg)
-#                        return
-#            
-#            try:
-#                (subkey_list, value_list) = self.pipe_manager.ls_key(key)
-#            except:
-#                #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
-#                print "Failed to fetch subkeys and values for " + key.name
-#                continue
-#            
-#            if (search_values): #if we're searching values
-#                for value in value_list: #go through every value for this key
-#                    for text in search_items: #and check those values for each search string
-#                        if (value.name.find(text) >= 0): #check if it's in the value's name
-#                            self.highlight_search_result(key, value)
-#                            msg = "Found value at: " + value.get_absolute_path()
-#                            self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, msg)
-#                            return
-#                            
-#            if (search_data): #if we're searching values
-#                for value in value_list: #go through every value for this key
-#                    for text in search_items: #and check those values for each search string
-#                        try: #TODO: remove this.
-#                            if (value.get_data_string().find(text) >= 0): #check if it's in the value's data 
-#                                self.highlight_search_result(key, value)
-#                                msg = "Found data at: " + value.get_absolute_path()
-#                                self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, msg)
-#                                return
-#                        finally:
-#                            print "We got a problem with " + value.name + " not playing nice with the other Values!"
-#                            print value.get_absolute_path()
-#                
-#            #Looks like we didn't find anything, lets push this key's subkeys onto the stack
-#            append_list = []
-#            for key in subkey_list:
-#                append_list.append(key)
-#            append_list.reverse() #again we have to do this or else we'll search the list from bottom to top
-#            stack.extend(append_list)
-#
-#        #if we are here then the loop has finished and found nothing
-#        msg = "Search query not found."
-#        if match_whole_string: msg += "\n\nConsider searching again with 'Match whole string' unchecked"
-#        self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, msg)
+        if self.search_thread == None:
+            result = self.run_search_dialog()
+            if result == None: #The user pressed cancel
+                return
+            
+            self.search_last_options = result
+            self.search_thread = SearchThread(self.pipe_manager, self, result)
+            self.search_thread.start()
+        else: 
+            #this means the search thread is already running!
+            msg = "A search is already under way. We can only have one search at a time.\n\nCancel that search?"
+            response = self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, msg)
+            if response == gtk.RESPONSE_YES:
+                #we have to clean up after the thread because self_destruct() only kills the thread without any cleanup
+                self.search_thread.self_destruct()
+                self.search_thread = None
+                self.set_status("Search canceled.") #this may not get shown since the thread may not stop right away
+                self.on_find_item_activate(None) #Call this function again to get the new search started
     
     def on_find_next_item_activate(self, widget):
-        print "find next item is not implemented yet!"
-        pass
+        if not self.connected():
+            return
+        if self.search_thread != None:
+            self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, "Calm down, we're still searching!")
+            return
+        if self.search_last_options == None:
+            self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, "There is no previous search to continue from.")
+            self.on_find_item_activate(None)
+            return
+        
+        #get selections. Stuff is selected by the search, or the user can select if he/she wants to search elsewhere
+        (sel_key_iter, sel_key) = self.get_selected_registry_key()
+        (sel_value_iter, sel_value) = self.get_selected_registry_value()
+        value_model = self.values_tree_view.get_model()
+        #get search options from the last search
+        (text, 
+         search_keys, 
+         search_values, 
+         search_data, 
+         match_whole_string) = self.search_last_options
+         
+        if (match_whole_string):
+            search_items = [text]
+        else:
+            search_items = text.split()
+        
+        #search the remaining values in this key
+        if (search_values):
+            value_iter = self.values_store.iter_next(sel_value_iter) #point to the value after the one we just found
+            while (value_iter != None): #this will be none when there is no more values
+                current_value = value_model.get_value(value_iter, 4)
+                for text in search_items:
+                    if (current_value.name.find(text) >= 0): #check if it's in the value's name
+                        self.highlight_search_result(sel_key_iter, value_iter)
+                        msg = "Found value at: " + current_value.get_absolute_path()
+                        self.set_status(msg)
+                        return
+        
+        #search the remaining data too
+        if (search_data):
+            value_iter = self.values_store.iter_next(sel_value_iter)
+            while (value_iter != None):
+                current_value = value_model.get_value(value_iter, 4)
+                for text in search_items: #and check those values for each search string
+                    try: #the if line may cause an exception when get_data_string() returns a non-string type because of unexpected data
+                        if (current_value.get_data_string().find(text) >= 0): #check if it's in the value's data
+                            self.highlight_search_result(sel_key_iter, value_iter)
+                            msg = "Found data at: " + current_value.get_absolute_path()
+                            self.set_status(msg)
+                            return
+                    except Exception:
+                        #This usually happens when value is of type REG_NONE and so get_data_string() will fail.
+                        print "Problem getting data for " + value.get_absolute_path() + ". Value is type " + str(value.type) + "."
+        
+        #so it's not in this key's values. Lets continue searching the rest of the registry
+        self.search_thread = SearchThread(self.pipe_manager, self, self.search_last_options, sel_key_iter)
+        self.search_thread.start()
 
     def on_refresh_item_activate(self, widget):
         (iter, selected_key) = self.get_selected_registry_key()
         if (selected_key == None):
             return
-
         # TODO: this refresh does not reflect changes in the parent tree
         
-        #TODO: fix this mess you've created
-        KeyFetchThread(self.pipe_manager, self,selected_key, iter).start()
-        
-#        try:
-#            (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
-#            self.refresh_keys_tree_view(iter, key_list, selected_key)
-#            self.refresh_values_tree_view(value_list)
-#            
-#            self.set_status("Refreshed key '" + selected_key.get_absolute_path() + "'.")
-#        
-#        except RuntimeError, re:
-#            msg = "Failed to refresh key: " + re.args[1] + "."
-#            self.set_status(msg)
-#            print msg
-#            traceback.print_exc()
-#            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-#        
-#        except Exception, ex:
-#            msg = "Failed to refresh key: " + str(ex) + "."
-#            self.set_status(msg)
-#            print msg
-#            traceback.print_exc()
-#            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
+        KeyFetchThread(self.pipe_manager, self, selected_key, iter).start()
 
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(
@@ -1704,49 +1950,20 @@ class RegEditWindow(gtk.Window):
         if (selected_key == None):
             return
         
+        self.set_status("Selected path '" + selected_key.get_absolute_path() + "'.")
+        
         #If this key has children already then we don't need to fetch it again.
         #this means that keys without subkeys will always be fetched when clicked.
-        #This is a minor flaw because fetching is fast and doesn't block the main thread so GUI is still responsive.
+        #This is a minor flaw because fetching zero keys is fast
         child_count = self.keys_store.iter_n_children(iter)
         if (child_count == 0): 
-            #create a thread to fetch the keys. This way the GUI can still be updated and we can fetch info for multiple keys at once 
+            #create a thread to fetch the keys. 
             KeyFetchThread(self.pipe_manager, self, selected_key, iter).start()
         else:
-            #we need to update the value tree with a partial ls_key()
-            #TODO: that ^, and remove the line below
-            KeyFetchThread(self.pipe_manager, self, selected_key, iter).start()
-        
-        
-        
-        
-        
-        
-#        if (selected_key != None):
-#            try :
-#                (key_list, value_list) = self.pipe_manager.ls_key(selected_key)
-#                
-#                if (self.keys_store.iter_n_children(iter) == 0):
-#                    self.refresh_keys_tree_view(iter, key_list)
-#                
-#                self.refresh_values_tree_view(value_list)
-#                self.keys_tree_view.columns_autosize()                
-#                self.set_status("Selected key '" + selected_key.get_absolute_path() + "'.")
-#
-#            except RuntimeError, re:
-#                msg = "Failed to fetch key '" + selected_key.get_absolute_path() + "': " + re.args[1] + "."
-#                print msg
-#                self.set_status(msg)
-#                traceback.print_exc()
-#                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-#                
-#            except Exception, ex:
-#                msg = "Failed to fetch key '" + selected_key.get_absolute_path() + "': " + str(ex) + "."
-#                print msg
-#                self.set_status(msg)
-#                traceback.print_exc()
-#                self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)    
-#            
-#        self.update_sensitivity()
+            self.pipe_manager.lock.acquire()
+            value_list = self.pipe_manager.get_values_for_key(selected_key)
+            self.pipe_manager.lock.release()
+            self.refresh_values_tree_view(value_list)
 
     def on_keys_tree_view_row_collapsed_expanded(self, widget, iter, path):
         self.keys_tree_view.columns_autosize()
@@ -1768,11 +1985,10 @@ class RegEditWindow(gtk.Window):
             self.edit_menu.popup(None, None, None, event.button, int(event.time))
 
     def on_values_tree_view_selection_changed(self, widget):
-        (iter, selected_key) = self.get_selected_registry_key()
         (iter, selected_value) = self.get_selected_registry_value()
         
-        if (selected_key != None and selected_value != None):
-            self.set_status("Selected path '" + selected_key.get_absolute_path() + "\\" + selected_value.name + "'.")
+        if (selected_value != None):
+            self.set_status("Selected path '" + selected_value.get_absolute_path() + "'.")
             
         self.update_sensitivity()
 
@@ -1792,6 +2008,10 @@ class RegEditWindow(gtk.Window):
         
         
 gtk.gdk.threads_init()
+"""
+    Important note about the thread locks used:
+You may acquire both locks at the same time as long as you get the gdk lock first!
+"""
 win = RegEditWindow()
 win.show_all()
 gtk.main()

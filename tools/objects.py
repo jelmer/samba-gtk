@@ -165,7 +165,7 @@ class RegistryValue:
             result = ""
             
             index = 0
-            while (index < len(self.data)):
+            while (index + 1 < len(self.data)): #The +1 ensures that the whole char is valid. Corrupt keys can otherwise cause exceptions
                 word = ((self.data[index + 1] << 8) + self.data[index])
                 if (word != 0):
                     result += unichr(word)
@@ -315,9 +315,9 @@ class RegistryKey:
         
     def get_root_key(self):
         if self.parent == None:
-            return key
+            return self
         else:
-            return self.get_root_key(self.parent)
+            return self.parent.get_root_key()
         
     def list_view_representation(self):
         return [self.name, self]

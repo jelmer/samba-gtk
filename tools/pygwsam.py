@@ -121,9 +121,10 @@ class SAMPipeManager:
 
     def update_user(self, user):
         """Submit any changes to 'user' to the server. The User's RID must be correct for this to work.
+        This function will call update_user_security() to update user security options.
         
-        """
-        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
+        returns nothing"""
+        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED | samr.SAMR_USER_ACCESS_ALL_ACCESS, user.rid)
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserNameInformation)
         #info.account_name = self.set_lsa_string(user.username) #Account name should never be changed.
@@ -156,6 +157,10 @@ class SAMPipeManager:
             info.acct_flags &= ~samr.ACB_AUTOLOCK
         self.pipe.SetUserInfo(user_handle, samr.UserControlInformation, info)
         
+        #User cannot change password is updated in the security function
+        self.update_user_security(user_handle, user)
+        
+        
         #TODO: this is a test fix for the must_change_password bug
 #        info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
 #        if (user.must_change_password):
@@ -164,44 +169,6 @@ class SAMPipeManager:
 #            info.acct_flags &= ~samr.ACB_PW_EXPIRED
 #        self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
         #We can't ever submit samr.UserLogonInformation (lvl 3) because something is HORRIBLY WRONG! It's always rejected, even if we just sent it back to the server without making any changes.
-        #Maybe the lower level functions arn't handling this level properly.
-        
-        
-        #TODO: this is a test
-        if user.rid == 1035:
-            try: #this section will work fine.
-                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-                info.fields_present = samr.SAMR_FIELD_DESCRIPTION
-                info.description = self.set_lsa_string("testing123")
-                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
-            except Exception, ex:
-                print str(ex)
-            try: #This section will raise 'Unexpected information received', even tho we didn't change anything
-                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-                info.fields_present = samr.SAMR_FIELD_ALLOW_PWD_CHANGE
-                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
-            except Exception, ex:
-                print str(ex)
-            try: #This section will raise 'Unexpected information received' when we call SetUserInfo()
-                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-                info.fields_present = samr.SAMR_FIELD_ALLOW_PWD_CHANGE
-                info.allow_password_change = 1
-                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
-            except Exception, ex:
-                print str(ex)
-            try: #This section will raise 'Expected type int' on line 195 even tho that value appears to be a long and not an integer
-                info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-                info.fields_present = samr.SAMR_FIELD_ALLOW_PWD_CHANGE
-                info.allow_password_change = long(1)
-                self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
-            except Exception, ex:
-                print str(ex)
-
-
-        
-        # TODO: cannot_change_password
-
-
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserProfileInformation)
         info.profile_path = self.set_lsa_string(user.profile_path)
@@ -213,7 +180,6 @@ class SAMPipeManager:
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserHomeInformation)
         info.home_directory = self.set_lsa_string(user.homedir_path)
-        
         
         if (user.map_homedir_drive == -1):
             info.home_drive = self.set_lsa_string("")
@@ -237,6 +203,39 @@ class SAMPipeManager:
                 group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
                 self.pipe.AddGroupMember(group_handle, user.rid, samr.SE_GROUP_ENABLED)
 
+    def update_user_security(self, user_handle, user):
+        """Updates the access mask for 'user'.
+        This function is designed to be called by update_user()
+        
+        returns nothing"""
+        secinfo = self.pipe.QuerySecurity(user_handle, security.SECINFO_DACL)
+        sid = self.pipe.RidToSid(self.domain_handle, user.rid)
+        
+        #this is for readability, we could just do secinfo.sd.dacl.aces[i].trustee if we wanted
+        security_descriptor = secinfo.sd
+        DACL = security_descriptor.dacl
+        ace_list = DACL.aces
+        ace = None
+            
+        for item in ace_list:
+            if item.trustee == sid:
+                ace = item
+                break
+            
+        if ace == None:
+            print "unable to fetch security info for ", user.username, "because none exists."
+            return user
+        
+        if user.cannot_change_password:
+            ace_list[0].access_mask &= ~samr.SAMR_USER_ACCESS_CHANGE_PASSWORD
+            ace.access_mask &= ~samr.SAMR_USER_ACCESS_CHANGE_PASSWORD
+        else:
+            ace_list[0].access_mask |= samr.SAMR_USER_ACCESS_CHANGE_PASSWORD
+            ace.access_mask |= samr.SAMR_USER_ACCESS_CHANGE_PASSWORD
+            
+        self.pipe.SetSecurity(user_handle, security.SECINFO_DACL, secinfo)
+        return
+
     def update_group(self, group):
         group_handle = self.pipe.OpenGroup(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, group.rid)
 
@@ -255,12 +254,19 @@ class SAMPipeManager:
         self.pipe.DeleteDomainGroup(group_handle)
     
     def fetch_user(self, rid, user = None):
-        """Fetch the User whose RID is 'rid'. A new User structure is created if the 'user' argument is left out.
+        """Fetch the User whose RID is 'rid'. A new User structure is created if the 'user' argument is left out. 
         
         Returns a User"""
         user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, rid)
+        
+        #this handles most of the information we need
         info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
         user = self.info_to_user(info, user)
+        
+        #some settings, such as "user cannot change password", are actually part of an access list (ACL)
+        secinfo = self.pipe.QuerySecurity(user_handle, security.SECINFO_DACL)
+        user = self.secinfo_to_user(secinfo, user)
+        
         
         group_rwa_list = self.pipe.GetGroupsForUser(user_handle).rids
         user.group_list = self.rwa_list_to_group_list(group_rwa_list)
@@ -314,6 +320,21 @@ class SAMPipeManager:
         else:
             user.map_homedir_drive = -1
             
+        return user
+    
+    def secinfo_to_user(self, secinfo, user):
+        """Takes 'secinfo' and updates the related fields in 'user'
+        
+        returns updated 'user'"""
+        #this is for readability, we could just do secinfo.sd.dacl.aces[i].trustee if we wanted
+        security_descriptor = secinfo.sd
+        DACL = security_descriptor.dacl
+        ace_list = DACL.aces
+        
+        #we don't really need to find the user in ace_list because the first entry (S-1-1-0) should have the same flags anyways
+        ace =  ace_list[0]
+        user.cannot_change_password = (samr.SAMR_USER_ACCESS_CHANGE_PASSWORD & ace.access_mask) == 0
+        
         return user
     
     def rwa_list_to_group_list(self, rwa_list):
@@ -879,7 +900,7 @@ class SAMWindow(gtk.Window):
                             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
                             dialog.password_entry.grab_focus()
                             dialog.password_entry.select_region(0, -1) #select all the text in the password box
-                        elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
+                        elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE': #TODO add in the constant value for these instead
                             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The server could not be reached.", dialog)
                             dialog.server_address_entry.grab_focus()
                             dialog.server_address_entry.select_region(0, -1)

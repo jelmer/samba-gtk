@@ -41,16 +41,7 @@ Windows XP SP2:
 	-Attempting to return field 'owf_pass' causes 'Access denied' error
 	-Attempting to return field 'private_data' causes 'Access denied' error
 	-Attempting to return field 'sec_desc' causes 'Access denied' error
-	-Attempting to change the user's RID causes 'Unexpected information received' error (would it make more sense if it was access_denied? But who understands MS anyways)
-	
-
-	
--"user cannot change password" option isn't read properly from server
--"user cannot change password" option isn't updated on the server
-	-It doesn't change any of the acct_flags, this is gonna be tricky
-	-not in samr_UserInfo21.allow_password_change...
-	-not in samr_UserInfo21.parameters
-	-not in samr_UserInfo20.UserParametersInformation
+	-Attempting to change the user's RID causes 'Unexpected information received' error
 		
 -Groups arn't displayed properly, only the "none" group appears.
 -Access denied when attempted to create a new user group (also possibly why groups arn't listed?)
@@ -66,15 +57,6 @@ Windows Vista Home Premium:
 TODO list:
 # TODO: assign keyboard shortcuts
 
-What works & finished bugfixes:
--displaying list of users and refreshing (Implemented refresh on F5)
--deleting users
--modifying user home DIR, login scripts, home path, and home DIR drive letter.
--connecting via RCP over SMB over TCP/IP (access denided without SMB)
--"user cannot change password" option doesn't disable must_change_password option (FIXED)
--description field is ignored when creating a new user, but works when updated a current user (FIXED)
--options are ignored when creating a new user: must_change_password and account_disabled are always enabled, others always disabled. (FIXED)
--
 
 
 
@@ -100,14 +82,11 @@ Bugs:
 
 
 TODO:
--test if searching the entire registry works
--clean up ls_hey(), it's a bit of a mess!
--Add support for REG_NONE type values, currently they are ignored and a warning is printed
+# TODO: implement permissions
 -Add an option to fetch everything (view -> fetch everything)
--move error handling outside of ls_key()
 -Implement move_key()
 -assign keyboard shortcuts
--implement import/export
+-implement import/export (no python bindings for this yet)
 -implement permissions
 -
 -make adding only 4bits (one hex character) impossible in the hex editor?

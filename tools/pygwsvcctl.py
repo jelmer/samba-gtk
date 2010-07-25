@@ -418,7 +418,7 @@ class SvcCtlWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = "192.168.2.100"
+        self.server_address = "192.168.2.101"
         self.transport_type = 0
         self.username = "shatterz"
 
@@ -570,7 +570,8 @@ class SvcCtlWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         column.set_resizable(True)
-        column.set_fixed_width(200)
+        column.set_fixed_width(80)
+        column.set_expand(True)
         column.set_sizing(gtk.TREE_VIEW_COLUMN_FIXED)
         column.set_sort_column_id(1)
         renderer = gtk.CellRendererText()
@@ -582,7 +583,7 @@ class SvcCtlWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Description")
         column.set_resizable(True)
-        column.set_fixed_width(200)
+        column.set_expand(True)
         column.set_sizing(gtk.TREE_VIEW_COLUMN_FIXED)
         column.set_sort_column_id(2)
         renderer = gtk.CellRendererText()

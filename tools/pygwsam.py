@@ -43,10 +43,12 @@ class SAMPipeManager:
         binding = ["ncacn_np:%s", "ncacn_ip_tcp:%s", "ncalrpc:%s"][transport_type]
         
         self.pipe = samr.samr(binding % (server_address), credentials = creds)
-        self.connect_handle = self.pipe.Connect2(None, security.SEC_FLAG_MAXIMUM_ALLOWED)
-        
-        #TODO: remove this, this was only for testing
-        self.last = None
+        connection_info = samr.ConnectInfo1()
+        self.connect_handle = self.pipe.Connect5(None, 
+                                                 0x00000030, #SAMR_SERVER_ACCESS_ENUM_DOMAINS | SAMR_SERVER_ACCESS_OPEN_DOMAIN. Copied from a Windows Vista machine. I couldn't find the correct constants in samr or security
+                                                 1, 
+                                                 connection_info)[2] #Note the [2]!!
+        pass
         
     def close(self):
         if (self.pipe != None):
@@ -124,7 +126,7 @@ class SAMPipeManager:
         This function will call update_user_security() to update user security options.
         
         returns nothing"""
-        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED | samr.SAMR_USER_ACCESS_ALL_ACCESS, user.rid)
+        user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_FLAG_MAXIMUM_ALLOWED, user.rid)
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserNameInformation)
         #info.account_name = self.set_lsa_string(user.username) #Account name should never be changed.
@@ -162,13 +164,25 @@ class SAMPipeManager:
         
         
         #TODO: this is a test fix for the must_change_password bug
-#        info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
-#        if (user.must_change_password):
-#            info.acct_flags |= samr.ACB_PW_EXPIRED
-#        else:
-#            info.acct_flags &= ~samr.ACB_PW_EXPIRED
-#        self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
-        #We can't ever submit samr.UserLogonInformation (lvl 3) because something is HORRIBLY WRONG! It's always rejected, even if we just sent it back to the server without making any changes.
+        if user.rid == 1035:
+            info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+            if (user.must_change_password):
+                info.workstations = self.set_lsa_string("0x00020018")
+                info.fields_present = samr.SAMR_FIELD_WORKSTATIONS
+                #info.acct_flags |= samr.ACB_PW_EXPIRED
+            else:
+                info.workstations = self.set_lsa_string("0x0000ca4e0")
+                info.fields_present = samr.SAMR_FIELD_WORKSTATIONS
+                #info.acct_flags &= ~samr.ACB_PW_EXPIRED
+            #info.fields_present = samr.SAMR_FIELD_ACCT_FLAGS
+            
+            new_user_handle = self.pipe.OpenUser(self.domain_handle, security.SEC_STD_WRITE_DAC | security.SEC_STD_READ_CONTROL | samr.SAMR_USER_ACCESS_GET_GROUPS | samr.SAMR_USER_ACCESS_SET_PASSWORD | samr.SAMR_USER_ACCESS_GET_ATTRIBUTES | samr.SAMR_USER_ACCESS_SET_ATTRIBUTES | samr.SAMR_USER_ACCESS_SET_LOC_COM, user.rid)
+            self.pipe.SetUserInfo(new_user_handle, samr.UserAllInformation, info)
+            #self.pipe.SetUserInfo(user_handle, samr.UserAllInformation, info)
+            
+            info = self.pipe.QueryUserInfo(user_handle, samr.UserAllInformation)
+            pass
+        
 
         info = self.pipe.QueryUserInfo(user_handle, samr.UserProfileInformation)
         info.profile_path = self.set_lsa_string(user.profile_path)
@@ -205,11 +219,10 @@ class SAMPipeManager:
 
     def update_user_security(self, user_handle, user):
         """Updates the access mask for 'user'.
-        This function is designed to be called by update_user()
         
         returns nothing"""
         secinfo = self.pipe.QuerySecurity(user_handle, security.SECINFO_DACL)
-        sid = self.pipe.RidToSid(self.domain_handle, user.rid)
+        sid = str(self.pipe.RidToSid(self.domain_handle, user.rid))
         
         #this is for readability, we could just do secinfo.sd.dacl.aces[i].trustee if we wanted
         security_descriptor = secinfo.sd
@@ -218,7 +231,7 @@ class SAMPipeManager:
         ace = None
             
         for item in ace_list:
-            if item.trustee == sid:
+            if str(item.trustee) == sid:
                 ace = item
                 break
             
@@ -306,13 +319,6 @@ class SAMPipeManager:
         user.homedir_path = self.get_lsa_string(query_info.home_directory)
         
         
-        #TODO: user cannot change password
-        if query_info.rid == 1035:
-            if self.last != None:
-                pass
-            self.last = query_info #so we can check if anything is new next time
-            pass
-            
         
         drive = self.get_lsa_string(query_info.home_drive)
         if (len(drive) == 2):
@@ -326,7 +332,7 @@ class SAMPipeManager:
         """Takes 'secinfo' and updates the related fields in 'user'
         
         returns updated 'user'"""
-        #this is for readability, we could just do secinfo.sd.dacl.aces[i].trustee if we wanted
+        #this is for readability, we could just do secinfo.sd.dacl.aces[0] if we wanted
         security_descriptor = secinfo.sd
         DACL = security_descriptor.dacl
         ace_list = DACL.aces
@@ -585,6 +591,7 @@ class SAMWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Full Name")
         column.set_resizable(True)
+        column.set_expand(True)
         column.set_sort_column_id(1)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)
@@ -594,6 +601,7 @@ class SAMWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Description")
         column.set_resizable(True)
+        column.set_expand(True)
         column.set_sort_column_id(2)
         renderer = gtk.CellRendererText()
         column.pack_start(renderer, True)

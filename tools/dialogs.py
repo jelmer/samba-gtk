@@ -305,10 +305,16 @@ class UserEditDialog(gtk.Dialog):
             self.must_change_password_check.set_sensitive(False)
         else:
             self.must_change_password_check.set_sensitive(True)
-            
         self.cannot_change_password_check.set_sensitive(not self.must_change_password_check.get_active())
         self.password_never_expires_check.set_sensitive(not self.must_change_password_check.get_active())
         
+        #It is possible that many of these options are turned on at the same time, even though they shouldn't be
+        if self.must_change_password_check.get_active():
+            self.must_change_password_check.set_sensitive(True)
+        if self.password_never_expires_check.get_active():
+            self.password_never_expires_check.set_sensitive(True)
+        if self.cannot_change_password_check.get_active():
+            self.cannot_change_password_check.set_sensitive(True)
         
         self.add_group_button.set_sensitive(available_selected)
         self.del_group_button.set_sensitive(existing_selected)
@@ -2119,7 +2125,7 @@ class RegSearchDialog(gtk.Dialog):
         self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
         self.set_icon_from_file(self.icon_registry_filename)
 
-        self.set_resizable(True) #TODO: false
+        self.set_resizable(False)
 
 
         # name
@@ -2187,6 +2193,679 @@ class RegSearchDialog(gtk.Dialog):
                     return ("Search items should be separated by a space. Punctuation (such as commas) will be considered part of the search string.\n\nPress find again to continue anyways.", gtk.MESSAGE_INFO)
             
         return None
+    
+class RegPermissionsDialog(gtk.Dialog):
+    
+    def __init__(self, users, permissions):
+        super(RegPermissionsDialog, self).__init__()
+        
+        self.users = users
+        self.permissions = permissions
+        
+        self.create()
+        
+        if users != None:
+            for user in users:
+                self.user_store.append((user.username, 
+                                        user,))
+        
+    def create(self):
+        self.set_title("Permissions")
+        self.set_border_width(5)
+        self.set_resizable(True)
+        self.set_default_size(380, 480)
+        
+        self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
+        self.set_icon_from_file(self.icon_registry_filename)
+        
+
+
+        # Groups/Users area
+        
+        vbox = gtk.VBox()
+        self.vbox.pack_start(vbox, True, True, 10)
+        
+        label = gtk.Label("Users:")
+        label.set_alignment(0, 1)
+        vbox.pack_start(label, False, False, 0)
+        
+        hpaned = gtk.HPaned()
+        vbox.pack_start(hpaned, True, True, 0)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        hpaned.add1(scrolledwindow)
+        
+        self.user_tree_view = gtk.TreeView()
+        self.user_tree_view.set_headers_visible(False)
+        scrolledwindow.add(self.user_tree_view)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("User")
+        column.set_resizable(True)
+        column.set_fixed_width(200)
+        column.set_sort_column_id(0)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.user_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+        
+        self.user_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_PYOBJECT)
+        self.user_tree_view.set_model(self.user_store)
+        
+        hbox = gtk.HBox()
+        vbox.pack_start(hbox, False, False, 0)
+        
+        padding = gtk.HBox()
+        hbox.pack_start(padding, True, True, 0)
+        
+        self.add_button = gtk.Button("Add", gtk.STOCK_ADD)
+        hbox.pack_start(self.add_button, False, False, 2)
+        
+        self.remove_button = gtk.Button("Remove", gtk.STOCK_REMOVE)
+        hbox.pack_start(self.remove_button, False, False, 2)
+        
+        
+        
+        #Permissions area
+        
+        vbox = gtk.VBox()
+        self.vbox.pack_start(vbox, True, True, 10)
+        
+        self.permissions_label = gtk.Label("Permissions for UNKNOWN USER/GROUP:")
+        self.permissions_label.set_alignment(0, 1)
+        vbox.pack_start(self.permissions_label, False, False, 0)
+        
+        hpaned = gtk.HPaned()
+        vbox.pack_start(hpaned, True, True, 0)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        hpaned.add1(scrolledwindow)
+        
+        self.permissions_tree_view = gtk.TreeView()
+        scrolledwindow.add(self.permissions_tree_view)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Permission")
+        column.set_resizable(True)
+        column.set_min_width(160)
+        column.set_sort_column_id(0)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+                
+        column = gtk.TreeViewColumn()
+        column.set_title("Allow")
+        column.set_resizable(False)
+        column.set_fixed_width(30)
+        column.set_sort_column_id(1)
+        renderer = gtk.CellRendererToggle()
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Deny")
+        column.set_resizable(False)
+        column.set_fixed_width(30)
+        column.set_sort_column_id(2)
+        renderer = gtk.CellRendererToggle()
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        
+        self.permissions_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_BOOLEAN, gobject.TYPE_PYOBJECT)
+        self.permissions_tree_view.set_model(self.permissions_store)
+        
+        hbox = gtk.HBox()
+        vbox.pack_start(hbox, False, False, 0)
+        
+        padding = gtk.HBox()
+        hbox.pack_start(padding, True, True, 0)
+        
+        self.advanced_button = gtk.Button("Advanced")
+        hbox.pack_start(self.advanced_button, False, False, 2)
+        
+        
+        
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.ok_button = gtk.Button("Ok", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.ok_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_APPLY)
+        
+        self.set_default_response(gtk.RESPONSE_APPLY)
+        
+        
+        # signals/events
+        
+        self.user_tree_view.get_selection().connect("changed", self.on_user_tree_view_selection_changed)
+        self.add_button.connect("clicked", self.on_add_item_activate)
+        self.remove_button.connect("clicked", self.on_remove_item_activate)
+        
+        #TODO: permission view data editing updates the store?
+        self.advanced_button.connect("clicked", self.on_advanced_item_activate)
+
+    def check_for_problems(self):
+        #TODO: find problems?
+        return None
+    
+    def on_user_tree_view_selection_changed(self, widget):
+        self.permissions_store.clear()
+        
+        (iter, user) = self.get_selected_user()
+        
+        if (iter != None):
+            self.permissions_label.set_text("Permissions for " + user.username + ":")
+            #TODO: update permissions view on selection changed
+        else:
+            self.permissions_label.set_text("")
+        
+    def on_add_item_activate(self, widget):
+        #TODO: implement add user for permissions
+        pass
+    
+    def on_remove_item_activate(self, widget):
+        (iter, user) = self.get_selected_user()
+        
+        if (iter != None):
+            self.users.remove(user)
+            self.user_store.remove(iter)
+            #TODO: remove user permissions?
+    
+    def on_advanced_item_activate(self, widget):
+        dialog = RegAdvancedPermissionsDialog(None, None)
+        dialog.show_all()
+        #TODO: handle advanced dialog
+        dialog.run()
+        dialog.hide_all()
+        
+        
+    def get_selected_user(self):
+        (model, iter) = self.user_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return (None, None)
+        else:
+            return (iter, model.get_value(iter, 1))
+
+class RegAdvancedPermissionsDialog(gtk.Dialog):
+    def __init__(self, users, permissions):
+        super(RegAdvancedPermissionsDialog, self).__init__()
+        
+        self.users = users
+        self.permissions = permissions
+        
+        self.create()
+        
+        self.insert_test_values() #TODO: remove
+        
+        #update sensitivity
+        self.on_auditing_tree_view_selection_changed(None)
+        self.on_permissions_tree_view_selection_changed(None)
+        
+    def create(self):
+        self.set_title("Permissions")
+        self.set_border_width(5)
+        self.set_resizable(True)
+        self.set_default_size(630, 490)
+                
+        self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
+        self.set_icon_from_file(self.icon_registry_filename)
+        
+        self.notebook = gtk.Notebook()
+        self.vbox.pack_start(self.notebook, True, True, 0)
+        
+        
+        
+        # Permissions tab
+        
+        hbox = gtk.HBox() #hbox is for the padding on the left & right.
+        self.notebook.append_page(hbox, gtk.Label("Permissions"))
+        
+        vbox = gtk.VBox()
+        hbox.pack_start(vbox, True, True, 10)
+        
+        label = gtk.Label("To view the details of special permissions entries, select it and then click Edit.\n")
+        label.set_alignment(0, 0)
+        vbox.pack_start(label, False, False, 15)
+        
+        label = gtk.Label("Permission entries:")
+        label.set_alignment(0, 1)
+        vbox.pack_start(label, False, False, 0)
+        
+        hpaned = gtk.HPaned()
+        vbox.pack_start(hpaned, True, True, 0)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        hpaned.add1(scrolledwindow)
+        
+        self.permissions_tree_view = gtk.TreeView()
+        scrolledwindow.add(self.permissions_tree_view)
+                
+        column = gtk.TreeViewColumn()
+        column.set_title("Type")
+        column.set_resizable(True)
+        column.set_sort_column_id(0)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Name")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(1)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 1)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Permission")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(2)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 2)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Inherited from")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(3)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 3)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Applies to")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(4)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.permissions_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 4)
+
+        #Store contains: type (string), name (string), permission (string), inherited from (string), apply to (string, permissions (object) 
+        self.permissions_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_PYOBJECT)
+        self.permissions_tree_view.set_model(self.permissions_store)
+        
+        hbox = gtk.HBox()
+        vbox.pack_start(hbox, False, False, 0)
+        
+        padding = gtk.HBox()
+        hbox.pack_start(padding, True, True, 0)
+        
+        self.add_button_permissions = gtk.Button("Add", gtk.STOCK_ADD)
+        hbox.pack_start(self.add_button_permissions, False, False, 2)
+        
+        self.edit_button_permissions = gtk.Button("Edit", gtk.STOCK_EDIT)
+        hbox.pack_start(self.edit_button_permissions, False, False, 2)
+        
+        self.remove_button_permissions = gtk.Button("Remove", gtk.STOCK_REMOVE)
+        hbox.pack_start(self.remove_button_permissions, False, False, 2)
+        
+        check_area = gtk.VBox()
+        vbox.pack_start(check_area, False, False, 10)
+        
+        self.check_inherit_permissions = gtk.CheckButton("Inherit permissions from parents that apply to child objects.")
+        check_area.pack_start(self.check_inherit_permissions, False, False, 0)
+        
+        hbox = gtk.HBox()
+        check_area.pack_start(hbox, False, False, 0)
+        
+        self.replace_child_permissions_button = gtk.Button("Replace child permissions")
+        hbox.pack_start(self.replace_child_permissions_button, False, False, 0)
+        
+        
+        
+        # Auditing tab
+        
+        hbox = gtk.HBox() #hbox is for the padding on the left & right.
+        self.notebook.append_page(hbox, gtk.Label("Auditing"))
+        
+        vbox = gtk.VBox()
+        hbox.pack_start(vbox, True, True, 10)
+        
+        label = gtk.Label("To view the details of special auditing entries, select it and then click Edit.\n")
+        label.set_alignment(0, 0)
+        vbox.pack_start(label, False, False, 15)
+        
+        label = gtk.Label("Auditing entries:")
+        label.set_alignment(0, 1)
+        vbox.pack_start(label, False, False, 0)
+        
+        hpaned = gtk.HPaned()
+        vbox.pack_start(hpaned, True, True, 0)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        hpaned.add1(scrolledwindow)
+        
+        self.auditing_tree_view = gtk.TreeView()
+        scrolledwindow.add(self.auditing_tree_view)
+                
+        column = gtk.TreeViewColumn()
+        column.set_title("Type")
+        column.set_resizable(True)
+        column.set_sort_column_id(0)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.auditing_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Name")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(1)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.auditing_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 1)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Permission")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(2)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.auditing_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 2)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Inherited from")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(3)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.auditing_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 3)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Applies to")
+        column.set_resizable(True)
+        column.set_expand(True)
+        column.set_sort_column_id(4)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.auditing_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 4)
+
+        self.auditing_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_PYOBJECT)
+        self.auditing_tree_view.set_model(self.auditing_store)
+        
+        hbox = gtk.HBox()
+        vbox.pack_start(hbox, False, False, 0)
+        
+        padding = gtk.HBox()
+        hbox.pack_start(padding, True, True, 0)
+        
+        self.add_button_auditing = gtk.Button("Add", gtk.STOCK_ADD)
+        hbox.pack_start(self.add_button_auditing, False, False, 2)
+        
+        self.edit_button_auditing = gtk.Button("Edit", gtk.STOCK_EDIT)
+        hbox.pack_start(self.edit_button_auditing, False, False, 2)
+        
+        self.remove_button_auditing = gtk.Button("Remove", gtk.STOCK_REMOVE)
+        hbox.pack_start(self.remove_button_auditing, False, False, 2)
+        
+        check_area = gtk.VBox()
+        vbox.pack_start(check_area, False, False, 10)
+        
+        self.check_inherit_auditing = gtk.CheckButton("Inherit auditing options from parents that apply to child objects.")
+        check_area.pack_start(self.check_inherit_auditing, False, False, 0)
+        
+        hbox = gtk.HBox()
+        check_area.pack_start(hbox, False, False, 0)
+        
+        self.replace_child_auditing_button = gtk.Button("Replace child auditing options")
+        hbox.pack_start(self.replace_child_auditing_button, False, False, 0)
+        
+        
+        
+        # Ownership tab
+        
+        hbox = gtk.HBox() #hbox is for the padding on the left & right.
+        self.notebook.append_page(hbox, gtk.Label("Ownership"))
+        
+        vbox = gtk.VBox()
+        hbox.pack_start(vbox, True, True, 10)
+        
+        
+        label = gtk.Label("You may take ownership of an object if you have the appropriate permissions.\n")
+        label.set_alignment(0, 0)
+        vbox.pack_start(label, False, False, 15)
+        
+        label = gtk.Label("Current owner of this item:")
+        label.set_alignment(0, 1)
+        vbox.pack_start(label, False, False, 0)
+        
+        textview = gtk.Entry()
+        textview.set_editable(False)
+        vbox.pack_start(textview, False, False, 0)
+        
+        label = gtk.Label("Change owner to:")
+        label.set_alignment(0, 1)
+        vbox.pack_start(label, False, False, 0)
+        
+        hpaned = gtk.HPaned()
+        vbox.pack_start(hpaned, True, True, 0)
+        
+        scrolledwindow = gtk.ScrolledWindow(None, None)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        hpaned.add1(scrolledwindow)
+        
+        self.owner_tree_view = gtk.TreeView()
+        self.owner_tree_view.set_headers_visible(False)
+        scrolledwindow.add(self.owner_tree_view)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Name")
+        column.set_resizable(True)
+        column.set_fixed_width(200)
+        column.set_sort_column_id(0)
+        renderer = gtk.CellRendererText()
+        renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
+        column.pack_start(renderer, True)
+        self.owner_tree_view.append_column(column)
+        column.add_attribute(renderer, "text", 0)
+        
+        self.owner_store = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_PYOBJECT)
+        self.owner_tree_view.set_model(self.owner_store)
+        
+        self.check_replace_owner_child_objects = gtk.CheckButton("Replace ownership of child objects")
+        vbox.pack_start(self.check_replace_owner_child_objects, False, False, 10)
+        
+        
+        
+        # dialog buttons
+        
+        self.action_area.set_layout(gtk.BUTTONBOX_END)
+        
+        self.cancel_button = gtk.Button("Cancel", gtk.STOCK_CANCEL)
+        self.cancel_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.cancel_button, gtk.RESPONSE_CANCEL)
+        
+        self.ok_button = gtk.Button("Ok", gtk.STOCK_OK)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_OK)
+        
+        self.ok_button = gtk.Button("Apply", gtk.STOCK_APPLY)
+        self.ok_button.set_flags(gtk.CAN_DEFAULT)
+        self.add_action_widget(self.ok_button, gtk.RESPONSE_APPLY)
+        
+        self.set_default_response(gtk.RESPONSE_APPLY)
+        
+        
+        
+        # TODO: Effective permissions
+        
+        
+        
+        
+        
+        # signals/events
+        
+        
+        self.permissions_tree_view.get_selection().connect("changed", self.on_permissions_tree_view_selection_changed)
+        self.auditing_tree_view.get_selection().connect("changed", self.on_auditing_tree_view_selection_changed)
+        
+        self.add_button_permissions.connect("clicked", self.on_add_permissions_button_clicked)
+        self.edit_button_permissions.connect("clicked", self.on_edit_permissions_button_clicked)
+        self.remove_button_permissions.connect("clicked", self.on_remove_permissions_button_clicked)
+        self.replace_child_permissions_button.connect("clicked", self.on_replace_permissions_button_clicked)
+        self.add_button_auditing.connect("clicked", self.on_add_auditing_button_clicked)
+        self.edit_button_auditing.connect("clicked", self.on_edit_auditing_button_clicked)
+        self.remove_button_auditing.connect("clicked", self.on_remove_auditing_button_clicked)
+        self.replace_child_auditing_button.connect("clicked", self.on_replace_auditing_button_clicked)
+        
+        self.check_inherit_permissions.connect("clicked", self.on_check_inherit_permissions_changed)
+        self.check_inherit_auditing.connect("clicked", self.on_check_inherit_auditing_changed)
+        
+        
+        
+    def insert_test_values(self):
+        #TODO: remove this function when no longer needed
+        self.check_inherit_permissions.set_active(True)
+        self.check_inherit_auditing.set_active(True)
+        
+        user = User("Foo Bar", "", "", 0)
+        self.permissions_store.append(("Allow", user.username, "Special Permissions", "Unicorns", "This key only", user))
+        self.permissions_store.append(("Deny", "Pib", "Access to Playdoe", "HKEY_USERS", "This key and subkeys", user))
+        
+        self.auditing_store.append(("Deny", "Homer Simpson", "Rainbow launcher", "HKEY_LOCAL_MACHINE\made up key\temp\new", "This key and subkeys", user))
+        self.auditing_store.append(("Allow", "Administrator", "Your Right to Party", "Earthworm Jim", "This key only", user))
+        
+    def get_selected_permission(self):
+        (model, iter) = self.permissions_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return (None, None)
+        else:
+            return (iter, model.get_value(iter, 1))
+        
+    def get_selected_audit(self):
+        (model, iter) = self.auditing_tree_view.get_selection().get_selected()
+        if (iter == None): # no selection
+            return (None, None)
+        else:
+            return (iter, model.get_value(iter, 1))
+        
+    def on_permissions_tree_view_selection_changed(self, widget):
+        (iter, permission) = self.get_selected_permission()
+        self.edit_button_permissions.set_sensitive(permission != None)
+        self.remove_button_permissions.set_sensitive(permission != None)
+        
+    def on_auditing_tree_view_selection_changed(self, widget):
+        (iter, audit) = self.get_selected_audit()
+        self.edit_button_auditing.set_sensitive(audit != None)
+        self.remove_button_auditing.set_sensitive(audit != None)
+        
+    def on_add_permissions_button_clicked(self, widget):
+        #TODO: this
+        pass
+    
+    def on_edit_permissions_button_clicked(self, widget):
+        #TODO: this
+        pass
+    
+    def on_remove_permissions_button_clicked(self, widget):
+        (iter, permission) = self.get_selected_permission()
+        if (iter != None):
+            self.permissions_store.remove(iter)
+    
+    def on_replace_permissions_button_clicked(self, widget):
+        #TODO: this
+        pass
+    
+    def on_add_auditing_button_clicked(self, widget):
+        #TODO: this
+        pass
+    
+    def on_edit_auditing_button_clicked(self, widget):
+        #TODO: this
+        pass
+    
+    def on_remove_auditing_button_clicked(self, widget):
+        (iter, audit) = self.get_selected_audit()
+        if (iter != None):
+            self.auditing_store.remove(iter)
+    
+    def on_replace_auditing_button_clicked(self, widget):
+        #TODO: this
+        pass
+    
+    def on_check_inherit_permissions_changed(self, widget):
+        if widget.get_active():
+            return
+        #TODO: if no permissions are inherited
+        
+        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Unchecking this option means permissions inherited from the parent object will be lost.\n\nDo you want to copy the inherited permissions for this object?")
+        response = message_box.run()
+        message_box.hide()
+        
+        if (response == gtk.RESPONSE_YES):
+            #TODO: copy permissions from the parent object
+            pass
+        elif (response == gtk.RESPONSE_NO):
+            #TODO: delete all inherited permissions from the permissions store
+            pass
+        else:#probably gtk.RESPONSE_DELETE_EVENT (from pressing escape)
+            widget.set_active(True)
+
+    def on_check_inherit_auditing_changed(self, widget):
+        if widget.get_active():
+            return
+        #TODO: if no permissions are inherited
+        
+        message_box = gtk.MessageDialog(self, gtk.DIALOG_MODAL, gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Unchecking this option means auditing options inherited from the parent object will be lost.\n\nDo you want to copy the inherited auditing options for this object?")
+        response = message_box.run()
+        message_box.hide()
+        
+        if (response == gtk.RESPONSE_YES):
+            #TODO: copy auditing from the parent object
+            pass
+        elif (response == gtk.RESPONSE_NO):
+            #TODO: delete all inherited auditing from the permissions store
+            pass
+        else:#probably gtk.RESPONSE_DELETE_EVENT (from pressing escape)
+            widget.set_active(True)
+        
 
 class SAMConnectDialog(gtk.Dialog):
     
@@ -2762,8 +3441,18 @@ class WinRegConnectDialog(gtk.Dialog):
 #dialog.run()
 
 
+
+
+
 if __name__ == '__main__':
-    RegSearchDialog().run()
+    user_list = []
+    for i in range(4):
+        user = User("Test_%i" % (i,), "", "", 0)
+        user_list.append(user)
+    
+    window = RegAdvancedPermissionsDialog(user_list, None)
+    window.show_all()
+    window.run()
     
     
     

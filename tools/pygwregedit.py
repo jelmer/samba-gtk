@@ -12,17 +12,19 @@ import gtk
 import pango
 
 from samba import credentials
-from samba.dcerpc import winreg
+from samba.dcerpc import winreg, security
 from samba.dcerpc import misc
 
 from objects import RegistryKey
 from objects import RegistryValue
+from objects import User
 
 from dialogs import WinRegConnectDialog
 from dialogs import RegValueEditDialog
 from dialogs import RegKeyEditDialog
 from dialogs import RegRenameDialog
 from dialogs import RegSearchDialog
+from dialogs import RegPermissionsDialog
 from dialogs import AboutDialog
 
 
@@ -73,9 +75,15 @@ class WinRegPipeManager:
             self.lock.release()
         
         key_handle = path_handles[-1]
+        blank_buff = WinRegPipeManager.winreg_string_buf("")
         
         if (update_GUI and progress_bar):
-            total = 5100.0 #This is a guess of how many keys/values there are. Because people like progress bars
+            num_subkeys = 4800.0 #backup value
+            self.lock.acquire()
+            try:
+                num_subkeys = float(self.pipe.QueryInfoKey(key_handle, WinRegPipeManager.winreg_string(""))[1])
+            finally:
+                self.lock.release()
 
         index = 0
         while True: #get a list of subkeys
@@ -83,8 +91,8 @@ class WinRegPipeManager:
                 self.lock.acquire()
                 (subkey_name, subkey_class, subkey_changed_time) = self.pipe.EnumKey(key_handle, 
                                                                                      index, 
-                                                                                     WinRegPipeManager.winreg_string_buf(""), 
-                                                                                     WinRegPipeManager.winreg_string_buf(""), 
+                                                                                     blank_buff, 
+                                                                                     blank_buff, 
                                                                                      None
                                                                                      )
                 self.lock.release() #we want to release the pipe lock before grabbing the gdk lock or else we might cause a deadlock!
@@ -96,8 +104,8 @@ class WinRegPipeManager:
                     gtk.gdk.threads_enter()
                     regedit_window.set_status("Fetching key: " + subkey_name.name)
                     if (progress_bar):
-                        if (index < total): #the value of total was a guess so this may cause a GtkWarning for setting fraction to a value above 1.0
-                            regedit_window.progressbar.set_fraction(index/total) 
+                        if (index < num_subkeys): #the value of total was a guess so this may cause a GtkWarning for setting fraction to a value above 1.0
+                            regedit_window.progressbar.set_fraction(index/num_subkeys) 
                             regedit_window.progressbar.show() #other threads calling ls_key() may finish and hide the progress bar.
                     gtk.gdk.threads_leave()
                 
@@ -246,6 +254,29 @@ class WinRegPipeManager:
             default_value_list[0].name = "(Default)"
         
         return value_list
+    
+    def get_key_security(self, key):
+        #TODO: this
+        
+        path_handles = self.open_path(key)
+        key_handle = path_handles[-1]
+        
+        
+        key_sec_data = winreg.KeySecurityData()
+        key_sec_data.size = 99999999 #TODO: find a better number.
+        #Fetch the DACL
+        result = self.pipe.GetKeySecurity(key_handle, security.SECINFO_DACL , key_sec_data)
+        
+        #This is what Vista does. I don't know what it means...
+        vista_key_sec_data1 = self.pipe.GetKeySecurity(key_handle, 0x0e4fcce7 , key_sec_data)
+        #vista_key_sec_data2 = self.pipe.GetKeySecurity(key_handle, 0xb234a886 , key_sec_data) #this crashes, "Expected type int"
+        
+        
+        
+        self.close_path(path_handles)
+        
+        return key_sec_data
+        
 
     def create_key(self, key):
         path_handles = self.open_path(key.parent)
@@ -335,7 +366,7 @@ class WinRegPipeManager:
         key.handle = key_handle
         self.well_known_keys.append(key)
     
-        key_handle = self.pipe.OpenHKU(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE)
+        key_handle = self.pipe.OpenHKU(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE | winreg.REG_KEY_ALL) #TODO: only the permissions that are required
         key = RegistryKey("HKEY_USERS", None)
         key.handle = key_handle
         self.well_known_keys.append(key)
@@ -410,7 +441,7 @@ class KeyFetchThread(threading.Thread):
             
             gtk.gdk.threads_enter()
             self.regedit_window.refresh_keys_tree_view(self.iter, key_list)
-            #self.regedit_window.keys_tree_view.get_selection().select_iter(self.iter) #select the key, in case selection has changed which fetching
+            #self.regedit_window.keys_tree_view.get_selection().select_iter(self.iter) #select the key, in case selection has changed during fetching. This causes problems
             #columns_autosize() already called by refresh_keys_tree_view()
             
             self.regedit_window.refresh_values_tree_view(value_list)
@@ -419,7 +450,6 @@ class KeyFetchThread(threading.Thread):
         except Exception, ex:
             msg = "Failed to fetch information about " + self.selected_key.get_absolute_path() + ": " + str(ex) + "."
             print msg
-            traceback.print_exc()
         
         finally:
             gtk.gdk.threads_leave()
@@ -672,7 +702,7 @@ class RegEditWindow(gtk.Window):
         self.create()
         
         self.pipe_manager = None
-        self.server_address = "192.168.2.100"
+        self.server_address = "192.168.2.101"
         self.transport_type = 0
         self.username = "shatterz"
         
@@ -788,10 +818,10 @@ class RegEditWindow(gtk.Window):
         self.edit_menu.add(gtk.SeparatorMenuItem())
 
         self.permissions_item = gtk.MenuItem("_Permissions", accel_group)
-        # TODO: implement permissions
-        #self.edit_menu.add(self.permissions_item)
+        
+        self.edit_menu.add(self.permissions_item)
 
-        #self.edit_menu.add(gtk.SeparatorMenuItem())
+        self.edit_menu.add(gtk.SeparatorMenuItem())
         
         self.delete_item = gtk.ImageMenuItem(gtk.STOCK_DELETE, accel_group)
         self.edit_menu.add(self.delete_item)
@@ -804,7 +834,7 @@ class RegEditWindow(gtk.Window):
         self.copy_item = gtk.MenuItem("_Copy Registry Path", accel_group)
         self.edit_menu.add(self.copy_item)
 
-        #self.edit_menu.add(gtk.SeparatorMenuItem())
+        self.edit_menu.add(gtk.SeparatorMenuItem())
 
         self.find_item = gtk.ImageMenuItem(gtk.STOCK_FIND, accel_group)
         self.find_item.get_child().set_text("Find...")
@@ -930,7 +960,8 @@ class RegEditWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         column.set_resizable(True)
-        column.set_fixed_width(300)
+        column.set_fixed_width(190)
+        #column.set_expand(True)
         column.set_sizing(gtk.TREE_VIEW_COLUMN_FIXED)
         column.set_sort_column_id(1)
         renderer = gtk.CellRendererText()
@@ -942,7 +973,7 @@ class RegEditWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Type")
         column.set_resizable(True)
-        column.set_fixed_width(200)
+        column.set_fixed_width(160)
         column.set_sizing(gtk.TREE_VIEW_COLUMN_FIXED)
         column.set_sort_column_id(2)
         renderer = gtk.CellRendererText()
@@ -954,6 +985,8 @@ class RegEditWindow(gtk.Window):
         column = gtk.TreeViewColumn()
         column.set_title("Data")
         column.set_resizable(True)
+        column.set_fixed_width(300)
+        column.set_expand(True)
         column.set_sort_column_id(3)
         renderer = gtk.CellRendererText()
         renderer.set_property("ellipsize", pango.ELLIPSIZE_END)
@@ -1106,7 +1139,7 @@ class RegEditWindow(gtk.Window):
                 if value.type == misc.REG_NONE: 
                     print "Warning: Not displaying a hidden value at " + value.get_absolute_path()
                 else:
-                    print "Warning: Failed to display " + value.get_absolute_path() + " in the value tree: value of type " + str(value.type) + " could not be handled."
+                    print "Warning: Failed to display " + value.get_absolute_path() + " in the value tree: values of type " + str(value.type) + " cannot be handled"
                     
         if (len(selected_paths) > 0):
             try:
@@ -1615,6 +1648,7 @@ class RegEditWindow(gtk.Window):
             tree_selection.select_iter(key_iter)
             result = True
         except Exception as ex:
+            #this could happen when we try to highlight a value that is'nt in the tree
             print "Problem selecting key:", str(ex)
         
         if value_iter != None:
@@ -1749,7 +1783,25 @@ class RegEditWindow(gtk.Window):
         self.new_value(misc.REG_EXPAND_SZ)
 
     def on_permissions_item_activate(self, widget):
-        #TODO: implement permissions
+        if not self.connected():
+            return
+        
+        (iter, selected_key) = self.get_selected_registry_key()
+        #fetch permissions
+        self.pipe_manager.lock.acquire()
+        try:
+            key_sec_data = self.pipe_manager.get_key_security(selected_key)
+        except RuntimeError as ex:
+            msg = "Failed to fetch permissions: " + ex.args[1] + "."
+            print msg
+#            traceback.print_exc()
+#            self.set_status(msg)
+        finally:
+            self.pipe_manager.lock.release()
+        
+        
+        dialog = RegPermissionsDialog(None, None)
+        dialog.show_all()
         pass
 
     def on_delete_item_activate(self, widget):
@@ -1932,6 +1984,13 @@ class RegEditWindow(gtk.Window):
             return
         
         KeyFetchThread(self.pipe_manager, self, selected_key, iter).start()
+        
+        #deselect any selected values
+        (iter, value) = self.get_selected_registry_value()
+        if iter == None: 
+            return
+        selector = self.values_tree_view.get_selection()
+        selector.unselect_iter(iter)
 
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(
@@ -1948,6 +2007,12 @@ class RegEditWindow(gtk.Window):
             return
         
         self.set_status("Selected path '" + selected_key.get_absolute_path() + "'.")
+        
+        #deselect any selected values
+        (val_iter, value) = self.get_selected_registry_value()
+        if val_iter != None: 
+            selector = self.values_tree_view.get_selection()
+            selector.unselect_iter(val_iter)
         
         #If this key has children already then we don't need to fetch it again.
         #this means that keys without subkeys will always be fetched when clicked.
@@ -2022,7 +2087,7 @@ def ParseArgs(argv):
     auto_connect = False
     
     try: #get arguments into a nicer format
-        opts, args = getopt.getopt(argv, "hu:s:p:", ["help", "user=", "server=", "password"]) 
+        opts, args = getopt.getopt(argv, "hu:s:p:", ["help", "user=", "server=", "password="]) 
     except getopt.GetoptError:           
         PrintUseage()
         sys.exit(2)

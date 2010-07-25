@@ -23,7 +23,9 @@ Windows XP SP2:
 -"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able change it.
 	-enabling "password never expires" does disable "user must change password" on the server as expected. However, disabling "password never expires" will once again enable "user must change password" if it was previously enabled on the server. 
 	-flags are correct when sent to and accepted from the server, it appears the changes are simply rejected.
-	-changing security settings have no effect
+		-changing security settings have no effect on SetUserInfo(), OpenDomainHandle(), or OpenUserHandle()
+		-This option has been tested with the exact security flags used by a windows machine, still no luck
+		-It appears the windows machines don't even update this flag!!! I have no idea what's going on here
 	
 -using UserLogonInformation (lvl 3) always returns Invalid information class, even if no changes were made
 -using UserAccountInformation (lvl 5) always returns Invalid information class, even if no changes were made
@@ -83,11 +85,10 @@ Bugs:
 
 TODO:
 # TODO: implement permissions
--Add an option to fetch everything (view -> fetch everything)
+-Add an option to fetch everything (view -> fetch everything)?
 -Implement move_key()
 -assign keyboard shortcuts
 -implement import/export (no python bindings for this yet)
--implement permissions
 -
 -make adding only 4bits (one hex character) impossible in the hex editor?
 

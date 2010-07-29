@@ -19,7 +19,6 @@ pygwsam
 -------
 
 Windows XP SP2:
--passwords are not updated
 -"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able change it.
 	-enabling "password never expires" does disable "user must change password" on the server as expected. However, disabling "password never expires" will once again enable "user must change password" if it was previously enabled on the server. 
 	-flags are correct when sent to and accepted from the server, it appears the changes are simply rejected.
@@ -58,6 +57,9 @@ Windows Vista Home Premium:
 
 TODO list:
 # TODO: assign keyboard shortcuts
+-passwords are not updated
+-"User must change password at next logon" bug
+-Groups arn't displayed properly, only the "none" group appears.
 
 
 
@@ -79,8 +81,12 @@ Windows Vista Home Premium:
 -unable to connect
 
 Bugs:
--fetching subkeys or values can't be interrupted (ie. when disconnecting) (Minor)
--WERR_MORE_DATA in WinRegPipeManager.get_values_for_key() and ls_key (for values). It might be happening because the c-based function doesn't allocate enough space for the incoming data? The error is thrown from rpc_winreg.c it seems.
+-Keys created by the utility may not be created properly
+	-cause a WERR_INSUFFICIENT_BUFFER when Pipe.QueryInfoKey() is called from ls_key() when clicking on the key
+	-Tried increasing the classname field size to the max an integer will hold, no luck
+-WERR_INVALID_PARAM caused by CreateKey() in the pipe manager when creating a new key in HKEY_LOCAL_MACHINE
+	-Tried changing the value for winreg_CreateAction to REG_CREATED_NEW_KEY instead of REG_ACTION_NONE, doesn't help
+-WERR_MORE_DATA in WinRegPipeManager.get_values_for_key() and ls_key (for values). The error is thrown from rpc_winreg.c it seems.
 
 
 TODO:
@@ -127,8 +133,9 @@ TODO:
 
 All
 ---
--remove default server/username values
--Add argument support so they can easily be launched from command line
+-print usage info
+
+-handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
 -remove references to samba.dcerpc.misc when no longer needed
 -Test on Windows 7!
 

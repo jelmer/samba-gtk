@@ -2769,7 +2769,7 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
         self.permissions_store.append(("Allow", user.username, "Special Permissions", "Unicorns", "This key only", user))
         self.permissions_store.append(("Deny", "Pib", "Access to Playdoe", "HKEY_USERS", "This key and subkeys", user))
         
-        self.auditing_store.append(("Deny", "Homer Simpson", "Rainbow launcher", "HKEY_LOCAL_MACHINE\made up key\temp\new", "This key and subkeys", user))
+        self.auditing_store.append(("Deny", "Homer Simpson", "Double Rainbow", "HKEY_LOCAL_MACHINE\\made up key\\temp\\new", "This key and subkeys", user))
         self.auditing_store.append(("Allow", "Administrator", "Your Right to Party", "Earthworm Jim", "This key only", user))
         
     def get_selected_permission(self):
@@ -2869,12 +2869,13 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
 
 class SAMConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username):
+    def __init__(self, server_address, transport_type, username, password = ""):
         super(SAMConnectDialog, self).__init__()
 
         self.server_address = server_address
         self.transport_type = transport_type
         self.username = username
+        self.password = password
         self.domains = None
         
         self.create()
@@ -2921,6 +2922,7 @@ class SAMConnectDialog(gtk.Dialog):
         table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
         
         self.password_entry = gtk.Entry()
+        self.password_entry.set_text(self.password)
         self.password_entry.set_visibility(False)
         self.password_entry.set_activates_default(True)
         table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
@@ -3038,12 +3040,13 @@ class SAMConnectDialog(gtk.Dialog):
 
 class SvcCtlConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username):
+    def __init__(self, server_address, transport_type, username, password):
         super(SvcCtlConnectDialog, self).__init__()
 
         self.server_address = server_address
         self.transport_type = transport_type
         self.username = username
+        self.password = password
         
         self.create()
         
@@ -3089,6 +3092,7 @@ class SvcCtlConnectDialog(gtk.Dialog):
         table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
         
         self.password_entry = gtk.Entry()
+        self.password_entry.set_text(self.password)
         self.password_entry.set_visibility(False)
         self.password_entry.set_activates_default(True)
         table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
@@ -3166,12 +3170,13 @@ class SvcCtlConnectDialog(gtk.Dialog):
 
 class ATSvcConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username):
+    def __init__(self, server_address, transport_type, username, password):
         super(ATSvcConnectDialog, self).__init__()
 
         self.server_address = server_address
         self.transport_type = transport_type
         self.username = username
+        self.password = password
         
         self.create()
         
@@ -3217,6 +3222,7 @@ class ATSvcConnectDialog(gtk.Dialog):
         table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
         
         self.password_entry = gtk.Entry()
+        self.password_entry.set_text(self.password)
         self.password_entry.set_visibility(False)
         self.password_entry.set_activates_default(True)
         table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)
@@ -3296,12 +3302,13 @@ class ATSvcConnectDialog(gtk.Dialog):
 
 class WinRegConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username):
+    def __init__(self, server_address, transport_type, username, password = ""):
         super(WinRegConnectDialog, self).__init__()
 
         self.server_address = server_address
         self.transport_type = transport_type
         self.username = username
+        self.password = password
         
         self.create()
         
@@ -3348,6 +3355,7 @@ class WinRegConnectDialog(gtk.Dialog):
         table.attach(label, 0, 1, 2, 3, gtk.FILL, gtk.FILL | gtk.EXPAND, 0, 0)
         
         self.password_entry = gtk.Entry()
+        self.password_entry.set_text(self.password)
         self.password_entry.set_visibility(False)
         self.password_entry.set_activates_default(True)
         table.attach(self.password_entry, 1, 2, 2, 3, gtk.FILL | gtk.EXPAND, gtk.FILL | gtk.EXPAND, 1, 1)

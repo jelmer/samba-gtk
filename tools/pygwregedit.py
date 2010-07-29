@@ -66,8 +66,8 @@ class WinRegPipeManager:
         
         update_GUI = (regedit_window != None)
         
+        self.lock.acquire()
         try: #this can cause access denied errors
-            self.lock.acquire()
             path_handles = self.open_path(key)
         except Exception as ex:
             raise ex
@@ -82,6 +82,8 @@ class WinRegPipeManager:
             self.lock.acquire()
             try:
                 num_subkeys = float(self.pipe.QueryInfoKey(key_handle, WinRegPipeManager.winreg_string(""))[1])
+            except RuntimeError as re:
+                print "Failed to fetch key information for " + key.get_absolute_path() + ": " + re.args[1]
             finally:
                 self.lock.release()
 
@@ -289,8 +291,7 @@ class WinRegPipeManager:
             0,
             winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE,
             None,
-            0
-        )
+            winreg.REG_ACTION_NONE) #why this value isn't winreg.REG_CREATED_NEW_KEY is beyond me. I'm not even sure why this value is needed, what were the designers thinking?
         
         path_handles.append(new_handle)
         
@@ -351,17 +352,17 @@ class WinRegPipeManager:
     def open_well_known_keys(self):
         self.well_known_keys = []
         
-        key_handle = self.pipe.OpenHKCR(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE)
+        key_handle = self.pipe.OpenHKCR(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE | winreg.REG_KEY_ALL) #TODO: only the permissions that are required
         key = RegistryKey("HKEY_CLASSES_ROOT", None)
         key.handle = key_handle
         self.well_known_keys.append(key)
     
-        key_handle = self.pipe.OpenHKCU(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE)
+        key_handle = self.pipe.OpenHKCU(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE | winreg.REG_KEY_ALL) #TODO: only the permissions that are required
         key = RegistryKey("HKEY_CURRENT_USER", None)
         key.handle = key_handle
         self.well_known_keys.append(key)
         
-        key_handle = self.pipe.OpenHKLM(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE)
+        key_handle = self.pipe.OpenHKLM(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE | winreg.REG_KEY_ALL) #TODO: only the permissions that are required
         key = RegistryKey("HKEY_LOCAL_MACHINE", None)
         key.handle = key_handle
         self.well_known_keys.append(key)
@@ -371,7 +372,7 @@ class WinRegPipeManager:
         key.handle = key_handle
         self.well_known_keys.append(key)
         
-        key_handle = self.pipe.OpenHKCC(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE)
+        key_handle = self.pipe.OpenHKCC(None, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_CREATE_SUB_KEY | winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE | winreg.REG_KEY_ALL) #TODO: only the permissions that are required
         key = RegistryKey("HKEY_CURRENT_CONFIG", None)
         key.handle = key_handle
         self.well_known_keys.append(key)
@@ -447,8 +448,8 @@ class KeyFetchThread(threading.Thread):
             self.regedit_window.refresh_values_tree_view(value_list)
             self.regedit_window.update_sensitivity()
             #threads_leave in the finally: section
-        except Exception, ex:
-            msg = "Failed to fetch information about " + self.selected_key.get_absolute_path() + ": " + str(ex) + "."
+        except RuntimeError as ex:
+            msg = "Failed to fetch information about " + self.selected_key.get_absolute_path() + ": " + ex.args[1] + "."
             print msg
         
         finally:
@@ -696,23 +697,21 @@ class SearchThread(threading.Thread):
 
 class RegEditWindow(gtk.Window):
 
-    def __init__(self):
+    def __init__(self, server = "", username = "", password = "", transport_type = 0, connect_now = False):
         super(RegEditWindow, self).__init__()
         
         self.create()
-        
         self.pipe_manager = None
-        self.server_address = "192.168.2.101"
-        self.transport_type = 0
-        self.username = "shatterz"
-        
         self.search_thread = None
         self.search_last_options = None
-
         self.update_sensitivity()
         
-        #display connect dialog, since that's probably what the user wants to do
-        self.on_connect_item_activate(None)
+        #It's nice to have this info saved when a user wants to reconnect
+        self.server_address = server
+        self.username = username
+        self.transport_type = transport_type
+        
+        self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
         
     def create(self):
         
@@ -1394,13 +1393,17 @@ class RegEditWindow(gtk.Window):
         else:
             return dialog.reg_key
    
-    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username):
-        dialog = WinRegConnectDialog(server_address, transport_type, username)
+    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username, password = "", connect_now = False):
+        dialog = WinRegConnectDialog(server_address, transport_type, username, password)
         dialog.show_all()
         
         # loop to handle the failures
         while True:
-            response_id = dialog.run()
+            if (connect_now):
+                connect_now = False
+                response_id = gtk.RESPONSE_OK
+            else:
+                response_id = dialog.run()
             
             if (response_id != gtk.RESPONSE_OK):
                 dialog.hide()
@@ -1412,7 +1415,7 @@ class RegEditWindow(gtk.Window):
                     self.username = dialog.get_username()
                     password = dialog.get_password()
                     
-                    pipe_manager = WinRegPipeManager(self.server_address, self.transport_type, self.username, password)
+                    pipe_manager = WinRegPipeManager(server_address, transport_type, username, password)
                     
                     break
                 
@@ -1421,17 +1424,23 @@ class RegEditWindow(gtk.Window):
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
                         dialog.password_entry.grab_focus()
                         dialog.password_entry.select_region(0, -1) #select all the text in the password box
+                    elif re.args[1] == 'Access denied':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access denied.", dialog)
+                        dialog.password_entry.grab_focus()
+                        dialog.password_entry.select_region(0, -1)
                     elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The server could not be reached.", dialog)
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server", dialog)
                         dialog.server_address_entry.grab_focus()
                         dialog.server_address_entry.select_region(0, -1)
+                    elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
                     else:
                         msg = "Failed to connect: " + re.args[1] + "."
                         print msg
                         traceback.print_exc()                        
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
-                except Exception, ex:
+                except Exception as ex:
                     msg = "Failed to connect: " + str(ex) + "."
                     print msg
                     traceback.print_exc()
@@ -1647,9 +1656,9 @@ class RegEditWindow(gtk.Window):
             self.keys_tree_view.expand_to_path(model.get_path(key_iter))
             tree_selection.select_iter(key_iter)
             result = True
-        except Exception as ex:
-            #this could happen when we try to highlight a value that is'nt in the tree
-            print "Problem selecting key:", str(ex)
+        except RuntimeError as re:
+            #this could happen when we try to highlight a value that isn't in the tree
+            print "Problem selecting key:", re.args[1]
         
         if value_iter != None:
             tree_selection = self.values_tree_view.get_selection()
@@ -1658,8 +1667,8 @@ class RegEditWindow(gtk.Window):
                 #self.values_tree_view.set_cursor(model.get_path(value_iter))
                 self.values_tree_view.expand_to_path(model.get_path(value_iter))
                 tree_selection.select_iter(value_iter)
-            except Exception as ex:
-                print "Problem selecting value:", str(ex)
+            except RuntimeError as re:
+                print "Problem selecting value:", re.args[1]
                 
         return result
              
@@ -1685,11 +1694,15 @@ class RegEditWindow(gtk.Window):
         gtk.main_quit()
         return False
 
-    def on_connect_item_activate(self, widget):
-        self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
-
+    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False):
+        server_address = server_address or self.server_address
+        transport_type = transport_type or self.transport_type
+        username = username or self.username
+        
+        self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now)
+        
         self.refresh_keys_tree_view(None, None)
-
+    
     def on_disconnect_item_activate(self, widget):
         if self.search_thread != None:
             self.search_thread.self_destruct()
@@ -1741,14 +1754,14 @@ class RegEditWindow(gtk.Window):
 
         self.pipe_manager.lock.acquire()
         try:
-            key_list - self.pipe_manager.get_subkeys_for_key(selected_key)
+            key_list = self.pipe_manager.get_subkeys_for_key(selected_key)
             
             if (len([k for k in key_list if k.name == new_key.name]) > 0):
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "This key already exists.", self)
                 return False
 
             self.pipe_manager.create_key(new_key)
-            key_list - self.pipe_manager.get_subkeys_for_key(selected_key)
+            key_list = self.pipe_manager.get_subkeys_for_key(selected_key)
             self.refresh_keys_tree_view(iter, key_list, new_key)
             self.set_status("Key '" + new_key.get_absolute_path() + "' successfully added.")
         
@@ -2080,46 +2093,39 @@ def PrintUseage():
     print "This should probably print useage info..."
 
 def ParseArgs(argv):
-    server = ""
-    transport_type = 0
-    username = ""
-    password = ""
-    auto_connect = False
+    arguments = {}
     
     try: #get arguments into a nicer format
-        opts, args = getopt.getopt(argv, "hu:s:p:", ["help", "user=", "server=", "password="]) 
+        opts, args = getopt.getopt(argv, "chu:s:p:t:", ["help", "user=", "server=", "password=", "connect-now", "transport="]) 
     except getopt.GetoptError:           
         PrintUseage()
         sys.exit(2)
-        
+
     for opt, arg in opts:  
         if opt in ("-h", "--help"): 
             PrintUseage()
             sys.exit(0)
-        elif opt in ("-u", "--user"):
-            username = arg
         elif opt in ("-s", "--server"):
-            server = arg
+            arguments.update({"server":arg})
+        elif opt in ("-u", "--user"):
+            arguments.update({"username":arg})
         elif opt in ("-p", "--password"):
-            password = arg
-    return (server, transport_type, username, password)
+            arguments.update({"password":arg})
+        elif opt in ("-t", "--transport"):
+            arguments.update({"transport_type":int(arg)})
+        elif opt in ("-c", "--connect-now"):
+            arguments.update({"connect_now":True})
+    return (arguments)
 
-
-
-
-
-print "Arguments:", sys.argv[1:]
-arguments = ParseArgs(sys.argv[1:])
-print arguments
-
-
-gtk.gdk.threads_init()
 """
-    Important note about the thread locks used:
+    Info about the thread locks used in this utility:
 the pipe lock is <pipe manager instance>.lock.acquire() and .release()
-the main (GUI) thread lock is simply gtk.gdk.threads_enter() and .threads_leave(), no need to get an instance
+the gdk lock (main thread lock) is simply gtk.gdk.threads_enter() and .threads_leave(), no need to get an instance
 You may acquire both locks at the same time as long as you get the gdk lock first!
 """
-win = RegEditWindow()
-win.show_all()
+arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
+
+gtk.gdk.threads_init()
+window = RegEditWindow(**arguments)
+window.show_all()
 gtk.main()

@@ -5,6 +5,7 @@ import os.path
 import traceback
 import threading
 import time
+import getopt
 
 import gobject
 import gtk
@@ -412,21 +413,21 @@ class ServiceControlThread(threading.Thread):
 
 class SvcCtlWindow(gtk.Window):
 
-    def __init__(self):
+    def __init__(self, server = "", username = "", password = "", transport_type = 0, connect_now = False):
         super(SvcCtlWindow, self).__init__()
 
         self.create()
-        
         self.pipe_manager = None
-        self.server_address = "192.168.2.101"
-        self.transport_type = 0
-        self.username = "shatterz"
-
         self.update_sensitivity()
         self.update_captions()
+        self.set_status("Disconnected.")
         
-        #show connect dialog first, since that's probably what the user wants to do
-        self.on_connect_item_activate(None)
+        #It's nice to have this info saved when a user wants to reconnect
+        self.server_address = server
+        self.username = username
+        self.transport_type = transport_type
+        
+        self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
         
     def create(self):
         
@@ -789,13 +790,17 @@ class SvcCtlWindow(gtk.Window):
         
         return dialog.service
 
-    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username):
-        dialog = SvcCtlConnectDialog(server_address, transport_type, username)
+    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username, password = "", connect_now = False):
+        dialog = SvcCtlConnectDialog(server_address, transport_type, username, password)
         dialog.show_all()
         
         # loop to handle the failures
         while True:
-            response_id = dialog.run()
+            if (connect_now):
+                connect_now = False
+                response_id = gtk.RESPONSE_OK
+            else:
+                response_id = dialog.run()
             
             if (response_id != gtk.RESPONSE_OK):
                 dialog.hide()
@@ -807,19 +812,25 @@ class SvcCtlWindow(gtk.Window):
                     self.username = dialog.get_username()
                     password = dialog.get_password()
                     
-                    pipe_manager = SvcCtlPipeManager(self.server_address, self.transport_type, self.username, password)
+                    pipe_manager = SvcCtlPipeManager(server_address, transport_type, username, password)
                     
                     break
                 
                 except RuntimeError, re:
-                    if (re.args[0] == -0x3fffff93) or (re.args[1] == 'Logon failure'): #user got the password wrong
+                    if re.args[1] == 'Logon failure': #user got the password wrong
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
                         dialog.password_entry.grab_focus()
                         dialog.password_entry.select_region(0, -1) #select all the text in the password box
-                    elif (re.args[0] == -0x3ffffdc3) or (re.args[1] == 'NT_STATUS_HOST_UNREACHABLE'): #TODO: find the constants
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The server could not be reached", dialog)
+                    elif re.args[1] == 'Access denied':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access denied.", dialog)
+                        dialog.password_entry.grab_focus()
+                        dialog.password_entry.select_region(0, -1)
+                    elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server", dialog)
                         dialog.server_address_entry.grab_focus()
                         dialog.server_address_entry.select_region(0, -1)
+                    elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
                     else:
                         msg = "Failed to connect: " + re.args[1] + "."
                         print msg
@@ -872,10 +883,14 @@ class SvcCtlWindow(gtk.Window):
         gtk.main_quit()
         return False
 
-    def on_connect_item_activate(self, widget):
-        self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
+    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False):
+        server_address = server_address or self.server_address
+        transport_type = transport_type or self.transport_type
+        username = username or self.username
+        
+        self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now)
         if (self.pipe_manager != None):
-            self.set_status("Fetching services from " + self.server_address + "...")
+            self.set_status("Fetching services from " + server_address + "...")
 
             FetchServicesThread(self.pipe_manager, self).start()
                     
@@ -972,10 +987,45 @@ class SvcCtlWindow(gtk.Window):
     def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
+#************ END OF CLASS ***************
+
+def PrintUseage():
+    print "This should probably print useage info..."
+
+def ParseArgs(argv):
+    arguments = {}
+    
+    try: #get arguments into a nicer format
+        opts, args = getopt.getopt(argv, "chu:s:p:t:", ["help", "user=", "server=", "password=", "connect-now", "transport="]) 
+    except getopt.GetoptError:           
+        PrintUseage()
+        sys.exit(2)
+
+    for opt, arg in opts:  
+        if opt in ("-h", "--help"): 
+            PrintUseage()
+            sys.exit(0)
+        elif opt in ("-s", "--server"):
+            arguments.update({"server":arg})
+        elif opt in ("-u", "--user"):
+            arguments.update({"username":arg})
+        elif opt in ("-p", "--password"):
+            arguments.update({"password":arg})
+        elif opt in ("-t", "--transport"):
+            arguments.update({"transport_type":int(arg)})
+        elif opt in ("-c", "--connect-now"):
+            arguments.update({"connect_now":True})
+    return (arguments)
+
+"""
+    Info about the thread locks used in this utility:
+the pipe lock is <pipe manager instance>.lock.acquire() and .release()
+the gdk lock (main thread lock) is simply gtk.gdk.threads_enter() and .threads_leave(), no need to get an instance
+You may acquire both locks at the same time as long as you get the gdk lock first!
+"""
+arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
 
 gtk.gdk.threads_init()
-
-main_window = SvcCtlWindow()
-main_window.set_status("Disconnected.")
+main_window = SvcCtlWindow(**arguments)
 main_window.show_all()
 gtk.main()

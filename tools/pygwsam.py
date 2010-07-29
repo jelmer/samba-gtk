@@ -3,7 +3,7 @@
 import sys
 import os.path
 import traceback
-
+import getopt
 import gobject
 import gtk
 
@@ -77,6 +77,12 @@ class SAMPipeManager:
         del self.group_list[:]
         
         # fetch groups
+        #TODO: this is a test
+        result = self.pipe.QueryDisplayInfo(self.domain_handle, 5, 0, 1024, 2147483647)
+        (total_size, returned_size, DispInfo) = result
+        
+        
+        #TODO: this section doesn't work
         self.sam_groups = self.toArray(self.pipe.EnumDomainGroups(self.domain_handle, 0, -1))
         
         for (rid, groupname) in self.sam_groups:
@@ -396,23 +402,21 @@ class SAMPipeManager:
 
 class SAMWindow(gtk.Window):
 
-    def __init__(self):
+    def __init__(self, server = "", username = "", password = "", transport_type = 0, domain_index = 0, connect_now = False):
         super(SAMWindow, self).__init__()
 
         self.create()
-        
         self.pipe_manager = None
         self.users_groups_notebook_page_num = 0
-        self.server_address = "192.168.2.100"
-        self.transport_type = 0
-        self.username = "shatterz"
-        self.domain_index = 0;
-        
         self.update_captions()
         self.update_sensitivity()
         
-        #present the connection dialog first, since that's probably what the user wants to do
-        self.on_connect_item_activate(None)
+        #It's nice to have this info saved when a user wants to reconnect
+        self.server_address = server
+        self.username = username
+        self.transport_type = transport_type
+        
+        self.on_connect_item_activate(None, server, transport_type, username, password, connect_now, domain_index)
         
         
     def create(self):
@@ -879,14 +883,21 @@ class SAMWindow(gtk.Window):
         
         return dialog.thegroup
 
-    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username, domains = None):
-        dialog = SAMConnectDialog(server_address, transport_type, username)
+    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username, password = "", connect_now = False, domain_index = 0, domains = None):
+        connect_now2 = connect_now #this other value is used later on to skip domain selection. 
+        #We need a second variable for this or else we would freeze if we had an error while connecting
+        
+        dialog = SAMConnectDialog(server_address, transport_type, username, password)
         dialog.show_all()
         
         if (domains == None):
             # loop to handle the failures
             while True:
-                response_id = dialog.run()
+                if (connect_now):
+                    connect_now = False
+                    response_id = gtk.RESPONSE_OK
+                else:
+                    response_id = dialog.run()
                 
                 if (response_id != gtk.RESPONSE_OK):
                     dialog.hide()
@@ -899,7 +910,7 @@ class SAMWindow(gtk.Window):
                         self.domain_index = 0
                         password = dialog.get_password()
                         
-                        pipe_manager = SAMPipeManager(self.server_address, self.transport_type, self.username, password)
+                        pipe_manager = SAMPipeManager(server_address, transport_type, username, password)
                         domains = pipe_manager.fetch_and_get_domain_names()
                         break
                     
@@ -908,10 +919,16 @@ class SAMWindow(gtk.Window):
                             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
                             dialog.password_entry.grab_focus()
                             dialog.password_entry.select_region(0, -1) #select all the text in the password box
-                        elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE': #TODO add in the constant value for these instead
-                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The server could not be reached.", dialog)
+                        elif re.args[1] == 'Access denied':
+                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access denied.", dialog)
+                            dialog.password_entry.grab_focus()
+                            dialog.password_entry.select_region(0, -1)
+                        elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
+                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server", dialog)
                             dialog.server_address_entry.grab_focus()
                             dialog.server_address_entry.select_region(0, -1)
+                        elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
+                            self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
                         else:
                             msg = "Failed to connect: " + re.args[1] + "."
                             print msg
@@ -923,9 +940,10 @@ class SAMWindow(gtk.Window):
                         print msg
                         traceback.print_exc()
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
-
+        
         dialog.set_domains(domains, self.domain_index)
-        response_id = dialog.run()
+        #return RESPONSE_OK if we were told to auto-connect. Otherwise run the dialog
+        response_id = connect_now2 and gtk.RESPONSE_OK or dialog.run()
         dialog.hide()
         
         if (response_id != gtk.RESPONSE_OK):
@@ -994,13 +1012,17 @@ class SAMWindow(gtk.Window):
         gtk.main_quit()
         return False
 
-    def on_connect_item_activate(self, widget):
+    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False, domain_index = 0):
+        server_address = server_address or self.server_address
+        transport_type = transport_type or self.transport_type
+        username = username or self.username
+        
         try:
-            self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
+            self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now, domain_index)
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_users_and_groups()
                 
-                self.set_status("Connected to " + self.server_address + "/" + SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1]) + ".")
+                self.set_status("Connected to " + server_address + "/" + SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1]) + ".")
             
         except RuntimeError, re:
             msg = "Failed to open the selected domain: " + re.args[1] + "."
@@ -1248,8 +1270,40 @@ class SAMWindow(gtk.Window):
     def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
+#************ END OF CLASS ***************
 
-main_window = SAMWindow()
+def PrintUseage():
+    #TODO: print useage info
+    print "This should probably print useage info..."
+
+def ParseArgs(argv):
+    arguments = {}
+    
+    try: #get arguments into a nicer format
+        opts, args = getopt.getopt(argv, "chu:s:p:t:", ["help", "user=", "server=", "password=", "connect-now", "transport="]) 
+    except getopt.GetoptError:           
+        PrintUseage()
+        sys.exit(2)
+
+    for opt, arg in opts:  
+        if opt in ("-h", "--help"): 
+            PrintUseage()
+            sys.exit(0)
+        elif opt in ("-s", "--server"):
+            arguments.update({"server":arg})
+        elif opt in ("-u", "--user"):
+            arguments.update({"username":arg})
+        elif opt in ("-p", "--password"):
+            arguments.update({"password":arg})
+        elif opt in ("-t", "--transport"):
+            arguments.update({"transport_type":int(arg)})
+        elif opt in ("-c", "--connect-now"):
+            arguments.update({"connect_now":True})
+    return (arguments)
+
+arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
+
+main_window = SAMWindow(**arguments)
 main_window.set_status("Disconnected.")
 main_window.show_all()
 gtk.main()

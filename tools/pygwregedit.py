@@ -906,14 +906,14 @@ class RegEditWindow(gtk.Window):
         
         # TODO: make the expanders nicely align with the icons
         
-        hpaned = gtk.HPaned()
-        vbox.pack_start(hpaned)
+        self.hpaned = gtk.HPaned()
+        vbox.pack_start(self.hpaned)
         
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
         scrolledwindow.set_size_request(250, 0)
-        hpaned.add1(scrolledwindow)
+        self.hpaned.add1(scrolledwindow)
         
         self.keys_tree_view = gtk.TreeView()
         self.keys_tree_view.set_headers_visible(False)
@@ -943,7 +943,7 @@ class RegEditWindow(gtk.Window):
         scrolledwindow = gtk.ScrolledWindow(None, None)
         scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
-        hpaned.add2(scrolledwindow)
+        self.hpaned.add2(scrolledwindow)
         
         self.values_tree_view = gtk.TreeView()
         scrolledwindow.add(self.values_tree_view)
@@ -2090,7 +2090,13 @@ class RegEditWindow(gtk.Window):
 #************ END OF CLASS ***************
 
 def PrintUseage():
-    print "This should probably print useage info..."
+    print "Usage: " + str(os.path.split(__file__)[-1]) + " [OPTIONS]"
+    print "All options are optional. The user will be queried for additional information if needed.\n"
+    print "  -s  --server\t\tspecify the server to connect to."
+    print "  -u  --user\t\tspecify the user."
+    print "  -p  --password\tThe password for the user."
+    print "  -t  --transport\tTransport type.\n\t\t\t\t0 for RPC, SMB, TCP/IP\n\t\t\t\t1 for RPC, TCP/IP\n\t\t\t\t2 for localhost."
+    print "  -c  --connect-now\tSkip the connect dialog." 
 
 def ParseArgs(argv):
     arguments = {}
@@ -2123,9 +2129,10 @@ the pipe lock is <pipe manager instance>.lock.acquire() and .release()
 the gdk lock (main thread lock) is simply gtk.gdk.threads_enter() and .threads_leave(), no need to get an instance
 You may acquire both locks at the same time as long as you get the gdk lock first!
 """
-arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
-
-gtk.gdk.threads_init()
-window = RegEditWindow(**arguments)
-window.show_all()
-gtk.main()
+if __name__ == "__main__":
+    arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
+    
+    gtk.gdk.threads_init()
+    window = RegEditWindow(**arguments)
+    window.show_all()
+    gtk.main()

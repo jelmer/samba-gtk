@@ -3,6 +3,7 @@
 import sys
 import os.path
 import traceback
+import getopt
 
 import gobject
 import gtk
@@ -101,20 +102,20 @@ class ATSvcPipeManager:
 
 class CronTabWindow(gtk.Window):
 
-    def __init__(self):
+    def __init__(self, server = "", username = "", password = "", transport_type = 0, connect_now = False):
         super(CronTabWindow, self).__init__()
 
-        self.create()
-        
+        self.create()        
         self.pipe_manager = None
-        self.server_address = "192.168.2.100"
-        self.transport_type = 0
-        self.username = "shatterz"
-                
+        self.set_status("Disconnected.")
         self.update_sensitivity()
         
-        #present the connection disalog first, since that's probably what the user wants to do
-        self.on_connect_item_activate(None)
+        #It's nice to have this info saved when a user wants to reconnect
+        self.server_address = server
+        self.username = username
+        self.transport_type = transport_type
+        
+        self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
         
     def create(self):
         
@@ -230,13 +231,13 @@ class CronTabWindow(gtk.Window):
         # task list
         
         
-        scrolledwindow = gtk.ScrolledWindow(None, None)
-        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
-        vbox.pack_start(scrolledwindow, True, True, 0)
+        self.scrolledwindow = gtk.ScrolledWindow(None, None)
+        self.scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.scrolledwindow.set_shadow_type(gtk.SHADOW_IN)
+        vbox.pack_start(self.scrolledwindow, True, True, 0)
         
         self.tasks_tree_view = gtk.TreeView()        
-        scrolledwindow.add(self.tasks_tree_view)
+        self.scrolledwindow.add(self.tasks_tree_view)
         
         column = gtk.TreeViewColumn()
         column.set_title("")
@@ -310,6 +311,9 @@ class CronTabWindow(gtk.Window):
         if event.keyval == gtk.keysyms.F5: 
             #refresh when F5 is pressed
             self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.Return:
+            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
+            self.on_tasks_tree_view_button_press(None, myev)
 
     def refresh_tasks_tree_view(self):
         if not self.connected():
@@ -397,13 +401,17 @@ class CronTabWindow(gtk.Window):
         
         return dialog.task
 
-    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username):
-        dialog = ATSvcConnectDialog(server_address, transport_type, username)
+    def run_connect_dialog(self, pipe_manager, server_address, transport_type, username, password = "", connect_now = False):
+        dialog = ATSvcConnectDialog(server_address, transport_type, username, password) 
         dialog.show_all()
         
         # loop to handle the failures
         while True:
-            response_id = dialog.run()
+            if (connect_now):
+                connect_now = False
+                response_id = gtk.RESPONSE_OK
+            else:
+                response_id = dialog.run()
             
             if (response_id != gtk.RESPONSE_OK):
                 dialog.hide()
@@ -415,15 +423,29 @@ class CronTabWindow(gtk.Window):
                     self.username = dialog.get_username()
                     password = dialog.get_password()
                     
-                    pipe_manager = ATSvcPipeManager(self.server_address, self.transport_type, self.username, password)
-                    
+                    pipe_manager = ATSvcPipeManager(server_address, transport_type, username, password)
                     break
                 
                 except RuntimeError, re:
-                    msg = "Failed to connect: " + re.args[1] + "."
-                    print msg
-                    traceback.print_exc()                        
-                    self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
+                    if re.args[1] == 'Logon failure': #user got the password wrong
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
+                        dialog.password_entry.grab_focus()
+                        dialog.password_entry.select_region(0, -1) #select all the text in the password box
+                    elif re.args[1] == 'Access denied':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access denied.", dialog)
+                        dialog.password_entry.grab_focus()
+                        dialog.password_entry.select_region(0, -1)
+                    elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server", dialog)
+                        dialog.server_address_entry.grab_focus()
+                        dialog.server_address_entry.select_region(0, -1)
+                    elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
+                    else:
+                        msg = "Failed to connect: " + re.args[1] + "."
+                        print msg
+                        traceback.print_exc()                        
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception, ex:
                     msg = "Failed to connect: " + str(ex) + "."
@@ -467,13 +489,17 @@ class CronTabWindow(gtk.Window):
         gtk.main_quit()
         return False
 
-    def on_connect_item_activate(self, widget):
+    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False):
+        server_address = server_address or self.server_address
+        transport_type = transport_type or self.transport_type
+        username = username or self.username
+        
         try:
-            self.pipe_manager = self.run_connect_dialog(None, self.server_address, self.transport_type, self.username)
+            self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now)
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_tasks()
                 
-                self.set_status("Connected to " + self.server_address + ".")
+                self.set_status("Connected to " + server_address + ".")
 
         except RuntimeError, re:
             msg = "Failed to retrieve the scheduled tasks: " + re.args[1] + "."
@@ -605,8 +631,45 @@ class CronTabWindow(gtk.Window):
     def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
+#************ END OF CLASS ***************
 
-main_window = CronTabWindow()
-main_window.set_status("Disconnected.")
-main_window.show_all()
-gtk.main()
+def PrintUseage():
+    print "Usage: " + str(os.path.split(__file__)[-1]) + " [OPTIONS]"
+    print "All options are optional. The user will be queried for additional information if needed.\n"
+    print "  -s  --server\t\tspecify the server to connect to."
+    print "  -u  --user\t\tspecify the user."
+    print "  -p  --password\tThe password for the user."
+    print "  -t  --transport\tTransport type.\n\t\t\t\t0 for RPC, SMB, TCP/IP\n\t\t\t\t1 for RPC, TCP/IP\n\t\t\t\t2 for localhost."
+    print "  -c  --connect-now\tSkip the connect dialog." 
+
+def ParseArgs(argv):
+    arguments = {}
+    
+    try: #get arguments into a nicer format
+        opts, args = getopt.getopt(argv, "hu:s:p:ct:", ["help", "user=", "server=", "password=", "connect-now", "transport="]) 
+    except getopt.GetoptError:           
+        PrintUseage()
+        sys.exit(2)
+
+    for opt, arg in opts:  
+        if opt in ("-h", "--help"): 
+            PrintUseage()
+            sys.exit(0)
+        elif opt in ("-s", "--server"):
+            arguments.update({"server":arg})
+        elif opt in ("-u", "--user"):
+            arguments.update({"username":arg})
+        elif opt in ("-p", "--password"):
+            arguments.update({"password":arg})
+        elif opt in ("-t", "--transport"):
+            arguments.update({"transport_type":int(arg)})
+        elif opt in ("-c", "--connect-now"):
+            arguments.update({"connect_now":True})
+    return (arguments)
+
+if __name__ == "__main__":
+    arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
+    
+    main_window = CronTabWindow(**arguments)
+    main_window.show_all()
+    gtk.main()

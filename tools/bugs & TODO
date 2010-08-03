@@ -133,7 +133,6 @@ TODO:
 
 All
 ---
--print usage info
 
 -handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
 -remove references to samba.dcerpc.misc when no longer needed

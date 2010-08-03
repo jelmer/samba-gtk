@@ -242,7 +242,7 @@ class SAMPipeManager:
                 break
             
         if ace == None:
-            print "unable to fetch security info for ", user.username, "because none exists."
+            print "unable to fetch security info for", user.username, "because none exists."
             return user
         
         if user.cannot_change_password:
@@ -441,12 +441,12 @@ class SAMWindow(gtk.Window):
 
         # menu
         
-        menubar = gtk.MenuBar()
-        vbox.pack_start(menubar, False, False, 0)
+        self.menubar = gtk.MenuBar()
+        vbox.pack_start(self.menubar, False, False, 0)
         
 
         self.file_item = gtk.MenuItem("_File")
-        menubar.add(self.file_item)
+        self.menubar.add(self.file_item)
         
         file_menu = gtk.Menu()
         self.file_item.set_submenu(file_menu)
@@ -471,7 +471,7 @@ class SAMWindow(gtk.Window):
         
         
         self.view_item = gtk.MenuItem("_View")
-        menubar.add(self.view_item)
+        self.menubar.add(self.view_item)
         
         view_menu = gtk.Menu()
         self.view_item.set_submenu(view_menu)
@@ -482,7 +482,7 @@ class SAMWindow(gtk.Window):
         
         
         self.user_group_item = gtk.MenuItem("_User")
-        menubar.add(self.user_group_item)
+        self.menubar.add(self.user_group_item)
         
         user_group_menu = gtk.Menu()
         self.user_group_item.set_submenu(user_group_menu)
@@ -501,7 +501,7 @@ class SAMWindow(gtk.Window):
 
         
         self.policies_item = gtk.MenuItem("_Policies")
-        # menubar.add(self.policies_item) TODO: implement policies functionality
+        # self.menubar.add(self.policies_item) TODO: implement policies functionality
 
         policies_menu = gtk.Menu()
         self.policies_item.set_submenu(policies_menu)
@@ -524,7 +524,7 @@ class SAMWindow(gtk.Window):
         
         
         self.help_item = gtk.MenuItem("_Help")
-        menubar.add(self.help_item)
+        self.menubar.add(self.help_item)
 
         help_menu = gtk.Menu()
         self.help_item.set_submenu(help_menu)
@@ -535,32 +535,32 @@ class SAMWindow(gtk.Window):
         
         # toolbar
         
-        toolbar = gtk.Toolbar()
-        vbox.pack_start(toolbar, False, False, 0)
+        self.toolbar = gtk.Toolbar()
+        vbox.pack_start(self.toolbar, False, False, 0)
         
         self.connect_button = gtk.ToolButton(gtk.STOCK_CONNECT)
         self.connect_button.set_is_important(True)
         self.connect_button.set_tooltip_text("Connect to a server")
-        toolbar.insert(self.connect_button, 0)
+        self.toolbar.insert(self.connect_button, 0)
         
         self.disconnect_button = gtk.ToolButton(gtk.STOCK_DISCONNECT)
         self.disconnect_button.set_is_important(True)
         self.disconnect_button.set_tooltip_text("Disconnect from the server")
-        toolbar.insert(self.disconnect_button, 1)
+        self.toolbar.insert(self.disconnect_button, 1)
         
-        toolbar.insert(gtk.SeparatorToolItem(), 2)
+        self.toolbar.insert(gtk.SeparatorToolItem(), 2)
         
         self.new_button = gtk.ToolButton(gtk.STOCK_NEW)
         self.new_button.set_is_important(True)
-        toolbar.insert(self.new_button, 3)
+        self.toolbar.insert(self.new_button, 3)
                 
         self.edit_button = gtk.ToolButton(gtk.STOCK_EDIT)
         self.edit_button.set_is_important(True)
-        toolbar.insert(self.edit_button, 4)
+        self.toolbar.insert(self.edit_button, 4)
                 
         self.delete_button = gtk.ToolButton(gtk.STOCK_DELETE)
         self.delete_button.set_is_important(True)
-        toolbar.insert(self.delete_button, 5)
+        self.toolbar.insert(self.delete_button, 5)
                 
         
         # user list
@@ -1273,8 +1273,13 @@ class SAMWindow(gtk.Window):
 #************ END OF CLASS ***************
 
 def PrintUseage():
-    #TODO: print useage info
-    print "This should probably print useage info..."
+    print "Usage: " + str(os.path.split(__file__)[-1]) + " [OPTIONS]"
+    print "All options are optional. The user will be queried for additional information if needed.\n"
+    print "  -s  --server\t\tspecify the server to connect to."
+    print "  -u  --user\t\tspecify the user."
+    print "  -p  --password\tThe password for the user."
+    print "  -t  --transport\tTransport type.\n\t\t\t\t0 for RPC, SMB, TCP/IP\n\t\t\t\t1 for RPC, TCP/IP\n\t\t\t\t2 for localhost."
+    print "  -c  --connect-now\tSkip the connect dialog." 
 
 def ParseArgs(argv):
     arguments = {}
@@ -1301,9 +1306,12 @@ def ParseArgs(argv):
             arguments.update({"connect_now":True})
     return (arguments)
 
-arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
 
-main_window = SAMWindow(**arguments)
-main_window.set_status("Disconnected.")
-main_window.show_all()
-gtk.main()
+
+if __name__ == "__main__":
+    arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
+    
+    main_window = SAMWindow(**arguments)
+    main_window.set_status("Disconnected.")
+    main_window.show_all()
+    gtk.main()

@@ -102,8 +102,9 @@ class ATSvcPipeManager:
 
 class CronTabWindow(gtk.Window):
 
-    def __init__(self, server = "", username = "", password = "", transport_type = 0, connect_now = False):
+    def __init__(self, info_callback = None, server = "", username = "", password = "", transport_type = 0, connect_now = False):
         super(CronTabWindow, self).__init__()
+        #Note: Any change to these arguments should probably also be changed in on_connect_item_activate()
 
         self.create()        
         self.pipe_manager = None
@@ -117,6 +118,10 @@ class CronTabWindow(gtk.Window):
         
         self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
         
+        #This is used so the parent program can grab the server info after we've connected.
+        if info_callback != None:
+            info_callback(server = self.server_address, username = self.username, transport_type = self.transport_type)
+        
     def create(self):
         
         # main window
@@ -125,11 +130,9 @@ class CronTabWindow(gtk.Window):
         
         self.set_title("Scheduled Tasks")
         self.set_default_size(800, 600)
-        self.connect("delete_event", self.on_self_delete)
         self.icon_filename = os.path.join(sys.path[0], "images", "crontab.png")
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
-        self.connect("key-press-event", self.on_key_press) #to handle key presses
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -137,12 +140,12 @@ class CronTabWindow(gtk.Window):
 
         # menu
         
-        menubar = gtk.MenuBar()
-        vbox.pack_start(menubar, False, False, 0)
+        self.menubar = gtk.MenuBar()
+        vbox.pack_start(self.menubar, False, False, 0)
         
 
         self.file_item = gtk.MenuItem("_File")
-        menubar.add(self.file_item)
+        self.menubar.add(self.file_item)
         
         file_menu = gtk.Menu()
         self.file_item.set_submenu(file_menu)
@@ -163,7 +166,7 @@ class CronTabWindow(gtk.Window):
         
         
         self.view_item = gtk.MenuItem("_View")
-        menubar.add(self.view_item)
+        self.menubar.add(self.view_item)
         
         view_menu = gtk.Menu()
         self.view_item.set_submenu(view_menu)
@@ -173,7 +176,7 @@ class CronTabWindow(gtk.Window):
         
         
         self.task_item = gtk.MenuItem("_Task")
-        menubar.add(self.task_item)
+        self.menubar.add(self.task_item)
         
         task_menu = gtk.Menu()
         self.task_item.set_submenu(task_menu)
@@ -189,7 +192,7 @@ class CronTabWindow(gtk.Window):
 
         
         self.help_item = gtk.MenuItem("_Help")
-        menubar.add(self.help_item)
+        self.menubar.add(self.help_item)
 
         help_menu = gtk.Menu()
         self.help_item.set_submenu(help_menu)
@@ -200,32 +203,32 @@ class CronTabWindow(gtk.Window):
         
         # toolbar
         
-        toolbar = gtk.Toolbar()
-        vbox.pack_start(toolbar, False, False, 0)
+        self.toolbar = gtk.Toolbar()
+        vbox.pack_start(self.toolbar, False, False, 0)
         
         self.connect_button = gtk.ToolButton(gtk.STOCK_CONNECT)
         self.connect_button.set_is_important(True)
         self.connect_button.set_tooltip_text("Connect to a server")
-        toolbar.insert(self.connect_button, 0)
+        self.toolbar.insert(self.connect_button, 0)
         
         self.disconnect_button = gtk.ToolButton(gtk.STOCK_DISCONNECT)
         self.disconnect_button.set_is_important(True)
         self.disconnect_button.set_tooltip_text("Disconnect from the server")
-        toolbar.insert(self.disconnect_button, 1)
+        self.toolbar.insert(self.disconnect_button, 1)
         
-        toolbar.insert(gtk.SeparatorToolItem(), 2)
+        self.toolbar.insert(gtk.SeparatorToolItem(), 2)
         
         self.new_button = gtk.ToolButton(gtk.STOCK_NEW)
         self.new_button.set_is_important(True)
-        toolbar.insert(self.new_button, 3)
+        self.toolbar.insert(self.new_button, 3)
                 
         self.edit_button = gtk.ToolButton(gtk.STOCK_EDIT)
         self.edit_button.set_is_important(True)
-        toolbar.insert(self.edit_button, 4)
+        self.toolbar.insert(self.edit_button, 4)
                 
         self.delete_button = gtk.ToolButton(gtk.STOCK_DELETE)
         self.delete_button.set_is_important(True)
-        toolbar.insert(self.delete_button, 5)
+        self.toolbar.insert(self.delete_button, 5)
 
         
         # task list
@@ -287,6 +290,9 @@ class CronTabWindow(gtk.Window):
         
         # signals/events
         
+        self.connect("delete_event", self.on_self_delete)
+        self.connect("key-press-event", self.on_key_press)
+        
         self.connect_item.connect("activate", self.on_connect_item_activate)
         self.disconnect_item.connect("activate", self.on_disconnect_item_activate)
         self.quit_item.connect("activate", self.on_quit_item_activate)
@@ -306,14 +312,6 @@ class CronTabWindow(gtk.Window):
         self.tasks_tree_view.connect("button_press_event", self.on_tasks_tree_view_button_press)
         
         self.add_accel_group(accel_group)
-        
-    def on_key_press(self, widget, event):
-        if event.keyval == gtk.keysyms.F5: 
-            #refresh when F5 is pressed
-            self.on_refresh_item_activate(None)
-        elif event.keyval == gtk.keysyms.Return:
-            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
-            self.on_tasks_tree_view_button_press(None, myev)
 
     def refresh_tasks_tree_view(self):
         if not self.connected():
@@ -418,9 +416,12 @@ class CronTabWindow(gtk.Window):
                 return None
             else:
                 try:
-                    self.server_address = dialog.get_server_address()
-                    self.transport_type = dialog.get_transport_type()
-                    self.username = dialog.get_username()
+                    server_address = dialog.get_server_address()
+                    self.server_address = server_address
+                    transport_type = dialog.get_transport_type()
+                    self.transport_type = transport_type
+                    username = dialog.get_username()
+                    self.username = username
                     password = dialog.get_password()
                     
                     pipe_manager = ATSvcPipeManager(server_address, transport_type, username, password)
@@ -488,18 +489,26 @@ class CronTabWindow(gtk.Window):
         
         gtk.main_quit()
         return False
+    
+    def on_key_press(self, widget, event):
+        if event.keyval == gtk.keysyms.F5: 
+            #refresh when F5 is pressed
+            self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.Return:
+            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
+            self.on_tasks_tree_view_button_press(None, myev)
 
-    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False):
-        server_address = server_address or self.server_address
+    def on_connect_item_activate(self, widget, server = "", transport_type = 0, username = "", password = "", connect_now = False):
+        server = server or self.server_address
         transport_type = transport_type or self.transport_type
         username = username or self.username
         
         try:
-            self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now)
+            self.pipe_manager = self.run_connect_dialog(None, server, transport_type, username, password, connect_now)
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_tasks()
                 
-                self.set_status("Connected to " + server_address + ".")
+                self.set_status("Connected to " + server + ".")
 
         except RuntimeError, re:
             msg = "Failed to retrieve the scheduled tasks: " + re.args[1] + "."
@@ -634,7 +643,7 @@ class CronTabWindow(gtk.Window):
 #************ END OF CLASS ***************
 
 def PrintUseage():
-    print "Usage: " + str(os.path.split(__file__)[-1]) + " [OPTIONS]"
+    print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))
     print "All options are optional. The user will be queried for additional information if needed.\n"
     print "  -s  --server\t\tspecify the server to connect to."
     print "  -u  --user\t\tspecify the user."

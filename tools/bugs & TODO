@@ -1,14 +1,39 @@
+Overall TODO list: 
+-fix updating service in pygwsvcctl
+-User must change password bug
+-groups in pygwsam
+-passwords in pygwsam
+-permissions in pygwregedit
+-Implement move_key() in pygwregedit
+-Save arguments in the launcher
+-handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
+-Memory leak: while searching the registry, memory usage goes up indefinitely.
+-use gnomekeyring instead of explicitly passing info around.
+-about dialog
+-handle domain-index from command-line and through the launcher
+
+Minor:
+-remove references to samba.dcerpc.misc when no longer needed
+-References to None (py_none) are still not counted properly. This is a problem with the python bindings
+-Speed improvement in the registry search thread.
+-handle auto-connect (--connect-now argument) better (GUI is frozen while connecting)
+-Add an green/red indicator for each tab to show if the utility is connected
+-add connect/disconnect messages in the launcher
+
+
 pygwcrontab
 -----------
 
 Windows XP SP2:
-Tested creating/modifying/deleteing schedules using utilitiy and on the server.
+Tested creating/modifying/deleteing schedules using utilitiy and locally on the server.
 Dare I say, it looks like this one works perfectly!
 
 Windows Vista Home Premium:
 -'NT_STATUS_RESOURCE_NAME_NOT_FOUND' error when connecting, happens on line 40 in __init__()
 -unable to connect
 
+TODO:
+-nothing, this utility is AWESOME!
 
 
 
@@ -56,7 +81,6 @@ Windows Vista Home Premium:
 
 
 TODO list:
-# TODO: assign keyboard shortcuts
 -passwords are not updated
 -"User must change password at next logon" bug
 -Groups arn't displayed properly, only the "none" group appears.
@@ -70,16 +94,6 @@ TODO list:
 
 pygwregedit
 -----------
-
-Windows XP SP2:
--problems listed before were because of missing constants. This has been fixed now.
--Getting keys happens in alphabetical order, which a few more (seemingly random) keys coming last. Not a bug, just something I noticed. (FIXED)
-
-
-Windows Vista Home Premium:
--'NT_STATUS_OBJECT_NAME_NOT_FOUND' error when connecting, returned from line 45 in __init__()
--unable to connect
-
 Bugs:
 -Keys created by the utility may not be created properly
 	-cause a WERR_INSUFFICIENT_BUFFER when Pipe.QueryInfoKey() is called from ls_key() when clicking on the key
@@ -88,15 +102,15 @@ Bugs:
 	-Tried changing the value for winreg_CreateAction to REG_CREATED_NEW_KEY instead of REG_ACTION_NONE, doesn't help
 -WERR_MORE_DATA in WinRegPipeManager.get_values_for_key() and ls_key (for values). The error is thrown from rpc_winreg.c it seems.
 
-
 TODO:
-# TODO: implement permissions
+-Implement permissions
 -Add an option to fetch everything (view -> fetch everything)?
 -Implement move_key()
--assign keyboard shortcuts
--implement import/export (no python bindings for this yet)
+-Implement import/export (no python bindings for this yet)
 -
--make adding only 4bits (one hex character) impossible in the hex editor?
+-Make adding only 4bits (one hex character) impossible in the hex editor?
+	-Note: currently our utility cannot load keys with an odd number of hex characters. 
+	-A warning is printed, NT_STATUS_RPC_BAD_STUB_DATA I believe.
 
 
 
@@ -117,24 +131,9 @@ Windows Vista Home Premium:
 
 
 TODO:
+-Bug: selecting a service while refreshing the list causes the program to freeze up.
 -Unable to update services
 	-NT_STATUS_RPC_BAD_STUB_DATA error
 	-happens when sending back the new service info. I checked the data and it looks right. (This is hard to troubleshoot because you can't send partial data back so you can't test each field to see if it's the cause of the problem)
 	-SvcCtlPipeManager.update_service() line 78
--After updating a list of services, the list should be refreshed (the utility assumes the services was updated, so list displays incorrect info if the service was not successfully updated)
-# TODO: assign keyboard shortcuts
-
-
-
-
-
-
-
-
-All
----
-
--handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
--remove references to samba.dcerpc.misc when no longer needed
--Test on Windows 7!
-
+-After updating a list of services, the updated service should be refreshed (the utility assumes the services was updated, so list displays incorrect info if the service was not successfully updated)

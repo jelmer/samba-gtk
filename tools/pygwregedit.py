@@ -508,15 +508,20 @@ class SearchThread(threading.Thread):
             
         #stuff we need
         model = self.regedit_window.keys_tree_view.get_model()
-                
+        
+        i = 0 #TODO: remove
+        totalt = 0.0
         while stack != []:
             if self.explode:
                 return
             
+            i += 1 #TODO: remove
+            pret = time.time()
+            
             key = stack.pop()
             
             gtk.gdk.threads_enter()
-            self.regedit_window.set_status("Searching " + key.get_absolute_path())
+            self.regedit_window.set_status("Searching %s" % key.get_absolute_path())
             gtk.gdk.threads_leave()
             
             #check if this key's name matches any of our search queries
@@ -526,11 +531,18 @@ class SearchThread(threading.Thread):
                         gtk.gdk.threads_enter()
                         key_iter = self.regedit_window.get_iter_for_key(key)
                         self.regedit_window.highlight_search_result(key_iter)
-                        msg = "Found key at: " + key.get_absolute_path()
+                        msg = "Found key at: %s" % key.get_absolute_path()
                         self.regedit_window.set_status(msg)
                         self.regedit_window.search_thread = None
                         gtk.gdk.threads_leave()
                         return
+                    
+            totalt += time.time()-pret 
+            if i > 1000:
+                print "Time to print & prefetch: %.4f" % (totalt)
+                totalt = 0.0
+                i = 0
+#            t = time.time()
             
             #fetch a list of values for this key
             if (self.search_values or self.search_data):
@@ -539,7 +551,7 @@ class SearchThread(threading.Thread):
                         value_list = self.pipe_manager.get_values_for_key(key)
                 except RuntimeError as ex:
                     #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
-                    print "Failed to fetch values for " + key.get_absolute_path() + ": " + ex.args[1] + "."
+                    print "Failed to fetch values for %s: %s." % (key.get_absolute_path(), ex.args[1])
                     continue
                 finally:
                     self.pipe_manager.lock.release()
@@ -554,7 +566,7 @@ class SearchThread(threading.Thread):
                             key_iter = self.regedit_window.get_iter_for_key(key)
                             value_iter = self.regedit_window.get_iter_for_value(value)
                             self.regedit_window.highlight_search_result(key_iter, value_iter)
-                            msg = "Found value at: " + value.get_absolute_path()
+                            msg = "Found value at: %s" % value.get_absolute_path()
                             self.regedit_window.set_status(msg)
                             self.regedit_window.search_thread = None
                             gtk.gdk.threads_leave()
@@ -570,11 +582,14 @@ class SearchThread(threading.Thread):
                             key_iter = self.regedit_window.get_iter_for_key(key)
                             value_iter = self.regedit_window.get_iter_for_value(value)
                             self.regedit_window.highlight_search_result(key_iter, value_iter)
-                            msg = "Found data at: " + value.get_absolute_path()
+                            msg = "Found data at: %s" % value.get_absolute_path()
                             self.regedit_window.set_status(msg)
                             self.regedit_window.search_thread = None
                             gtk.gdk.threads_leave()
                             return
+                        
+#            print "Time to handle values: %.4f" % (time.time()-t)
+#            t = time.time()
                 
             #fetch a list of subkeys for this key
             gtk.gdk.threads_enter() #we might acquire both locks, but it's ok since the gdk lock was acquired first
@@ -585,8 +600,7 @@ class SearchThread(threading.Thread):
                 while subkey_iter != None:
                     subkey_list.append(model.get_value(subkey_iter, 1))
                     subkey_iter = model.iter_next(subkey_iter)
-                else:
-                    gtk.gdk.threads_leave()
+                gtk.gdk.threads_leave()
             else: #If we don't already have them, we have to get them
                 gtk.gdk.threads_leave()
                 try: 
@@ -594,18 +608,23 @@ class SearchThread(threading.Thread):
                     subkey_list = self.pipe_manager.get_subkeys_for_key(key)
                 except Exception as ex:
                     #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
-                    print "Failed to fetch subkeys for " + key.get_absolute_path() + ": " + ex.args[1] + "."
+                    print "Failed to fetch subkeys for %s: %s." % (key.get_absolute_path(), ex.args[1])
                     continue
                 finally:
                     self.pipe_manager.lock.release()
+                    
+#            print "Time to fetch subkeys: %.4f" % (time.time()-t)
+#            t = time.time()
             
             
             #Append these keys to the parent in the TreeStore.
             #Since we're fetching them we might as well add them to the TreeStore so that we don't have to fetch them again later
+            gtk.gdk.threads_enter()
             key_iter = self.regedit_window.get_iter_for_key(key)
             if model.iter_children(key_iter) == None: #if this key doesn't have any children already (if it does then those children might also have subkeys, which we don't want to erase)
                 for current_key in subkey_list:
                     self.regedit_window.keys_store.append(key_iter, current_key.list_view_representation())
+            gtk.gdk.threads_leave()
                 
             #Looks like we didn't find anything, lets push this key's subkeys onto the stack
             append_list = []
@@ -613,6 +632,8 @@ class SearchThread(threading.Thread):
                 append_list.append(key)
             append_list.reverse() #again we have to do this or else we'll search the list from bottom to top
             stack.extend(append_list)
+            
+#            print "Time to append to stack: %.4f" % (time.time()-t)
     
         #if we are here then the loop has finished and found nothing
         msg = "Search query not found."
@@ -697,8 +718,9 @@ class SearchThread(threading.Thread):
 
 class RegEditWindow(gtk.Window):
 
-    def __init__(self, server = "", username = "", password = "", transport_type = 0, connect_now = False):
+    def __init__(self, info_callback = None, server = "", username = "", password = "", transport_type = 0, connect_now = False):
         super(RegEditWindow, self).__init__()
+        #Note: Any change to these arguments should probably also be changed in on_connect_item_activate()
         
         self.create()
         self.pipe_manager = None
@@ -713,6 +735,10 @@ class RegEditWindow(gtk.Window):
         
         self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
         
+        #This is used so the parent program can grab the server info after we've connected.
+        if info_callback != None:
+            info_callback(server = self.server_address, username = self.username, transport_type = self.transport_type)
+        
     def create(self):
         
         # main window  
@@ -721,20 +747,16 @@ class RegEditWindow(gtk.Window):
         
         self.set_title("Registry Editor")
         self.set_default_size(800, 600)
-        self.connect("delete_event", self.on_self_delete)
-
         self.icon_filename = os.path.join(sys.path[0], "images", "registry.png")
         self.icon_registry_number_filename = os.path.join(sys.path[0], "images", "registry-number.png")
         self.icon_registry_string_filename = os.path.join(sys.path[0], "images", "registry-string.png")
         self.icon_registry_binary_filename = os.path.join(sys.path[0], "images", "registry-binary.png")
-        
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.icon_registry_number_pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(self.icon_registry_number_filename, 22, 22)
         self.icon_registry_string_pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(self.icon_registry_string_filename, 22, 22)
         self.icon_registry_binary_pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(self.icon_registry_binary_filename, 22, 22)
 
         self.set_icon(self.icon_pixbuf)
-        self.connect("key-press-event", self.on_key_press) #to handle key presses
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -743,11 +765,11 @@ class RegEditWindow(gtk.Window):
 
         # menu
         
-        menubar = gtk.MenuBar()
-        vbox.pack_start(menubar, False, False, 0)
+        self.menubar = gtk.MenuBar()
+        vbox.pack_start(self.menubar, False, False, 0)
         
         self.file_item = gtk.MenuItem("_File")
-        menubar.add(self.file_item)
+        self.menubar.add(self.file_item)
         
         file_menu = gtk.Menu()
         self.file_item.set_submenu(file_menu)
@@ -775,7 +797,7 @@ class RegEditWindow(gtk.Window):
         file_menu.add(self.quit_item)
         
         self.edit_item = gtk.MenuItem("_Edit")
-        menubar.add(self.edit_item)
+        self.menubar.add(self.edit_item)
         
         self.edit_menu = gtk.Menu()
         self.edit_item.set_submenu(self.edit_menu)
@@ -843,7 +865,7 @@ class RegEditWindow(gtk.Window):
         self.edit_menu.add(self.find_next_item)
 
         self.view_item = gtk.MenuItem("_View")
-        menubar.add(self.view_item)
+        self.menubar.add(self.view_item)
         
         view_menu = gtk.Menu()
         self.view_item.set_submenu(view_menu)
@@ -852,7 +874,7 @@ class RegEditWindow(gtk.Window):
         view_menu.add(self.refresh_item)
 
         self.help_item = gtk.MenuItem("_Help")
-        menubar.add(self.help_item)
+        self.menubar.add(self.help_item)
 
         help_menu = gtk.Menu()
         self.help_item.set_submenu(help_menu)
@@ -863,43 +885,43 @@ class RegEditWindow(gtk.Window):
         
         # toolbar
         
-        toolbar = gtk.Toolbar()
-        vbox.pack_start(toolbar, False, False, 0)
+        self.toolbar = gtk.Toolbar()
+        vbox.pack_start(self.toolbar, False, False, 0)
         
         self.connect_button = gtk.ToolButton(gtk.STOCK_CONNECT)
         self.connect_button.set_is_important(True)
         self.connect_button.set_tooltip_text("Connect to a server")
-        toolbar.insert(self.connect_button, 0)
+        self.toolbar.insert(self.connect_button, 0)
         
         self.disconnect_button = gtk.ToolButton(gtk.STOCK_DISCONNECT)
         self.disconnect_button.set_is_important(True)
         self.disconnect_button.set_tooltip_text("Disconnect from the server")
-        toolbar.insert(self.disconnect_button, 1)
+        self.toolbar.insert(self.disconnect_button, 1)
         
-        toolbar.insert(gtk.SeparatorToolItem(), 2)
+        self.toolbar.insert(gtk.SeparatorToolItem(), 2)
         
         self.new_key_button = gtk.ToolButton(gtk.STOCK_NEW)
         self.new_key_button.set_label("New Key")
         self.new_key_button.set_tooltip_text("Create a new registry key")
         self.new_key_button.set_is_important(True)
-        toolbar.insert(self.new_key_button, 3)
+        self.toolbar.insert(self.new_key_button, 3)
                 
         self.new_string_button = gtk.ToolButton(gtk.STOCK_NEW)
         self.new_string_button.set_label("New Value")
         self.new_string_button.set_tooltip_text("Create a new string registry value")
         self.new_string_button.set_is_important(True)
-        toolbar.insert(self.new_string_button, 4)
+        self.toolbar.insert(self.new_string_button, 4)
 
         self.rename_button = gtk.ToolButton(gtk.STOCK_EDIT)
         self.rename_button.set_label("Rename")
         self.rename_button.set_tooltip_text("Rename the selected key or value")
         self.rename_button.set_is_important(True)
-        toolbar.insert(self.rename_button, 5)
+        self.toolbar.insert(self.rename_button, 5)
         
         self.delete_button = gtk.ToolButton(gtk.STOCK_DELETE)
         self.delete_button.set_tooltip_text("Delete the selected key or value")
         self.delete_button.set_is_important(True)
-        toolbar.insert(self.delete_button, 5)
+        self.toolbar.insert(self.delete_button, 5)
         
         
         # registry tree
@@ -1015,6 +1037,9 @@ class RegEditWindow(gtk.Window):
         
         
         # signals/events
+        
+        self.connect("delete_event", self.on_self_delete)
+        self.connect("key-press-event", self.on_key_press)
         
         self.connect_item.connect("activate", self.on_connect_item_activate)
         self.disconnect_item.connect("activate", self.on_disconnect_item_activate)
@@ -1410,9 +1435,12 @@ class RegEditWindow(gtk.Window):
                 return None
             else:
                 try:
-                    self.server_address = dialog.get_server_address()
-                    self.transport_type = dialog.get_transport_type()
-                    self.username = dialog.get_username()
+                    server_address = dialog.get_server_address()
+                    self.server_address = server_address
+                    transport_type = dialog.get_transport_type()
+                    self.transport_type = transport_type
+                    username = dialog.get_username()
+                    self.username = username
                     password = dialog.get_password()
                     
                     pipe_manager = WinRegPipeManager(server_address, transport_type, username, password)
@@ -1694,12 +1722,12 @@ class RegEditWindow(gtk.Window):
         gtk.main_quit()
         return False
 
-    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False):
-        server_address = server_address or self.server_address
+    def on_connect_item_activate(self, widget, server = "", transport_type = 0, username = "", password = "", connect_now = False):
+        server = server or self.server_address
         transport_type = transport_type or self.transport_type
         username = username or self.username
         
-        self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now)
+        self.pipe_manager = self.run_connect_dialog(None, server, transport_type, username, password, connect_now)
         
         self.refresh_keys_tree_view(None, None)
     
@@ -2090,7 +2118,7 @@ class RegEditWindow(gtk.Window):
 #************ END OF CLASS ***************
 
 def PrintUseage():
-    print "Usage: " + str(os.path.split(__file__)[-1]) + " [OPTIONS]"
+    print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))
     print "All options are optional. The user will be queried for additional information if needed.\n"
     print "  -s  --server\t\tspecify the server to connect to."
     print "  -u  --user\t\tspecify the user."

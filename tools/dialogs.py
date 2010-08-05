@@ -2869,10 +2869,10 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
 
 class SAMConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username, password = ""):
+    def __init__(self, server, transport_type, username, password = ""):
         super(SAMConnectDialog, self).__init__()
 
-        self.server_address = server_address
+        self.server_address = server
         self.transport_type = transport_type
         self.username = username
         self.password = password
@@ -3040,10 +3040,10 @@ class SAMConnectDialog(gtk.Dialog):
 
 class SvcCtlConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username, password):
+    def __init__(self, server, transport_type, username, password):
         super(SvcCtlConnectDialog, self).__init__()
 
-        self.server_address = server_address
+        self.server_address = server
         self.transport_type = transport_type
         self.username = username
         self.password = password
@@ -3170,10 +3170,10 @@ class SvcCtlConnectDialog(gtk.Dialog):
 
 class ATSvcConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username, password):
+    def __init__(self, server, transport_type, username, password):
         super(ATSvcConnectDialog, self).__init__()
 
-        self.server_address = server_address
+        self.server_address = server
         self.transport_type = transport_type
         self.username = username
         self.password = password
@@ -3302,10 +3302,10 @@ class ATSvcConnectDialog(gtk.Dialog):
 
 class WinRegConnectDialog(gtk.Dialog):
     
-    def __init__(self, server_address, transport_type, username, password = ""):
+    def __init__(self, server, transport_type, username, password = ""):
         super(WinRegConnectDialog, self).__init__()
 
-        self.server_address = server_address
+        self.server_address = server
         self.transport_type = transport_type
         self.username = username
         self.password = password

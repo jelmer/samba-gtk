@@ -402,8 +402,9 @@ class SAMPipeManager:
 
 class SAMWindow(gtk.Window):
 
-    def __init__(self, server = "", username = "", password = "", transport_type = 0, domain_index = 0, connect_now = False):
+    def __init__(self, info_callback = None, server = "", username = "", password = "", transport_type = 0, domain_index = 0, connect_now = False):
         super(SAMWindow, self).__init__()
+        #Note: Any change to these arguments should probably also be changed in on_connect_item_activate()
 
         self.create()
         self.pipe_manager = None
@@ -416,8 +417,12 @@ class SAMWindow(gtk.Window):
         self.username = username
         self.transport_type = transport_type
         
+        self.set_status("Disconnected.")
         self.on_connect_item_activate(None, server, transport_type, username, password, connect_now, domain_index)
         
+        #This is used so the parent program can grab the server info after we've connected.
+        if info_callback != None:
+            info_callback(server = self.server_address, username = self.username, transport_type = self.transport_type)
         
     def create(self):
         
@@ -427,13 +432,11 @@ class SAMWindow(gtk.Window):
         
         self.set_title("User/Group Management")
         self.set_default_size(800, 600)
-        self.connect("delete_event", self.on_self_delete)
         self.icon_filename = os.path.join(sys.path[0], "images", "group.png")
         self.user_icon_filename = os.path.join(sys.path[0], "images", "user.png")
         self.group_icon_filename = os.path.join(sys.path[0], "images", "group.png")
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
-        self.connect("key-press-event", self.on_key_press) #to handle key presses
         
     	vbox = gtk.VBox(False, 0)
     	self.add(vbox)
@@ -685,6 +688,9 @@ class SAMWindow(gtk.Window):
         
         # signals/events
         
+        self.connect("delete_event", self.on_self_delete)
+        self.connect("key-press-event", self.on_key_press)
+        
         self.connect_item.connect("activate", self.on_connect_item_activate)
         self.disconnect_item.connect("activate", self.on_disconnect_item_activate)
         self.sel_domain_item.connect("activate", self.on_sel_domain_item_activate)
@@ -712,17 +718,6 @@ class SAMWindow(gtk.Window):
         
         self.add_accel_group(accel_group)
         
-    def on_key_press(self, widget, event):
-        if event.keyval == gtk.keysyms.F5: 
-            self.on_refresh_item_activate(None)
-        elif event.keyval == gtk.keysyms.Delete:
-            self.on_delete_item_activate(None)
-        elif event.keyval == gtk.keysyms.Return:
-            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
-            if self.users_groups_notebook_page_num == 0:
-                self.on_users_tree_view_button_press(None, myev)
-            else:
-                self.on_groups_tree_view_button_press(None, myev)
 
     def refresh_user_list_view(self):
         if not self.connected():
@@ -904,10 +899,14 @@ class SAMWindow(gtk.Window):
                     return None
                 else:
                     try:
-                        self.server_address = dialog.get_server_address()
-                        self.transport_type = dialog.get_transport_type()
-                        self.username = dialog.get_username()
-                        self.domain_index = 0
+                        server_address = dialog.get_server_address()
+                        self.server_address = server_address
+                        transport_type = dialog.get_transport_type()
+                        self.transport_type = transport_type
+                        username = dialog.get_username()
+                        self.username = username
+                        domain_index = 0
+                        self.domain_index = domain_index
                         password = dialog.get_password()
                         
                         pipe_manager = SAMPipeManager(server_address, transport_type, username, password)
@@ -1005,6 +1004,18 @@ class SAMWindow(gtk.Window):
             self.pipe_manager.fetch_group(group.rid, group) # just to make sure we have the updated group properties
             self.refresh_group_list_view()
             
+    def on_key_press(self, widget, event):
+        if event.keyval == gtk.keysyms.F5: 
+            self.on_refresh_item_activate(None)
+        elif event.keyval == gtk.keysyms.Delete:
+            self.on_delete_item_activate(None)
+        elif event.keyval == gtk.keysyms.Return:
+            myev = gtk.gdk.Event(gtk.gdk._2BUTTON_PRESS) #emulate a double-click
+            if self.users_groups_notebook_page_num == 0:
+                self.on_users_tree_view_button_press(None, myev)
+            else:
+                self.on_groups_tree_view_button_press(None, myev)
+            
     def on_self_delete(self, widget, event):
         if (self.pipe_manager != None):
             self.on_disconnect_item_activate(self.disconnect_item)
@@ -1012,17 +1023,17 @@ class SAMWindow(gtk.Window):
         gtk.main_quit()
         return False
 
-    def on_connect_item_activate(self, widget, server_address = "", transport_type = 0, username = "", password = "", connect_now = False, domain_index = 0):
-        server_address = server_address or self.server_address
+    def on_connect_item_activate(self, widget, server = "", transport_type = 0, username = "", password = "", connect_now = False, domain_index = 0):
+        server = server or self.server_address
         transport_type = transport_type or self.transport_type
         username = username or self.username
         
         try:
-            self.pipe_manager = self.run_connect_dialog(None, server_address, transport_type, username, password, connect_now, domain_index)
+            self.pipe_manager = self.run_connect_dialog(None, server, transport_type, username, password, connect_now, domain_index)
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_users_and_groups()
                 
-                self.set_status("Connected to " + server_address + "/" + SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1]) + ".")
+                self.set_status("Connected to " + server + "/" + SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1]) + ".")
             
         except RuntimeError, re:
             msg = "Failed to open the selected domain: " + re.args[1] + "."
@@ -1055,7 +1066,7 @@ class SAMWindow(gtk.Window):
     
     def on_sel_domain_item_activate(self, widget):
         try:
-            self.pipe_manager = self.run_connect_dialog(self.pipe_manager, self.server_address, self.transport_type, self.username, self.pipe_manager.fetch_and_get_domain_names())
+            self.pipe_manager = self.run_connect_dialog(self.pipe_manager, self.server_address, self.transport_type, self.username, domains = self.pipe_manager.fetch_and_get_domain_names())
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_users_and_groups()
                 
@@ -1086,8 +1097,6 @@ class SAMWindow(gtk.Window):
         try:
             self.pipe_manager.fetch_users_and_groups()
             
-            self.set_status("Connected to " + self.server_address + "/" + SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1]) + ".")
-            
         except RuntimeError, re:
             msg = "Failed to refresh SAM info: " + re.args[1] + "."
             self.set_status(msg)
@@ -1104,6 +1113,21 @@ class SAMWindow(gtk.Window):
             
         self.refresh_user_list_view()
         self.refresh_group_list_view()
+        
+        self.set_status("Successfully refreshed Users and Groups")
+        
+        #deselect any selected groups and users
+        (model, iter) = self.users_tree_view.get_selection().get_selected()
+        if iter == None: 
+            return
+        selector = self.users_tree_view.get_selection()
+        selector.unselect_iter(iter)
+        
+        (model, iter) = self.groups_tree_view.get_selection().get_selected()
+        if iter == None: 
+            return
+        selector = self.groups_tree_view.get_selection()
+        selector.unselect_iter(iter)
 
 
         
@@ -1273,13 +1297,14 @@ class SAMWindow(gtk.Window):
 #************ END OF CLASS ***************
 
 def PrintUseage():
-    print "Usage: " + str(os.path.split(__file__)[-1]) + " [OPTIONS]"
+    print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))
     print "All options are optional. The user will be queried for additional information if needed.\n"
     print "  -s  --server\t\tspecify the server to connect to."
     print "  -u  --user\t\tspecify the user."
     print "  -p  --password\tThe password for the user."
     print "  -t  --transport\tTransport type.\n\t\t\t\t0 for RPC, SMB, TCP/IP\n\t\t\t\t1 for RPC, TCP/IP\n\t\t\t\t2 for localhost."
     print "  -c  --connect-now\tSkip the connect dialog." 
+    #TODO: mention domain index. And maybe come up with a better way of handling it?
 
 def ParseArgs(argv):
     arguments = {}
@@ -1312,6 +1337,5 @@ if __name__ == "__main__":
     arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility
     
     main_window = SAMWindow(**arguments)
-    main_window.set_status("Disconnected.")
     main_window.show_all()
     gtk.main()

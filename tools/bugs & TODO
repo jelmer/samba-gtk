@@ -7,16 +7,19 @@ Overall TODO list:
 -Implement move_key() in pygwregedit
 -handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
 -use gnomekeyring instead of explicitly passing info around.
--about dialog
 -handle domain-index from command-line and through the launcher
 
 Minor:
 -remove references to samba.dcerpc.misc when no longer needed
 -References to None (py_none) are still not counted properly. This is a problem with the python bindings
--Speed improvement in the registry search thread.
 -handle auto-connect (--connect-now argument) better (GUI is frozen while connecting)
 -Add an green/red indicator for each tab to show if the utility is connected
 -add connect/disconnect messages in the launcher
+-image for main.py about dialog
+
+
+
+
 
 
 pygwcrontab
@@ -100,7 +103,6 @@ TODO:
 -Add an option to fetch everything (view -> fetch everything)?
 -Implement move_key()
 -Implement import/export (no python bindings for this yet)
--Speed up get_iter_for_key(). This is the bottleneck when searching
 -Entering multiple things into the registry search box makes it search for any of the items. Add an option to search for all items
 -
 -Make adding only 4bits (one hex character) impossible in the hex editor?

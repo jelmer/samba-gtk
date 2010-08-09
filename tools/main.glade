@@ -181,13 +181,13 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkToolButton" id="toolbuttontest1">
+                  <object class="GtkToolButton" id="clear_log_button">
                     <property name="visible">True</property>
                     <property name="is_important">True</property>
-                    <property name="label" translatable="yes">This Button Does Nothing</property>
+                    <property name="label" translatable="yes">Clear Log</property>
                     <property name="use_underline">True</property>
-                    <property name="stock_id">gtk-execute</property>
-                    <signal name="clicked" handler="on_toolbuttontest1_clicked"/>
+                    <property name="stock_id">gtk-clear</property>
+                    <signal name="clicked" handler="on_clear_log_button_clicked"/>
                   </object>
                   <packing>
                     <property name="expand">False</property>

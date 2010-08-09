@@ -54,15 +54,16 @@ class SambaUtilities(object):
                        "on_connect_all_item_activate": self.on_connect_all_button_clicked,
                        "on_disconnect_all_item_activate": self.on_disconnect_all_button_clicked,
                        "on_quit_item_activate": self.on_quit_item_activate,
+                       "on_clear_log_activate": self.on_clear_log_activate,
                        "on_connection_info_item_activate": self.on_connection_info_item_activate,
                        "on_about_item_activate": self.on_about_item_activate,
                        
                        "on_connect_all_button_clicked": self.on_connect_all_button_clicked,
                        "on_disconnect_all_button_clicked": self.on_disconnect_all_button_clicked,
-                       "on_toolbuttontest1_clicked": self.OnNothing,
+                       "on_clear_log_button_clicked": self.on_clear_log_activate,
                        
                        "on_utility_notebook_switch_page": self.on_utility_notebook_switch_page,
-                       "on_clear_log_activate": self.on_clear_log_activate,
+                       
                        }
         #Make the connections
         builder.connect_signals(connections)
@@ -378,10 +379,6 @@ class SambaUtilities(object):
             self.toolbar_viewport.remove(children[0])
             self.toolbar_viewport.add(self.crontab_window.toolbar)
             self.toolbar_viewport.show_all()
-                    
-        
-    def OnNothing(self, widget):
-        print "Nothing has been done."
         
     def on_connect_all_button_clicked(self, widget):
         

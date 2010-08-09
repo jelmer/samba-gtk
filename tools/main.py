@@ -1,7 +1,7 @@
 '''
 Created on May 17, 2010
 
-@author: shatterz
+@author: Sergio Martins
 '''
 import sys
 import pygtk
@@ -17,6 +17,7 @@ import pygwcrontab
 import pygwsvcctl
 
 from dialogs import SAMConnectDialog #we use this to connect all. Simple because it's the most complex of the 4.
+from dialogs import AboutDialog
 
 class SambaUtilities(object):
     def __init__(self, connection_args = {}, additional_connection_arguments = {}):
@@ -54,6 +55,7 @@ class SambaUtilities(object):
                        "on_disconnect_all_item_activate": self.on_disconnect_all_button_clicked,
                        "on_quit_item_activate": self.on_quit_item_activate,
                        "on_connection_info_item_activate": self.on_connection_info_item_activate,
+                       "on_about_item_activate": self.on_about_item_activate,
                        
                        "on_connect_all_button_clicked": self.on_connect_all_button_clicked,
                        "on_disconnect_all_button_clicked": self.on_disconnect_all_button_clicked,
@@ -431,6 +433,16 @@ class SambaUtilities(object):
         
     def on_clear_log_activate(self, widget):
         self.messages_textview.get_buffer().set_text("")
+    
+        
+    def on_about_item_activate(self, widget):
+        dialog = AboutDialog(
+                             "Main", 
+                             "A tool to display other utilities in a simple, unified window.",
+                             None
+                             )
+        dialog.run()
+        dialog.hide()
         
         
     def on_quit_item_activate(self, widget):

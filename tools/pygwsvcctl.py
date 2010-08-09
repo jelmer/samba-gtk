@@ -1036,7 +1036,10 @@ def ParseArgs(argv):
     Info about the thread locks used in this utility:
 the pipe lock is <pipe manager instance>.lock.acquire() and .release()
 the gdk lock (main thread lock) is simply gtk.gdk.threads_enter() and .threads_leave(), no need to get an instance
-You may acquire both locks at the same time as long as you get the gdk lock first!
+the gdk lock is automatically acquired and released with each iteration of the gtk.main() loop.
+    So that means every time a callback function is called in the main thread (for example on_connect_item_activate()), 
+    it will automatically grab the lock, run the function, and release it afterwards
+If you have to, you may acquire both locks at the same time as long as you get the gdk lock first!
 """
 if __name__ == "__main__":
     arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility

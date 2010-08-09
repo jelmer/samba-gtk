@@ -29,8 +29,8 @@ class AboutDialog(gtk.AboutDialog):
         self.set_name(name)
         self.set_version(samba.version)
         self.set_logo(icon)
-        self.set_copyright("Copyright \xc2\xa9 2009 Calin Crisan <ccrisan@gmail.com>")
-        self.set_authors(["Calin Crisan <ccrisan@gmail.com>", "Jelmer Vernooij <jelmer@samba.org>"])
+        self.set_copyright("Copyright \xc2\xa9 2010 Sergio Martins <Sergio97@gmail.com>")
+        self.set_authors(["Sergio Martins <Sergio97@gmail.com>", "Calin Crisan <ccrisan@gmail.com>", "Jelmer Vernooij <jelmer@samba.org>"])
         self.set_comments(description)
         self.set_wrap_license(True)
         self.set_license(

@@ -83,7 +83,7 @@ class WinRegPipeManager:
             try:
                 num_subkeys = float(self.pipe.QueryInfoKey(key_handle, WinRegPipeManager.winreg_string(""))[1])
             except RuntimeError as re:
-                print "Failed to fetch key information for " + key.get_absolute_path() + ": " + re.args[1]
+                print "Failed to fetch key information for %s: %s." % (key.get_absolute_path(), re.args[1])
             finally:
                 self.lock.release()
 
@@ -104,7 +104,7 @@ class WinRegPipeManager:
                 
                 if (update_GUI):
                     gtk.gdk.threads_enter()
-                    regedit_window.set_status("Fetching key: " + subkey_name.name)
+                    regedit_window.set_status("Fetching key: %s" % (subkey_name.name))
                     if (progress_bar):
                         if (index < num_subkeys): #the value of total was a guess so this may cause a GtkWarning for setting fraction to a value above 1.0
                             regedit_window.progressbar.set_fraction(index/num_subkeys) 
@@ -170,7 +170,7 @@ class WinRegPipeManager:
         
         if (update_GUI and confirm):
             gtk.gdk.threads_enter()
-            regedit_window.set_status("Successfully fetched keys and values of " + key.name)
+            regedit_window.set_status("Successfully fetched keys and values of %s" % (key.name))
             gtk.gdk.threads_leave()
             
 #        #The reference count to Py_None is still not right: It climbs to infinity!
@@ -181,14 +181,13 @@ class WinRegPipeManager:
         """this function gets a list subkeys for 'key'
         
         returns subkey_list"""
+        
         subkey_list = []
-        
         path_handles = self.open_path(key)
-        blank_buff = WinRegPipeManager.winreg_string_buf("")
-        
         key_handle = path_handles[-1]
-
+        blank_buff = WinRegPipeManager.winreg_string_buf("")
         index = 0
+        
         while True: #get a list of subkeys
             try:
                 (subkey_name, 
@@ -216,11 +215,10 @@ class WinRegPipeManager:
         returns a list of values"""
         
         value_list = []
-        
         path_handles = self.open_path(key)
         key_handle = path_handles[-1]
-
         index = 0
+        
         while True: #get a list of values for the key
             try:
                 (value_name, 
@@ -437,7 +435,7 @@ class KeyFetchThread(threading.Thread):
     def run(self):
         msg = None
         try:
-            #the ls_key function will grab the pipe lock. We can't do it here or else we may cause a deadlock!
+            #the ls_key function will grab the pipe lock
             (key_list, value_list) = self.pipe_manager.ls_key(self.selected_key, self.regedit_window)
             
             gtk.gdk.threads_enter()
@@ -449,7 +447,7 @@ class KeyFetchThread(threading.Thread):
             self.regedit_window.update_sensitivity()
             #threads_leave in the finally: section
         except RuntimeError as ex:
-            msg = "Failed to fetch information about " + self.selected_key.get_absolute_path() + ": " + ex.args[1] + "."
+            msg = "Failed to fetch information about %s: %s." % (self.selected_key.get_absolute_path(), ex.args[1])
             print msg
         
         finally:
@@ -502,51 +500,69 @@ class SearchThread(threading.Thread):
                 
         else: #The user pressed find next.
             #create the stack with only the keys we haven't searched yet
-            gtk.gdk.threads_enter() #the function below requires the GUI lock because it has to get info from the gtk data structures. But i'm not positive this lock is needed
+            gtk.gdk.threads_enter() #the function below requires the GUI gui_lock because it has to get info from the gtk data structures. But i'm not positive this gui_lock is needed
             stack = self.fill_stack()
             gtk.gdk.threads_leave()
             
         #stuff we need
         model = self.regedit_window.keys_tree_view.get_model()
         
-        i = 0 #TODO: remove
-        totalt = 0.0
+        #Stuff simply to speed things up
+        search_keys = self.search_keys
+        search_values = self.search_values
+        search_data = self.search_data
+        #dot operations addresses are looked up at run time, so this saves us many lookups
+        gui_lock = gtk.gdk.threads_enter
+        gui_unlock = gtk.gdk.threads_leave
+        pipe_lock = self.pipe_manager.lock.acquire
+        pipe_unlock = self.pipe_manager.lock.release
+        append_to_key_store = self.regedit_window.keys_store.append
+        set_status = self.regedit_window.set_status
+        
+        i = 999
+        #TODO: remove
+        totalfetch = 0.0
+        totalappend = 0.0
+        totaltotal = 0.0
         while stack != []:
             if self.explode:
                 return
             
-            i += 1 #TODO: remove
-            pret = time.time()
+            #TODO: remove
+            total = time.time()
             
             key = stack.pop()
             
-            gtk.gdk.threads_enter()
-            self.regedit_window.set_status("Searching %s" % key.get_absolute_path())
-            gtk.gdk.threads_leave()
+            #For the sake of saving about 8% time, we only display a message every 5 values
+            if (i >= 5):
+                i = 0
+                gui_lock()
+                set_status("Searching %s" % key.get_absolute_path())
+                gui_unlock()
+            else:
+                i += 1
             
             #check if this key's name matches any of our search queries
-            if (self.search_keys):
+            if (search_keys):
                 for text in search_items:
                     if (key.name.find(text) >= 0): #find() returns the index, so anything greater than -1 means found
-                        gtk.gdk.threads_enter()
+                        #TODO: remove
+                        print "fetch time: %.4f, %.1f%s" % (totalfetch, totalfetch / totaltotal * 100.0, "%")
+                        print "appendtime: %.4f, %.1f%s" % (totalappend, totalappend/totaltotal * 100.0, "%")
+                        print "total Time: %.4f" % (totaltotal)
+                        
+                        gui_lock()
                         key_iter = self.regedit_window.get_iter_for_key(key)
                         self.regedit_window.highlight_search_result(key_iter)
                         msg = "Found key at: %s" % key.get_absolute_path()
                         self.regedit_window.set_status(msg)
                         self.regedit_window.search_thread = None
-                        gtk.gdk.threads_leave()
+                        gui_unlock()
                         return
-                    
-            totalt += time.time()-pret 
-            if i > 1000:
-                print "Time to print & prefetch: %.4f" % (totalt)
-                totalt = 0.0
-                i = 0
-#            t = time.time()
             
             #fetch a list of values for this key
-            if (self.search_values or self.search_data):
-                self.pipe_manager.lock.acquire()
+            if (search_values or search_data):
+                pipe_lock()
                 try:
                         value_list = self.pipe_manager.get_values_for_key(key)
                 except RuntimeError as ex:
@@ -554,45 +570,74 @@ class SearchThread(threading.Thread):
                     print "Failed to fetch values for %s: %s." % (key.get_absolute_path(), ex.args[1])
                     continue
                 finally:
-                    self.pipe_manager.lock.release()
+                    pipe_unlock()
             
-            #Check this key's Values to see if any of their names match the search queries
-            if (self.search_values): #if we're searching values
-                for value in value_list: #go through every value for this key
-                    for text in search_items: #and check those values for each search string
-                        if (value.name.find(text) >= 0): #check if it's in the value's name
-                            gtk.gdk.threads_enter()
-                            self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
-                            key_iter = self.regedit_window.get_iter_for_key(key)
-                            value_iter = self.regedit_window.get_iter_for_value(value)
-                            self.regedit_window.highlight_search_result(key_iter, value_iter)
-                            msg = "Found value at: %s" % value.get_absolute_path()
-                            self.regedit_window.set_status(msg)
-                            self.regedit_window.search_thread = None
-                            gtk.gdk.threads_leave()
-                            return
-                            
-            #Check this key's Value's data to see if anything matches the search queries
-            if (self.search_data): #if we're searching values
-                for value in value_list: #go through every value for this key
-                    for text in search_items: #and check those values for each search string
-                        if (value.get_data_string().find(text) >= 0): #check if it's in the value's data
-                            gtk.gdk.threads_enter()
-                            self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
-                            key_iter = self.regedit_window.get_iter_for_key(key)
-                            value_iter = self.regedit_window.get_iter_for_value(value)
-                            self.regedit_window.highlight_search_result(key_iter, value_iter)
-                            msg = "Found data at: %s" % value.get_absolute_path()
-                            self.regedit_window.set_status(msg)
-                            self.regedit_window.search_thread = None
-                            gtk.gdk.threads_leave()
-                            return
+#This code searches values & data.
+#look below for commented-out code that does the same thing, but is easier to read
+            if (search_values or search_data):
+                   for value in value_list: #go through every value for this key
+                       for text in search_items: #and check those values for each search string
+                            if (search_values and value.name.find(text) >= 0): #check if it's in the value's name
+                                gui_lock()
+                                self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
+                                key_iter = self.regedit_window.get_iter_for_key(key)
+                                value_iter = self.regedit_window.get_iter_for_value(value)
+                                self.regedit_window.highlight_search_result(key_iter, value_iter)
+                                msg = "Found value at: %s" % value.get_absolute_path()
+                                self.regedit_window.set_status(msg)
+                                self.regedit_window.search_thread = None
+                                gui_unlock()
+                                return
+                            if (search_values and value.get_data_string().find(text) >= 0): #check if it's in the value's data
+                                gui_lock()
+                                self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
+                                key_iter = self.regedit_window.get_iter_for_key(key)
+                                value_iter = self.regedit_window.get_iter_for_value(value)
+                                self.regedit_window.highlight_search_result(key_iter, value_iter)
+                                msg = "Found data at: %s" % value.get_absolute_path()
+                                self.regedit_window.set_status(msg)
+                                self.regedit_window.search_thread = None
+                                gui_unlock()
+                                return
+            
+#Old search code
+#This is slower than the above code. Speed isn't too big of a difference though
+#            #Check this key's Values to see if any of their names match the search queries
+#            if (self.search_values): #if we're searching values
+#                for value in value_list: #go through every value for this key
+#                    for text in search_items: #and check those values for each search string
+#                        if (value.name.find(text) >= 0): #check if it's in the value's name
+#                            gtk.gdk.threads_enter()
+#                            self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
+#                            key_iter = self.regedit_window.get_iter_for_key(key)
+#                            value_iter = self.regedit_window.get_iter_for_value(value)
+#                            self.regedit_window.highlight_search_result(key_iter, value_iter)
+#                            msg = "Found value at: %s" % value.get_absolute_path()
+#                            self.regedit_window.set_status(msg)
+#                            self.regedit_window.search_thread = None
+#                            gtk.gdk.threads_leave()
+#                            return
+#                            
+#            #Check this key's Value's data to see if anything matches the search queries
+#            if (self.search_data): #if we're searching values
+#                for value in value_list: #go through every value for this key
+#                    for text in search_items: #and check those values for each search string
+#                        if (value.get_data_string().find(text) >= 0): #check if it's in the value's data
+#                            gtk.gdk.threads_enter()
+#                            self.regedit_window.refresh_values_tree_view(value_list) #Fill in the values, we'll need this to hightlight the result
+#                            key_iter = self.regedit_window.get_iter_for_key(key)
+#                            value_iter = self.regedit_window.get_iter_for_value(value)
+#                            self.regedit_window.highlight_search_result(key_iter, value_iter)
+#                            msg = "Found data at: %s" % value.get_absolute_path()
+#                            self.regedit_window.set_status(msg)
+#                            self.regedit_window.search_thread = None
+#                            gtk.gdk.threads_leave()
+#                            return
                         
-#            print "Time to handle values: %.4f" % (time.time()-t)
-#            t = time.time()
+            t = time.time() #TODO: remove
                 
             #fetch a list of subkeys for this key
-            gtk.gdk.threads_enter() #we might acquire both locks, but it's ok since the gdk lock was acquired first
+            gui_lock()
             key_iter = self.regedit_window.get_iter_for_key(key)
             subkey_iter = model.iter_children(key_iter)
             if subkey_iter != None: #if the subkeys already exist in the tree view
@@ -600,31 +645,45 @@ class SearchThread(threading.Thread):
                 while subkey_iter != None:
                     subkey_list.append(model.get_value(subkey_iter, 1))
                     subkey_iter = model.iter_next(subkey_iter)
-                gtk.gdk.threads_leave()
+                gui_unlock()
             else: #If we don't already have them, we have to get them
-                gtk.gdk.threads_leave()
+                gui_unlock()
                 try: 
-                    self.pipe_manager.lock.acquire()
+                    pipe_lock()
                     subkey_list = self.pipe_manager.get_subkeys_for_key(key)
                 except Exception as ex:
                     #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
                     print "Failed to fetch subkeys for %s: %s." % (key.get_absolute_path(), ex.args[1])
                     continue
                 finally:
-                    self.pipe_manager.lock.release()
+                    pipe_unlock()
                     
-#            print "Time to fetch subkeys: %.4f" % (time.time()-t)
-#            t = time.time()
-            
-            
+#            #TODO: remove this test
+#            try: 
+#                pipe_lock()
+#                subkey_list = self.pipe_manager.get_subkeys_for_key(key)
+#            except Exception as ex:
+#                #probably a WERR_ACCESS_DENIED exception. We'll just skip over keys that can't be fetched
+#                print "Failed to fetch subkeys for %s: %s." % (key.get_absolute_path(), ex.args[1])
+#                continue
+#            finally:
+#                pipe_unlock()
+                
+            #TODO: remove
+            totalfetch += time.time()-t
+            t = time.time()
+                    
             #Append these keys to the parent in the TreeStore.
             #Since we're fetching them we might as well add them to the TreeStore so that we don't have to fetch them again later
-            gtk.gdk.threads_enter()
+            gui_lock()
             key_iter = self.regedit_window.get_iter_for_key(key)
             if model.iter_children(key_iter) == None: #if this key doesn't have any children already (if it does then those children might also have subkeys, which we don't want to erase)
                 for current_key in subkey_list:
-                    self.regedit_window.keys_store.append(key_iter, current_key.list_view_representation())
-            gtk.gdk.threads_leave()
+                    append_to_key_store(key_iter, current_key.list_view_representation())
+            gui_unlock()
+            
+            #TODO: remove
+            totalappend += time.time()-t
                 
             #Looks like we didn't find anything, lets push this key's subkeys onto the stack
             append_list = []
@@ -633,7 +692,8 @@ class SearchThread(threading.Thread):
             append_list.reverse() #again we have to do this or else we'll search the list from bottom to top
             stack.extend(append_list)
             
-#            print "Time to append to stack: %.4f" % (time.time()-t)
+            #TODO: remove
+            totaltotal += time.time()-total
     
         #if we are here then the loop has finished and found nothing
         msg = "Search query not found."
@@ -645,7 +705,7 @@ class SearchThread(threading.Thread):
         
     def fill_stack(self): 
         """Fills the stack with the keys we need to search. This only gets called to create the stack when the user presses 'find next'.
-        NOTE: This function requires the gdk lock. Make sure to acquire the lock before calling this function."""
+        NOTE: This function requires the gdk lock. Make sure you hold the lock before calling this function."""
         model = self.regedit_window.keys_tree_view.get_model()
         key = model.get_value(self.starting_key_iter, 1)
         root_key = key.get_root_key()
@@ -1156,14 +1216,14 @@ class RegEditWindow(gtk.Window):
         self.values_store.clear()
         
         for value in value_list:
-            try: #sometimes this can fail when we get a value of a type that isn't in type_pixbufs (such as REG_NONE)
+            try: #This can fail when we get a value of a type that isn't in type_pixbufs (such as REG_NONE)
                 self.values_store.append([type_pixbufs[value.type]] + value.list_view_representation())
-            except KeyError or IndexError as er:
+            except (KeyError, IndexError, ) as er:
                 #TODO: handle REG_NONE types better.
                 if value.type == misc.REG_NONE: 
-                    print "Warning: Not displaying a hidden value at " + value.get_absolute_path()
+                    print "Warning: Not displaying a hidden value at %s" % (value.get_absolute_path())
                 else:
-                    print "Warning: Failed to display " + value.get_absolute_path() + " in the value tree: values of type " + str(value.type) + " cannot be handled"
+                    print "Warning: Failed to display %s in the value tree: values of type %s cannot be handled" % (value.get_absolute_path(), str(value.type))
                     
         if (len(selected_paths) > 0):
             try:
@@ -1223,6 +1283,7 @@ class RegEditWindow(gtk.Window):
     
     def get_iter_for_key(self, key):
         """This function takes a key and gets the iterator for that key in the gtk.TreeStore.
+        Note: this function IS VERY SLOW. Only call this function if you cannot figure out a better method.
         
         Returns an iterator or None"""
         if not self.connected():
@@ -1463,13 +1524,13 @@ class RegEditWindow(gtk.Window):
                     elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
                     else:
-                        msg = "Failed to connect: " + re.args[1] + "."
+                        msg = "Failed to connect: %s." % (re.args[1])
                         print msg
                         traceback.print_exc()                        
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception as ex:
-                    msg = "Failed to connect: " + str(ex) + "."
+                    msg = "Failed to connect: %s." % (str(ex))
                     print msg
                     traceback.print_exc()
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
@@ -1676,27 +1737,31 @@ class RegEditWindow(gtk.Window):
         
         result = False
         
-        tree_selection = self.keys_tree_view.get_selection() #this is NOT the current selection, it's a gtk.TreeSelection object.
         model = self.keys_tree_view.get_model()
         try:
-            
-            #self.keys_tree_view.set_cursor(model.get_path(key_iter))
             self.keys_tree_view.expand_to_path(model.get_path(key_iter))
-            tree_selection.select_iter(key_iter)
+            self.keys_tree_view.set_cursor(model.get_path(key_iter))
+            
             result = True
         except RuntimeError as re:
             #this could happen when we try to highlight a value that isn't in the tree
             print "Problem selecting key:", re.args[1]
         
         if value_iter != None:
-            tree_selection = self.values_tree_view.get_selection()
             model = self.values_tree_view.get_model()
             try:
-                #self.values_tree_view.set_cursor(model.get_path(value_iter))
-                self.values_tree_view.expand_to_path(model.get_path(value_iter))
-                tree_selection.select_iter(value_iter)
+                path = model.get_path(value_iter) 
+                self.values_tree_view.set_cursor(path)
+                self.values_tree_view.expand_to_path(path)
             except RuntimeError as re:
                 print "Problem selecting value:", re.args[1]
+            except TypeError as re:
+                #This seems to eject a TypeError: could not convert path to a GtkTreePath
+                #when caught it still causes a GTKWarning: assertion `iter->stamp == GTK_LIST_STORE (tree_model)->stamp' failed
+                #whenever a user gets a find-next search result (that is in the Value's name!) for the second time
+                #How to reproduce:
+                #find <some string>, find-next. After the second result start a new search for the exactl same thing. find-next.
+                print "Something CRAZY just happened!"
                 
         return result
              
@@ -1989,7 +2054,10 @@ class RegEditWindow(gtk.Window):
         
         #search the remaining values in this key
         if (search_values):
-            value_iter = self.values_store.iter_next(sel_value_iter) #point to the value after the one we just found
+            if sel_value_iter != None:
+                value_iter = value_model.iter_next(sel_value_iter) #point to the value after the one we just found
+            else:
+                value_iter = value_model.get_iter_first()
             while (value_iter != None): #this will be none when there is no more values
                 current_value = value_model.get_value(value_iter, 4)
                 for text in search_items:
@@ -1998,22 +2066,23 @@ class RegEditWindow(gtk.Window):
                         msg = "Found value at: " + current_value.get_absolute_path()
                         self.set_status(msg)
                         return
+                value_iter = value_model.iter_next(value_iter)
         
         #search the remaining data too
         if (search_data):
-            value_iter = self.values_store.iter_next(sel_value_iter)
+            if sel_value_iter != None:
+                value_iter = value_model.iter_next(sel_value_iter) #point to the value after the one we just found
+            else:
+                value_iter = value_model.get_iter_first()
             while (value_iter != None):
                 current_value = value_model.get_value(value_iter, 4)
                 for text in search_items: #and check those values for each search string
-                    try: #the if line may cause an exception when get_data_string() returns a non-string type because of unexpected data
-                        if (current_value.get_data_string().find(text) >= 0): #check if it's in the value's data
-                            self.highlight_search_result(sel_key_iter, value_iter)
-                            msg = "Found data at: " + current_value.get_absolute_path()
-                            self.set_status(msg)
-                            return
-                    except Exception:
-                        #This usually happens when value is of type REG_NONE and so get_data_string() will fail.
-                        print "Problem getting data for " + value.get_absolute_path() + ". Value is type " + str(value.type) + "."
+                    if (current_value.get_data_string().find(text) >= 0): #check if it's in the value's data
+                        self.highlight_search_result(sel_key_iter, value_iter)
+                        msg = "Found data at: " + current_value.get_absolute_path()
+                        self.set_status(msg)
+                        return
+                value_iter = value_model.iter_next(value_iter)
         
         #so it's not in this key's values. Lets continue searching the rest of the registry
         self.search_thread = SearchThread(self.pipe_manager, self, self.search_last_options, sel_key_iter)
@@ -2155,7 +2224,10 @@ def ParseArgs(argv):
     Info about the thread locks used in this utility:
 the pipe lock is <pipe manager instance>.lock.acquire() and .release()
 the gdk lock (main thread lock) is simply gtk.gdk.threads_enter() and .threads_leave(), no need to get an instance
-You may acquire both locks at the same time as long as you get the gdk lock first!
+the gdk lock is automatically acquired and released with each iteration of the gtk.main() loop.
+    So that means every time a callback function is called in the main thread (for example on_connect_item_activate()), 
+    it will automatically grab the lock, run the function, and release it afterwards
+If you have to, you may acquire both locks at the same time as long as you get the gdk lock first!
 """
 if __name__ == "__main__":
     arguments = ParseArgs(sys.argv[1:]) #the [1:] ignores the first argument, which is the path to our utility

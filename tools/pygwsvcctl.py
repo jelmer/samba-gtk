@@ -60,7 +60,7 @@ class SvcCtlPipeManager():
             svcctl.SERVICE_STATE_ALL, 256 * 1024,
             0)
 
-        error_msg = None
+        runtime_error = None
         current = 0.0
         gtk.gdk.threads_enter()
         svcctl_window.progressbar.show()
@@ -69,21 +69,23 @@ class SvcCtlPipeManager():
         for enum_service_status in SvcCtlPipeManager.enum_service_status_list_from_buffer(buffer, count):
             try:
                 gtk.gdk.threads_enter()
-                svcctl_window.set_status("Fetching service: " + enum_service_status.service_name)
+                svcctl_window.set_status("Fetching service: %s." % (enum_service_status.service_name))
                 svcctl_window.progressbar.set_fraction(current / count)
                 gtk.gdk.threads_leave()
                 current += 1.0
                 service = SvcCtlPipeManager.fetch_service(self, enum_service_status.service_name)
                 self.service_list.append(service)
-            except Exception as ex:
-                error_msg = "Failed to fetch service '" + enum_service_status.service_name + "': " + str(ex)
+            except RuntimeError as re:
+                if re.args[0] == 5: #5 is WERR_ACCESS_DENIED
+                    print "Failed to fetch service \'%s\': Access Denied." % (enum_service_status.service_name)
+                else:
+                    #we do this so we can continue fetching services, even if a few fetches fail.
+                    print "Failed to fetch service %s: %s." % (enum_service_status.service_name, re.args[1])
+                    traceback.print_exc()
 
         gtk.gdk.threads_enter()
         svcctl_window.progressbar.hide()
         gtk.gdk.threads_leave()
-        
-        if (error_msg != None):
-            raise Exception(error_msg)
 
     def start_service(self, service):
         self.pipe.StartServiceW(service.handle, service.start_params.split())
@@ -243,35 +245,15 @@ class FetchServicesThread(threading.Thread):
         self.svcctl_window = svcctl_window
         
     def run(self):
+        self.pipe_manager.lock.acquire()
         try:
-            self.pipe_manager.lock.acquire()
+            #This function handles runtime errors on it's own. This way it can continue running after an error.
             self.pipe_manager.fetch_services(self.svcctl_window)
-            
-        except RuntimeError, re:
-            msg = "Failed to retrieve the service list: " + re.args[1] + "."
-            print msg
-            traceback.print_exc()
-            
-            gtk.gdk.threads_enter()
-            self.svcctl_window.set_status(msg)
-            self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-            gtk.gdk.threads_leave()
-        
-        except Exception, ex:
-            msg = "Failed to retrieve the service list: " + str(ex) + "."
-            print msg
-            traceback.print_exc()
-            
-            gtk.gdk.threads_enter()
-            self.svcctl_window.set_status(msg)
-            self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-            gtk.gdk.threads_leave()
-        
         finally:
             self.pipe_manager.lock.release()
         
         gtk.gdk.threads_enter()
-        self.svcctl_window.set_status("Connected to " + self.svcctl_window.server_address + ".")
+        self.svcctl_window.set_status("Connected to %s." % (self.svcctl_window.server_address))
         self.svcctl_window.refresh_services_tree_view()
         gtk.gdk.threads_leave()
 
@@ -316,7 +298,7 @@ class ServiceControlThread(threading.Thread):
                 self.service_control_dialog.set_progress_speed(1.0 / ((self.service.wait_hint / 1000.0) / sleep_delay))
             
         except RuntimeError, re:
-            msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + re.args[1] + "."
+            msg = "Failed to %s service \'%s\': %s." % (control_string[self.control], self.service.display_name, re.args[1])
             print msg
             traceback.print_exc()
             
@@ -329,7 +311,7 @@ class ServiceControlThread(threading.Thread):
             return
 
         except Exception, ex:
-            msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + str(ex) + "."
+            msg = "Failed to %s service \'%s\': %s." % (control_string[self.control], self.service.display_name, str(ex))
             print msg
             traceback.print_exc()
             
@@ -350,7 +332,7 @@ class ServiceControlThread(threading.Thread):
                 self.pipe_manager.fetch_service_status(self.service)
                 
             except RuntimeError, re:
-                msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + re.args[1] + "."
+                msg = "Failed to %s service \'%s\': %s." % (control_string[self.control], self.service.display_name, re.args[1])
                 print msg
                 traceback.print_exc()
                           
@@ -363,7 +345,7 @@ class ServiceControlThread(threading.Thread):
                 return
                 
             except Exception, ex:
-                msg = "Failed to " + control_string[self.control] + " service '" + self.service.display_name + "': " + str(ex) + "."
+                msg = "Failed to %s service \'%s\': %s." % (control_string[self.control], self.service.display_name, str(ex))
                 print msg
                 traceback.print_exc()
                 
@@ -400,12 +382,12 @@ class ServiceControlThread(threading.Thread):
         self.svcctl_window.refresh_services_tree_view()
 
         if (self.service.state == final_state[self.control]):        
-            self.svcctl_window.set_status("Successfully " + control_string2[self.control] + " '" + self.service.display_name + "' service.")
+            self.svcctl_window.set_status("Successfully %s \'%s\' service." % (control_string2[self.control], self.service.display_name))
         else:
             if (self.pending):
-                self.svcctl_window.set_status("The " + control_string[self.control] + " operation on '" + self.service.display_name + "' service is still pending.")
+                self.svcctl_window.set_status("The %s operation on the \'%s\' service is still pending." % (control_string[self.control], self.service.display_name))
             else:
-                msg = "Failed to " + control_string[self.control] + " '" + self.service.display_name + "' service."
+                msg = "Failed to %s the \'%s\' service." % (control_string[self.control], self.service.display_name)
                 self.svcctl_window.set_status(msg)
                 self.svcctl_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, self.svcctl_window)
         gtk.gdk.threads_leave()
@@ -823,24 +805,26 @@ class SvcCtlWindow(gtk.Window):
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
                         dialog.password_entry.grab_focus()
                         dialog.password_entry.select_region(0, -1) #select all the text in the password box
-                    elif re.args[1] == 'Access denied':
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access denied.", dialog)
-                        dialog.password_entry.grab_focus()
-                        dialog.password_entry.select_region(0, -1)
+                    elif re.args[0] == 5 or re.args[1] == 'Access denied':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access Denied.", dialog)
+                        dialog.username_entry.grab_focus()
+                        dialog.username_entry.select_region(0, -1)
                     elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server", dialog)
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server.", dialog)
                         dialog.server_address_entry.grab_focus()
                         dialog.server_address_entry.select_region(0, -1)
                     elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
+                    elif re.args[1] == 'NT_STATUS_CONNECTION_REFUSED':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The connection was refused.", dialog)
                     else:
-                        msg = "Failed to connect: " + re.args[1] + "."
+                        msg = "Failed to connect: %s." % (re.args[1])
                         print msg
                         traceback.print_exc()                        
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception, ex:
-                    msg = "Failed to connect: " + str(ex) + "."
+                    msg = "Failed to connect: %s." % (str(ex))
                     print msg
                     traceback.print_exc()
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
@@ -857,17 +841,17 @@ class SvcCtlWindow(gtk.Window):
             self.pipe_manager.update_service(service)
             self.pipe_manager.fetch_service_status(service)
             
-            self.set_status("Service '" + service.display_name + "' updated.")
+            self.set_status("Service \'%s\' updated.") % (service.display_name)
             
         except RuntimeError, re:
-            msg = "Failed to update service: " + re.args[1] + "."
+            msg = "Failed to update service: %s." % (re.args[1])
             print msg
             self.set_status(msg)
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
             
         except Exception, ex:
-            msg = "Failed to update service: " + str(ex) + "."
+            msg = "Failed to update service: %s." % (str(ex))
             print msg
             self.set_status(msg)
             traceback.print_exc()
@@ -899,9 +883,11 @@ class SvcCtlWindow(gtk.Window):
         
         self.pipe_manager = self.run_connect_dialog(None, server, transport_type, username, password, connect_now)
         if (self.pipe_manager != None):
-            self.set_status("Fetching services from " + server + "...")
+            self.set_status("Fetching services from %s..." % (server))
 
             FetchServicesThread(self.pipe_manager, self).start()
+            #After this thread runs it will post a connected message.
+            #It's not ideal, but it's probably the best solution.
                     
         self.update_sensitivity()
         self.update_captions()
@@ -921,7 +907,7 @@ class SvcCtlWindow(gtk.Window):
         self.on_self_delete(None, None)
     
     def on_refresh_item_activate(self, widget):
-        self.set_status("Fetching services from " + self.server_address + "...")
+        self.set_status("Fetching services from %s..." % (self.server_address))
         FetchServicesThread(self.pipe_manager, self).start()
             
     def on_start_item_activate(self, widget):
@@ -948,14 +934,14 @@ class SvcCtlWindow(gtk.Window):
             self.pipe_manager.fetch_service_status(pause_resume_service)
     
         except RuntimeError, re:
-            msg = "Failed to fetch service status: " + re.args[1] + "."
+            msg = "Failed to fetch service status: %s." % (re.args[1])
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
-            msg = "Failed to fetch service status: " + str(ex) + "."
+            msg = "Failed to fetch service status: %s." % (str(ex))
             self.set_status(msg)
             print msg
             traceback.print_exc()
@@ -973,7 +959,7 @@ class SvcCtlWindow(gtk.Window):
         edit_service = self.get_selected_service()
         self.run_service_edit_dialog(edit_service, self.update_service_callback)
         
-        self.set_status("Service '" + edit_service.display_name + "' updated.")
+        self.set_status("Service \'%s\' updated." % (edit_service.display_name))
 
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(

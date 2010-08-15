@@ -55,7 +55,7 @@ class ATSvcPipeManager:
     def add_task(self, task):
         job_id = self.pipe.JobAdd(unicode(self.pipe.server_name), self.task_to_job_info(task))
         if (job_id == 0):
-            raise Exception("invalid task information")
+            raise RuntimeError(-1, "Invalid task information.")
         
         task.id = job_id
         self.task_list.append(task)
@@ -432,24 +432,26 @@ class CronTabWindow(gtk.Window):
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
                         dialog.password_entry.grab_focus()
                         dialog.password_entry.select_region(0, -1) #select all the text in the password box
-                    elif re.args[1] == 'Access denied':
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access denied.", dialog)
-                        dialog.password_entry.grab_focus()
-                        dialog.password_entry.select_region(0, -1)
+                    elif re.args[0] == 5 or re.args[1] == 'Access denied':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Access Denied.", dialog)
+                        dialog.username_entry.grab_focus()
+                        dialog.username_entry.select_region(0, -1)
                     elif re.args[1] == 'NT_STATUS_HOST_UNREACHABLE':
-                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server", dialog)
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Could not contact the server.", dialog)
                         dialog.server_address_entry.grab_focus()
                         dialog.server_address_entry.select_region(0, -1)
                     elif re.args[1] == 'NT_STATUS_NETWORK_UNREACHABLE':
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The network is unreachable.\n\nPlease check your network connection.", dialog)
+                    elif re.args[1] == 'NT_STATUS_CONNECTION_REFUSED':
+                        self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: The connection was refused.", dialog)
                     else:
-                        msg = "Failed to connect: " + re.args[1] + "."
+                        msg = "Failed to connect: %s." % (re.args[1])
                         print msg
                         traceback.print_exc()                        
                         self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
                     
                 except Exception, ex:
-                    msg = "Failed to connect: " + str(ex) + "."
+                    msg = "Failed to connect: %s." % (str(ex))
                     print msg
                     traceback.print_exc()
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
@@ -468,14 +470,14 @@ class CronTabWindow(gtk.Window):
             self.set_status("Task updated.")
 
         except RuntimeError, re:
-            msg = "Failed to update task: " + re.args[1] + "."
+            msg = "Failed to update task: %s." % (re.args[1])
             print msg
             self.set_status(msg)
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
-            msg = "Failed to update task: " + str(ex) + "."
+            msg = "Failed to update task: %s." % (str(ex))
             print msg
             self.set_status(msg)
             traceback.print_exc()
@@ -508,17 +510,17 @@ class CronTabWindow(gtk.Window):
             if (self.pipe_manager != None):
                 self.pipe_manager.fetch_tasks()
                 
-                self.set_status("Connected to " + server + ".")
+                self.set_status("Connected to %s." % (self.server_address)) #Because the global variable is updated by the run_connect_dialog() function
 
         except RuntimeError, re:
-            msg = "Failed to retrieve the scheduled tasks: " + re.args[1] + "."
+            msg = "Failed to retrieve the scheduled tasks: %s." % (re.args[1])
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
-            msg = "Failed to retrieve the scheduled tasks: " + str(ex) + "."
+            msg = "Failed to retrieve the scheduled tasks: %s." % (str(ex))
             self.set_status(msg)
             print msg
             traceback.print_exc()
@@ -544,17 +546,17 @@ class CronTabWindow(gtk.Window):
         try:
             self.pipe_manager.fetch_tasks()
             
-            self.set_status("Connected to " + self.server_address)
+            self.set_status("Connected to %s." % (self.server_address))
         
         except RuntimeError, re:
-            msg = "Failed to retrieve the scheduled tasks: " + re.args[1] + "."
+            msg = "Failed to retrieve the scheduled tasks: %s." % (re.args[1])
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
-            msg = "Failed to retrieve the scheduled tasks: " + str(ex) + "."
+            msg = "Failed to retrieve the scheduled tasks: %s." % (str(ex))
             self.set_status(msg)
             print msg
             traceback.print_exc()
@@ -571,17 +573,17 @@ class CronTabWindow(gtk.Window):
             self.pipe_manager.add_task(new_task)
             self.pipe_manager.fetch_tasks()
         
-            self.set_status("Successfully created the task")
+            self.set_status("Successfully created the task.")
         
         except RuntimeError, re:
-            msg = "Failed to create task: " + re.args[1] + "."
+            msg = "Failed to create task: %s." % (re.args[1])
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
-            msg = "Failed to create task: " + str(ex) + "."
+            msg = "Failed to create task: %s."  % (str(ex))
             self.set_status(msg)
             print msg
             traceback.print_exc()
@@ -602,14 +604,14 @@ class CronTabWindow(gtk.Window):
             self.set_status("Successfully deleted the task.")
         
         except RuntimeError, re:
-            msg = "Failed to delete task: " + re.args[1] + "."
+            msg = "Failed to delete task: %s." % (re.args[1])
             self.set_status(msg)
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         
         except Exception, ex:
-            msg = "Failed to delete task: " + str(ex) + "."
+            msg = "Failed to delete task: %s." % (str(ex))
             self.set_status(msg)
             print msg
             traceback.print_exc()

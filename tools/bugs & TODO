@@ -5,13 +5,13 @@ Overall TODO list:
 -passwords in pygwsam
 -permissions in pygwregedit
 -Implement move_key() in pygwregedit
--handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
 -use gnomekeyring instead of explicitly passing info around.
 -handle domain-index from command-line and through the launcher
 
 Minor:
 -remove references to samba.dcerpc.misc when no longer needed
 -References to None (py_none) are still not counted properly. This is a problem with the python bindings
+-handle 'NT_STATUS_OBJECT_NAME_NOT_FOUND' connection errors with a more human-freindly message
 -handle auto-connect (--connect-now argument) better (GUI is frozen while connecting)
 -Add an green/red indicator for each tab to show if the utility is connected
 -add connect/disconnect messages in the launcher
@@ -22,19 +22,15 @@ Minor:
 
 
 
+
 pygwcrontab
 -----------
-
-Windows XP SP2:
-Tested creating/modifying/deleteing schedules using utilitiy and locally on the server.
-Dare I say, it looks like this one works perfectly!
-
-Windows Vista Home Premium:
--'NT_STATUS_RESOURCE_NAME_NOT_FOUND' error when connecting, happens on line 40 in __init__()
--unable to connect
+Bugs:
+-None
 
 TODO:
--nothing, this utility is AWESOME!
+-nothing, this utility is great!
+
 
 
 
@@ -43,8 +39,7 @@ TODO:
 
 pygwsam
 -------
-
-Windows XP SP2:
+Bugs:
 -"User must change password at next logon" option is never updated on the server. Utility displays correct value, but is never able change it.
 	-enabling "password never expires" does disable "user must change password" on the server as expected. However, disabling "password never expires" will once again enable "user must change password" if it was previously enabled on the server. 
 	-flags are correct when sent to and accepted from the server, it appears the changes are simply rejected.
@@ -52,9 +47,10 @@ Windows XP SP2:
 		-This option has been tested with the exact security flags used by a windows machine, still no luck
 		-It appears the windows machines don't even update this flag!!! I have no idea what's going on here
 	
+Info:
 -using UserLogonInformation (lvl 3) always returns Invalid information class, even if no changes were made
 -using UserAccountInformation (lvl 5) always returns Invalid information class, even if no changes were made
--using UserAllInformation (lvl 21) always returns Unexpected information received, even if no changes were made
+-using UserAllInformation (lvl 21) always returns Unexpected information received, even if no changes were made (you must change the fields_present field!)
 	-Attempting to return field 'bad_pwd_count' causes 'Access denied' error (makes sense, should have been obvious really)
 	-Attempting to return field 'last_logoff' causes 'Access denied' error 
 	-Attempting to return field 'last_logon' causes 'Access denied' error 
@@ -66,20 +62,18 @@ Windows XP SP2:
 	-Attempting to change the user's RID causes 'Unexpected information received' error
 		
 -Groups arn't displayed properly, only the "none" group appears.
--Access denied when attempted to create a new user group (also possibly why groups arn't listed?)
--
-
-Windows Vista Home Premium: 
--Able to view users but not create or edit anything. Possibly because it's home premium which doesn't allow this kind of advanced editing through it's own utilities
-	-creating/editing doesn't work through windows' remote management either. I'm almost certain this isn't supported by Home Premium.
--Groups arn't displayed properly, only the "none" group appears.
-
-
+	-EnumDomainGroups() function returns only the None group. Not sure why
+	-checking QueryDomainInfo() for general info says there is infact only 1 group.
+-Access denied when attempted to create a new group
+	-Security flags are all security.MAXIMUM_ALLOWED and I'm using an administrator account. Not sure what's wrong
+	
 
 TODO list:
 -passwords are not updated
+	-It might be best to create a new dialog for this. One that required the old password?
 -"User must change password at next logon" bug
--Groups arn't displayed properly, only the "none" group appears.
+-Groups arn't displayed properly, only the "none" group appears. (this may be proper?)
+-implement policies functionality
 
 
 
@@ -97,6 +91,13 @@ Bugs:
 -WERR_INVALID_PARAM caused by CreateKey() in the pipe manager when creating a new key in HKEY_LOCAL_MACHINE
 	-Tried changing the value for winreg_CreateAction to REG_CREATE_NEW_KEY instead of REG_ACTION_NONE, doesn't help
 -WERR_MORE_DATA in WinRegPipeManager.get_values_for_key() and ls_key (for values). The error is thrown from rpc_winreg.c it seems.
+-Seemingly random crashes when searching and traversing the keys tree quickly (fetching new keys)
+	-repeat this by starting a search, then selecting the second root key in the keys tree and holding the down key.
+	-Each crash seems to give a different error, so this is probably a threading issue
+-Memory leak in fetching keys. Memory usage climbs indefinitely when searching.
+	-It makes sense to think the search stack is responsible for this, but memory usage doesn't decline after halting a search
+	-Starting a new search still causes memory increase, even though we're searching keys that have already been fetched
+	
 
 TODO:
 -Implement permissions
@@ -118,13 +119,8 @@ TODO:
 pygwsvcctl
 ----------
 
-Windows XP SP2:
+Bugs:
 -Access denied error when fetching services, but still displays a list (maybe some are missing? -a quick count says no, may be inaccurate)
--
-
-Windows Vista Home Premium:
--"WERR_ACCESS_DENIED" when attempting to connect
--unable to connect
 
 
 TODO:

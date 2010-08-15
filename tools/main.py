@@ -39,7 +39,10 @@ class SambaUtilities(object):
         self.update_sensitivity()
         self.window.show()
         self.push_status_message("Utility started successfully.")
+        self.utilites_notebook.grab_focus() #So switching to the regedit tab doesn't automatically focus the keys tree view
         
+        if (connection_args.has_key("connect_now") and connection_args["connect_now"]):
+            self.on_connect_all_button_clicked(None)
         
         
     def create(self):
@@ -425,7 +428,8 @@ class SambaUtilities(object):
         self.update_sensitivity()
             
     def on_connection_info_item_activate(self, widget):
-        #TODO: this
+        #TODO: display connection info (via a dialog or custom window?)
+        self.push_status_message("This is not implemented yet!")
         pass
         
     def on_clear_log_activate(self, widget):

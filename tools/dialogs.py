@@ -102,6 +102,7 @@ class UserEditDialog(gtk.Dialog):
 
         self.username_entry = gtk.Entry()
         self.username_entry.set_activates_default(True)
+        self.username_entry.set_max_length(20) #This is the length limit for usernames
         table.attach(self.username_entry, 1, 2, 0, 1, gtk.FILL, 0, 0, 0)
 
         self.fullname_entry = gtk.Entry()

@@ -2092,7 +2092,7 @@ class RegEditWindow(gtk.Window):
         (iter, selected_value) = self.get_selected_registry_value()
         
         if (selected_value != None):
-            self.set_status("Selected path \'%s\'." % (selected_value.get_absolute_path()))
+            self.set_status("Selected path \'%s\\%s\'." % (selected_value.get_absolute_path(), selected_value.name))
             
         self.update_sensitivity()
 

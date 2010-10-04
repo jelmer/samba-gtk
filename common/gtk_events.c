@@ -31,7 +31,7 @@
 #include <sys/time.h>
 #include <util.h>
 #include <tevent.h>
-#include <tevent_internal.h>
+#include "tevent_internal.h"
 
 #include "common/select.h"
 

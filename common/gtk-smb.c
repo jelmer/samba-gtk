@@ -179,12 +179,12 @@ static void gtk_rpc_binding_dialog_init (GtkRpcBindingDialog *gtk_rpc_binding_di
 
 	btn_cancel = gtk_button_new_from_stock ("gtk-cancel");
 	gtk_dialog_add_action_widget (GTK_DIALOG (gtk_rpc_binding_dialog), btn_cancel, GTK_RESPONSE_CANCEL);
-	GTK_WIDGET_SET_FLAGS (btn_cancel, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(btn_cancel, TRUE);
 
 	btn_connect = gtk_button_new_with_mnemonic ("C_onnect");
 	gtk_dialog_add_action_widget (GTK_DIALOG (gtk_rpc_binding_dialog), btn_connect, GTK_RESPONSE_ACCEPT);
 	gtk_container_set_border_width (GTK_CONTAINER (btn_connect), 1);
-	GTK_WIDGET_SET_FLAGS (btn_connect, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(btn_connect, TRUE);
 
 	g_signal_connect ((gpointer) gtk_rpc_binding_dialog->transport_ncalrpc, "toggled",
 						  G_CALLBACK (on_ncalrpc_toggled),
@@ -230,7 +230,7 @@ GType gtk_rpc_binding_dialog_get_type (void)
  *
  * Optionally gets a sam pipe that will be used to look up users
  */
-GtkWidget *gtk_rpc_binding_dialog_new (struct dcerpc_pipe *sam_pipe)
+GtkWidget *gtk_rpc_binding_dialog_new (struct dcerpc_binding_handle *sam_pipe)
 {
 	GtkRpcBindingDialog *d = SAMBAGTK_RPC_BINDING_DIALOG ( g_object_new (gtk_rpc_binding_dialog_get_type (), NULL));
 	d->sam_pipe = sam_pipe;
@@ -322,7 +322,7 @@ GtkWidget *create_gtk_samba_about_dialog (const char *appname)
 
 	okbutton1 = gtk_button_new_from_stock ("gtk-ok");
 	gtk_dialog_add_action_widget (GTK_DIALOG (samba_about_dialog), okbutton1, GTK_RESPONSE_OK);
-	GTK_WIDGET_SET_FLAGS (okbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(okbutton1, TRUE);
 	gtk_widget_show_all(dialog_vbox1);
 
 	return samba_about_dialog;

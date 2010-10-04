@@ -32,7 +32,7 @@
 #include <util/debug.h>
 
 struct policy_handle sam_handle;
-struct dcerpc_pipe *sam_pipe = NULL;
+struct dcerpc_binding_handle *sam_pipe = NULL;
 static struct policy_handle domain_handle;
 GtkWidget *mainwin;
 GtkWidget *seldomain;
@@ -50,8 +50,7 @@ static void update_grouplist(void)
 
 static void update_userlist(void)
 {
-	NTSTATUS status;
-	struct samr_EnumDomainUsers r;
+	NTSTATUS status, result;
 	struct samr_SamArray *sam;
 	uint32_t resume_handle=0;
 	uint32_t num_entries;
@@ -63,15 +62,10 @@ static void update_userlist(void)
 	gtk_list_store_clear(store_users);
 
 	mem_ctx = talloc_init("update_userlist");
-	r.in.domain_handle = &domain_handle;
-	r.in.resume_handle = &resume_handle;
-	r.in.acct_flags = 0;
-	r.in.max_size = (uint32_t)100;
-	r.out.resume_handle = &resume_handle;
-	r.out.sam = &sam;
-	r.out.num_entries = &num_entries;
 
-	status = dcerpc_samr_EnumDomainUsers(sam_pipe, mem_ctx, &r);
+	status = dcerpc_samr_EnumDomainUsers(sam_pipe, mem_ctx, &domain_handle,
+										 &resume_handle, 0, &sam, 100,
+										 &num_entries, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(mainwin, "While enumerating domain users", status);
 		talloc_free(mem_ctx);
@@ -128,9 +122,8 @@ static void on_select_domain_activate(GtkMenuItem *menuitem, gpointer user_data)
 
 static void connect_sam(void)
 {
-	struct samr_Connect r;
 	TALLOC_CTX *mem_ctx;
-	NTSTATUS status;
+	NTSTATUS status, result;
 
 	mem_ctx = talloc_init("gwsam_connect");
 
@@ -140,11 +133,8 @@ static void connect_sam(void)
 	if (!sam_pipe)
 		return;
 
-	r.in.system_name = 0;
-	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
-	r.out.connect_handle = &sam_handle;
-
-	status = dcerpc_samr_Connect(sam_pipe, mem_ctx, &r);
+	status = dcerpc_samr_Connect(sam_pipe, mem_ctx, 0, SEC_FLAG_MAXIMUM_ALLOWED,
+								 &sam_handle, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(mainwin, "While running connect on SAMR", status);
 		sam_pipe = NULL;
@@ -444,7 +434,7 @@ static GtkWidget* create_mainwindow (void)
 int main(int argc, char **argv)
 {
 	lp_ctx = loadparm_init(NULL);
-	lp_load_default(lp_ctx);
+	lpcfg_load_default(lp_ctx);
 	setup_logging(argv[0], DEBUG_STDERR);
 
 	dcerpc_init(lp_ctx);

@@ -34,7 +34,7 @@ struct _GtkSelectDomainDialog
 	GtkWidget *list_domains;
 	GtkListStore *store_domains;
 	TALLOC_CTX *mem_ctx;
-	struct dcerpc_pipe *sam_pipe;
+	struct dcerpc_binding_handle *sam_pipe;
 };
 
 typedef struct _GtkSelectDomainDialogClass GtkSelectDomainDialogClass;
@@ -56,7 +56,7 @@ struct _GtkSelectHostDialog
 	GtkWidget *entry_host;
 	GtkWidget *tree_host;
 	GtkTreeStore *store_host;
-	struct dcerpc_pipe *sam_pipe;
+	struct dcerpc_binding_handle *sam_pipe;
 	TALLOC_CTX *mem_ctx;
 };
 
@@ -71,16 +71,16 @@ struct _GtkSelectHostDialogClass
 #define GTK_SELECT_HOST_DIALOG_CLASS(klass)  GTK_CHECK_CLASS_CAST (klass, gtk_select_host_dialog_class_get_type (), GtkSelectHostDialogClass)
 #define IS_GTK_SELECT_HOST_DIALOG(obj)       GTK_CHECK_TYPE (obj, gtk_select_host_dialog_get_type ())
 
-GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe);
+GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_binding_handle *sam_pipe);
 GType gtk_select_domain_dialog_get_type (void);
 struct policy_handle gtk_select_domain_dialog_get_handle(GtkSelectDomainDialog *d);
-GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe);
+GtkWidget *gtk_select_host_dialog_new (struct dcerpc_binding_handle *sam_pipe);
 const char *gtk_select_host_dialog_get_host (GtkSelectHostDialog *d);
 GType gtk_select_host_dialog_get_type (void);
 
 struct ndr_interface_table;
 struct loadparm_context;
-struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
+struct dcerpc_binding_handle *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
 											  struct tevent_context *ev_ctx,
 											  struct loadparm_context *lp_ctx,
 											  const struct ndr_interface_table *table);

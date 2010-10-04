@@ -31,7 +31,7 @@
 #include <tevent.h>
 #include <util/debug.h>
 
-static struct dcerpc_pipe *at_pipe = NULL;
+static struct dcerpc_binding_handle *at_pipe = NULL;
 static GtkWidget *mainwin;
 static GtkListStore *store_jobs;
 static GtkWidget *tasks;
@@ -46,36 +46,36 @@ struct tevent_context *ev_ctx;
 static void update_joblist(void)
 {
 	TALLOC_CTX *mem_ctx = talloc_init("update_joblist");
-	NTSTATUS status;
-	struct atsvc_JobEnum r;
+	NTSTATUS status, result;
 	struct atsvc_enum_ctr ctr;
 	int i;
 	uint32_t resume_handle = 0;
+	uint32_t total_entries = 0;
 
 	gtk_list_store_clear(store_jobs);
 
-	ctr.entries_read = 0;
-	ctr.first_entry = NULL;
-	r.in.servername = dcerpc_server_name(at_pipe);
-	r.in.ctr = r.out.ctr = &ctr;
-	r.in.preferred_max_len = 0xffffffff;
-	r.in.resume_handle = r.out.resume_handle = &resume_handle;
+	status = dcerpc_atsvc_JobEnum(at_pipe, mem_ctx, 
+		dcerpc_server_name(at_pipe),
+		&ctr,
+		0xffffffff,
+		&total_entries,
+		&resume_handle,
+		&result);
 
-	status = dcerpc_atsvc_JobEnum(at_pipe, mem_ctx, &r);
 	if(!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(mainwin, "Error while enumerating first job", status);
 		return;
 	}
 
-	for (i = 0; i < r.out.ctr->entries_read; i++) {
+	for (i = 0; i < ctr.entries_read; i++) {
 		GtkTreeIter iter;
 		gtk_list_store_append(store_jobs, &iter);
 		gtk_list_store_set (store_jobs, &iter,
-			0, r.out.ctr->first_entry[i].flags,
-			1, r.out.ctr->first_entry[i].job_id,
-			2, r.out.ctr->first_entry[i].days_of_week, /*FIXME: Nicer format */
-			3, r.out.ctr->first_entry[i].job_time, /* FIXME: Nicer format */
-			4, r.out.ctr->first_entry[i].command,
+			0, ctr.first_entry[i].flags,
+			1, ctr.first_entry[i].job_id,
+			2, ctr.first_entry[i].days_of_week, /*FIXME: Nicer format */
+			3, ctr.first_entry[i].job_time, /* FIXME: Nicer format */
+			4, ctr.first_entry[i].command,
 			-1);
 
 	}
@@ -110,12 +110,13 @@ static GtkWidget* create_new_job_dialog (void);
 void on_new_activate (GtkMenuItem *menuitem, gpointer user_data)
 {
 	GtkWidget *d = create_new_job_dialog();
-	gint result = gtk_dialog_run(GTK_DIALOG(d));
-	struct atsvc_JobAdd r;
+	gint response = gtk_dialog_run(GTK_DIALOG(d));
+	uint32_t job_id;
 	struct atsvc_JobInfo job;
-	NTSTATUS status;
+	NTSTATUS status, result;
 	TALLOC_CTX *mem_ctx;
-	switch(result) {
+
+	switch(response) {
 		case GTK_RESPONSE_OK:
 			break;
 		default:
@@ -129,10 +130,9 @@ void on_new_activate (GtkMenuItem *menuitem, gpointer user_data)
 	job.days_of_week = 0; /* FIXME */
 	job.flags = 0; /* FIXME */
 	job.command = gtk_entry_get_text(GTK_ENTRY(entry_cmd));
-	r.in.servername = dcerpc_server_name(at_pipe);
-	r.in.job_info = &job;
 
-	status = dcerpc_atsvc_JobAdd(at_pipe, mem_ctx, &r);
+	status = dcerpc_atsvc_JobAdd(at_pipe, mem_ctx,
+		dcerpc_server_name(at_pipe), &job, &job_id, &result);
 	if(!NT_STATUS_IS_OK(status)) {
 		talloc_free(mem_ctx);
 		gtk_show_ntstatus(mainwin, "Error while adding job", status);
@@ -142,7 +142,7 @@ void on_new_activate (GtkMenuItem *menuitem, gpointer user_data)
 	talloc_free(mem_ctx);
 	gtk_widget_destroy(d);
 
-	d = gtk_message_dialog_new (GTK_WINDOW(mainwin), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Job Id: %d", *r.out.job_id);
+	d = gtk_message_dialog_new (GTK_WINDOW(mainwin), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Job Id: %d", job_id);
 	gtk_dialog_run(GTK_DIALOG(d));
 	gtk_widget_destroy(d);
 	update_joblist();
@@ -158,16 +158,12 @@ void on_delete_activate(GtkMenuItem *menuitem, gpointer user_data)
 
 	if (gtk_tree_selection_get_selected (sel, &model, &iter))
 	{
-		struct atsvc_JobDel r;
 		TALLOC_CTX *mem_ctx;
-		NTSTATUS status;
+		NTSTATUS status, result;
 		gtk_tree_model_get (model, &iter, 1, &id, -1);
 
-		r.in.servername = dcerpc_server_name(at_pipe);
-		r.in.min_job_id = r.in.max_job_id = id;
-
 		mem_ctx = talloc_init("del_job");
-		status = dcerpc_atsvc_JobDel(at_pipe, mem_ctx, &r);
+		status = dcerpc_atsvc_JobDel(at_pipe, mem_ctx, dcerpc_server_name(at_pipe), id, id, &result);
 		talloc_free(mem_ctx);
 		if(!NT_STATUS_IS_OK(status)) {
 			gtk_show_ntstatus(mainwin, "Error deleting job", status);
@@ -438,11 +434,11 @@ static GtkWidget *create_new_job_dialog (void)
 
 	cancelbutton1 = gtk_button_new_from_stock ("gtk-cancel");
 	gtk_dialog_add_action_widget (GTK_DIALOG (new_job_dialog), cancelbutton1, GTK_RESPONSE_CANCEL);
-	GTK_WIDGET_SET_FLAGS (cancelbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(cancelbutton1, TRUE);
 
 	okbutton1 = gtk_button_new_from_stock ("gtk-ok");
 	gtk_dialog_add_action_widget (GTK_DIALOG (new_job_dialog), okbutton1, GTK_RESPONSE_OK);
-	GTK_WIDGET_SET_FLAGS (okbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(okbutton1, TRUE);
 
 	g_signal_connect ((gpointer) chk_weekly, "toggled",
 					  G_CALLBACK (on_chk_weekly_toggled),
@@ -458,7 +454,7 @@ static GtkWidget *create_new_job_dialog (void)
 int main(int argc, char **argv)
 {
 	lp_ctx = loadparm_init(NULL);
-	lp_load_default(lp_ctx);
+	lpcfg_load_default(lp_ctx);
 
 	setup_logging(argv[0], DEBUG_STDERR);
 

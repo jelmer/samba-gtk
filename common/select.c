@@ -85,12 +85,12 @@ static void gtk_select_domain_dialog_init (GtkSelectDomainDialog *select_domain_
 
 	cancelbutton1 = gtk_button_new_from_stock ("gtk-cancel");
 	gtk_dialog_add_action_widget (GTK_DIALOG (select_domain_dialog), cancelbutton1, GTK_RESPONSE_CANCEL);
-	GTK_WIDGET_SET_FLAGS (cancelbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(cancelbutton1, TRUE);
 
 	okbutton1 = gtk_button_new_from_stock ("gtk-ok");
 	gtk_dialog_add_action_widget (GTK_DIALOG (select_domain_dialog), okbutton1, GTK_RESPONSE_OK);
 	gtk_widget_show_all(dialog_vbox1);
-	GTK_WIDGET_SET_FLAGS (okbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(okbutton1, TRUE);
 }
 
 struct policy_handle gtk_select_domain_dialog_get_handle(GtkSelectDomainDialog *d)
@@ -127,15 +127,12 @@ GType gtk_select_domain_dialog_get_type (void)
 
 	return mytype;
 }
-                                                                                                                             
-GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe)
+
+GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_binding_handle *sam_pipe)
 {
 	GtkSelectDomainDialog *d = g_object_new(gtk_select_domain_dialog_get_type (), NULL);
-	NTSTATUS status;
-	struct samr_EnumDomains r;
+	NTSTATUS status, result;
 	struct samr_SamArray *sam;
-	struct samr_Connect cr;
-	struct samr_Close dr;
 	struct policy_handle handle;
 	uint32_t resume_handle = 0;
 	uint32_t num_entries;
@@ -144,28 +141,18 @@ GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe)
 
 	d->sam_pipe = sam_pipe;
 
-	cr.in.system_name = 0;
-	cr.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
-	cr.out.connect_handle = &handle;
-
-	status = dcerpc_samr_Connect(sam_pipe, mem_ctx, &cr);
+	status = dcerpc_samr_Connect(sam_pipe, mem_ctx, 0,
+		SEC_FLAG_MAXIMUM_ALLOWED, &handle, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "Running Connect on SAMR", status);
 		talloc_free(mem_ctx);
 		return GTK_WIDGET(d);
 	}
 
-	r.in.connect_handle = &handle;
-	r.in.resume_handle = &resume_handle;
-	r.in.buf_size = (uint32_t)-1;
-	r.out.resume_handle = &resume_handle;
-	r.out.sam = &sam;
-	r.out.num_entries = &num_entries;
-
-	status = dcerpc_samr_EnumDomains(sam_pipe, mem_ctx, &r);
+	status = dcerpc_samr_EnumDomains(sam_pipe, mem_ctx, &handle, &resume_handle, &sam, -1, &num_entries, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "Enumerating domains", status);
-	} else if (r.out.sam) {
+	} else if (sam != NULL) {
 		for (i=0;i<sam->count;i++) {
 			GtkTreeIter iter;
 			gtk_list_store_append(d->store_domains, &iter);
@@ -173,10 +160,7 @@ GtkWidget *gtk_select_domain_dialog_new (struct dcerpc_pipe *sam_pipe)
 		}
 	}
 
-	dr.in.handle = &handle;
-	dr.out.handle = &handle;
-
-	status = dcerpc_samr_Close(sam_pipe, mem_ctx, &dr);
+	status = dcerpc_samr_Close(sam_pipe, mem_ctx, &handle, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		gtk_show_ntstatus(NULL, "Closing SAMR connection", status);
 		talloc_free(mem_ctx);
@@ -233,12 +217,12 @@ static void gtk_select_host_dialog_init (GtkSelectHostDialog *select_host_dialog
 
 	cancelbutton2 = gtk_button_new_from_stock ("gtk-cancel");
 	gtk_dialog_add_action_widget (GTK_DIALOG (select_host_dialog), cancelbutton2, GTK_RESPONSE_CANCEL);
-	GTK_WIDGET_SET_FLAGS (cancelbutton2, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(cancelbutton2, TRUE);
 
 	okbutton2 = gtk_button_new_from_stock ("gtk-ok");
 	gtk_widget_show_all (dialog_vbox2);
 	gtk_dialog_add_action_widget (GTK_DIALOG (select_host_dialog), okbutton2, GTK_RESPONSE_OK);
-	GTK_WIDGET_SET_FLAGS (okbutton2, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(okbutton2, TRUE);
 }
 
 GType gtk_select_host_dialog_get_type (void)
@@ -266,8 +250,8 @@ GType gtk_select_host_dialog_get_type (void)
 
 	return mytype;
 }
-                                                                                                                             
-GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe)
+
+GtkWidget *gtk_select_host_dialog_new (struct dcerpc_binding_handle *sam_pipe)
 {
         return GTK_WIDGET ( g_object_new (gtk_select_host_dialog_get_type (), NULL ));
 }
@@ -276,14 +260,14 @@ GtkWidget *gtk_select_host_dialog_new (struct dcerpc_pipe *sam_pipe)
  * Connect to a specific interface, but ask the user 
  * for information not specified
  */
-struct dcerpc_pipe *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
+struct dcerpc_binding_handle *gtk_connect_rpc_interface(TALLOC_CTX *mem_ctx, 
 						  struct tevent_context *ev_ctx,
 					      struct loadparm_context *lp_ctx,
 					      const struct ndr_interface_table *table)
 {
 	GtkRpcBindingDialog *d;
 	NTSTATUS status;
-	struct dcerpc_pipe *pipe;
+	struct dcerpc_binding_handle *pipe;
 	struct cli_credentials *cred;
 	gint result;
 

@@ -32,7 +32,7 @@
 #include <util/debug.h>
 #include <tevent.h>
 
-static struct dcerpc_pipe *svcctl_pipe = NULL;
+static struct dcerpc_binding_handle *svcctl_pipe = NULL;
 static GtkWidget *mainwin;
 static GtkListStore *store_services;
 static GtkWidget *services;
@@ -214,7 +214,7 @@ static GtkWidget* create_mainwindow (void)
 int main(int argc, char **argv)
 {
 	lp_ctx = loadparm_init(NULL);
-	lp_load_default(lp_ctx);
+	lpcfg_load_default(lp_ctx);
 	setup_logging(argv[0], DEBUG_STDERR);
 
 	dcerpc_init(lp_ctx);

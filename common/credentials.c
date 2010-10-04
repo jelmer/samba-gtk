@@ -37,7 +37,9 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
 	GtkWidget *dialog_action_area1;
 	GtkWidget *cancelbutton1;
 	GtkWidget *okbutton1;
+#ifndef HAVE_GNOME_KEYRING
 	GtkWidget *anonymous;
+#endif
 	const char *username;
 
 	dialog = gtk_dialog_new ();
@@ -87,11 +89,11 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
 
 	cancelbutton1 = gtk_button_new_from_stock ("gtk-cancel");
 	gtk_dialog_add_action_widget (GTK_DIALOG (dialog), cancelbutton1, GTK_RESPONSE_CANCEL);
-	GTK_WIDGET_SET_FLAGS (cancelbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(cancelbutton1, TRUE);
 
 	okbutton1 = gtk_button_new_from_stock ("gtk-ok");
 	gtk_dialog_add_action_widget (GTK_DIALOG (dialog), okbutton1, GTK_RESPONSE_OK);
-	GTK_WIDGET_SET_FLAGS (okbutton1, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(okbutton1, TRUE);
 
 	gtk_widget_show_all (dialog);
 
@@ -100,11 +102,11 @@ static void gtk_get_credentials(struct cli_credentials *credentials)
 		cli_credentials_parse_string(credentials, gtk_entry_get_text(GTK_ENTRY(entry_username)), CRED_CALLBACK_RESULT);
 #ifndef HAVE_GNOME_KEYRING
 		cli_credentials_set_password(credentials, gtk_entry_get_text(GTK_ENTRY(entry_password)), CRED_CALLBACK_RESULT);
-#endif
 
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(anonymous))) {
 			cli_credentials_set_anonymous(credentials);
 		}
+#endif
 		break;
 	default:
 		ret = NULL;

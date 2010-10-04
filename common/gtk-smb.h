@@ -46,7 +46,7 @@ struct _GtkRpcBindingDialog
 	GtkWidget *entry_password;
 	GtkWidget *krb5_chk_button;
 	TALLOC_CTX *mem_ctx;
-	struct dcerpc_pipe *sam_pipe;
+	struct dcerpc_binding_handle *sam_pipe;
 };
 
 typedef struct _GtkRpcBindingDialogClass GtkRpcBindingDialogClass;
@@ -69,7 +69,7 @@ struct _GtkRpcBindingDialogClass
 /* subsystem prototypes */
 GtkWidget *create_gtk_samba_about_dialog (const char *appname);
 void gtk_show_ntstatus(GtkWidget *win, const char *, NTSTATUS status);
-GtkWidget *gtk_rpc_binding_dialog_new (struct dcerpc_pipe *sam_pipe);
+GtkWidget *gtk_rpc_binding_dialog_new (struct dcerpc_binding_handle *sam_pipe);
 GType gtk_rpc_binding_dialog_get_type (void);
 struct dcerpc_binding *gtk_rpc_binding_dialog_get_binding(GtkRpcBindingDialog *d, TALLOC_CTX *mem_ctx);
 void gtk_show_werror(GtkWidget *win, const char *, WERROR err);

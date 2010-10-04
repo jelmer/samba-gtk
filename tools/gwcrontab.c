@@ -1,19 +1,19 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    GTK+ Windows crontab frontend
-   
-   Copyright (C) Jelmer Vernooij 2004
+
+   Copyright (C) Jelmer Vernooij 2004-2010
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -67,16 +67,16 @@ static void update_joblist(void)
 		return;
 	}
 
-       	for (i = 0; i < r.out.ctr->entries_read; i++) {
-                GtkTreeIter iter;
-                gtk_list_store_append(store_jobs, &iter);
-                gtk_list_store_set (store_jobs, &iter, 
+	for (i = 0; i < r.out.ctr->entries_read; i++) {
+		GtkTreeIter iter;
+		gtk_list_store_append(store_jobs, &iter);
+		gtk_list_store_set (store_jobs, &iter,
 			0, r.out.ctr->first_entry[i].flags,
-			1, r.out.ctr->first_entry[i].job_id, 
+			1, r.out.ctr->first_entry[i].job_id,
 			2, r.out.ctr->first_entry[i].days_of_week, /*FIXME: Nicer format */
 			3, r.out.ctr->first_entry[i].job_time, /* FIXME: Nicer format */
 			4, r.out.ctr->first_entry[i].command,
-                        -1);
+			-1);
 
 	}
 	talloc_free(mem_ctx);
@@ -86,7 +86,6 @@ static void on_job_select(GtkTreeSelection *sel, gpointer data)
 {
 	gtk_widget_set_sensitive(delete, gtk_tree_selection_get_selected(sel, NULL, NULL));
 }
-
 
 static void on_connect_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
@@ -121,7 +120,7 @@ void on_new_activate (GtkMenuItem *menuitem, gpointer user_data)
 			break;
 		default:
 			gtk_widget_destroy(d);
-		        return;
+			return;
 	}
 	mem_ctx = talloc_init("add_job");
 
@@ -139,10 +138,10 @@ void on_new_activate (GtkMenuItem *menuitem, gpointer user_data)
 		gtk_show_ntstatus(mainwin, "Error while adding job", status);
 		return;
 	}
-	
+
 	talloc_free(mem_ctx);
 	gtk_widget_destroy(d);
-	
+
 	d = gtk_message_dialog_new (GTK_WINDOW(mainwin), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Job Id: %d", *r.out.job_id);
 	gtk_dialog_run(GTK_DIALOG(d));
 	gtk_widget_destroy(d);

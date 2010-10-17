@@ -2,7 +2,9 @@ include Makefile.settings
 
 BINS = gwcrontab gwsam gwsvcctl 
 SCRIPTS = gtkldb gepdump gregedit
-gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS)
+gwcrontab_LIBS = $(DCERPC_ATSVC_LIBS) $(NDR_STANDARD_LIBS) $(SAMBA_UTIL_LIBS)
+gwsam_LIBS = $(DCERPC_SAMR_LIBS) $(NDR_STANDARD_LIBS) $(SAMBA_UTIL_LIBS)
+gwsvcctl_LIBS = $(NDR_STANDARD_LIBS) $(SAMBA_UTIL_LIBS)
 CFLAGS = $(GTK_CFLAGS) $(TALLOC_CFLAGS) $(DCERPC_CFLAGS) $(GENSEC_CFLAGS) -I. -Wall
 LIBS = $(GTK_LIBS) $(TALLOC_LIBS) $(DCERPC_LIBS) $(GENSEC_LIBS) $(DCERPC_SAMR_LIBS) $(TEVENT_LIBS)
 # Should be determined by configure...

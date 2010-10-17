@@ -18,13 +18,12 @@ MANPAGES = man/gepdump.1 man/gwcrontab.1 man/gwsvcctl.1 man/gregedit.1 man/gtkld
 HEADERS = $(wildcard common/*.h)
 SOVERSION = 0
 SONAME = libsamba-gtk.$(SHLIBEXT).$(SOVERSION)
-PYMODULES = sambagtk.$(SHLIBEXT)
 
-all:: $(BINS) $(LIB) $(SONAME) libsamba-gtk.$(SHLIBEXT) sambagtk.$(SHLIBEXT)
+all:: $(BINS) $(LIB) $(SONAME) libsamba-gtk.$(SHLIBEXT) 
 
 Makefile: Makefile.settings
 
-install:: $(BINS) $(LIB) $(PYMODULES)
+install:: $(BINS) $(LIB) 
 	$(INSTALL) -d $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(man1dir)
 	$(INSTALL) -m 0755 $(BINS) $(SCRIPTS) $(DESTDIR)$(bindir)
 	$(INSTALL) -m 0755 $(LIB) $(DESTDIR)$(libdir)
@@ -36,7 +35,6 @@ install:: $(BINS) $(LIB) $(PYMODULES)
 	$(INSTALL) -d $(DESTDIR)$(includedir)
 	$(INSTALL) -m 0644 $(HEADERS) $(DESTDIR)$(includedir)
 	$(INSTALL) -d $(DESTDIR)$(pythondir)
-	$(INSTALL) -m 0755 sambagtk.$(SHLIBEXT) $(DESTDIR)$(pythondir)
 
 install-doc:: doc
 	$(INSTALL) -m 0644 $(MANPAGES) $(DESTDIR)$(man1dir)
@@ -62,13 +60,6 @@ $(SONAME): $(LIB)
 
 libsamba-gtk.$(SHLIBEXT): $(LIB)
 	ln -fs $< $@
-
-DEFS = `pkg-config --variable=defsdir pygtk-2.0`
-
-python/%.po: CFLAGS+=`$(PYTHON_CONFIG) --cflags` $(PYGTK_CFLAGS)
-
-sambagtk.$(SHLIBEXT): python/sambagtk.po $(LIB)
-	$(CC) -shared -o $@ $^ `$(PYTHON_CONFIG) --libs` $(PYGTK_LIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<

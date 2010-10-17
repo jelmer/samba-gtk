@@ -5,5 +5,5 @@ Exec=gepdump
 #Icon=media-player-48.png
 Type=Application
 Terminal=false
-Categories=GNOME;GTK;RemoteAccess;Profiling;Utility;Network;
+Categories=GNOME;GTK;RemoteAccess;Profiling;Utility;Network;Development;
 StartupNotify=true

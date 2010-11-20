@@ -19,10 +19,10 @@ from dialogs import AboutDialog
 
 
 class ATSvcPipeManager:
-    
+
     def __init__(self, server_address, transport_type, username, password):
         self.task_list = []
-        
+
         creds = credentials.Credentials()
         if (username.count("\\") > 0):
             creds.set_domain(username.split("\\")[0])
@@ -35,17 +35,17 @@ class ATSvcPipeManager:
             creds.set_username(username)
         creds.set_workstation("")
         creds.set_password(password)
-        
+
         binding = ["ncacn_np:%s", "ncacn_ip_tcp:%s", "ncalrpc:%s"][transport_type]
-        
+
         self.pipe = atsvc.atsvc(binding % (server_address), credentials = creds)
 
     def close(self):
-        None # apparently there's no .Close() method for this pipe
-            
+        pass # apparently there's no .Close() method for this pipe
+
     def fetch_tasks(self):
         del self.task_list[:]
-        
+
         (ctr, total, resume) = self.pipe.JobEnum(unicode(self.pipe.server_name), atsvc.enum_ctr(), 1000000, 0)
         if (total > 0):
             for info in ctr.first_entry:
@@ -56,7 +56,7 @@ class ATSvcPipeManager:
         job_id = self.pipe.JobAdd(unicode(self.pipe.server_name), self.task_to_job_info(task))
         if (job_id == 0):
             raise RuntimeError(-1, "Invalid task information.")
-        
+
         task.id = job_id
         self.task_list.append(task)
 
@@ -66,37 +66,37 @@ class ATSvcPipeManager:
             raise Exception("invalid task information")
 
         self.pipe.JobDel(unicode(self.pipe.server_name), task.id, task.id)
-        
+
         task.id = job_id
-        
+
     def delete_task(self, task):
         self.pipe.JobDel(unicode(self.pipe.server_name), task.id, task.id)
-    
+
     def job_info_to_task(self, job_info):
         task = Task(job_info.command, job_info.job_id)
-        
+
         task.job_time = job_info.job_time
         task.days_of_month = job_info.days_of_month
         task.days_of_week = job_info.days_of_week
         task.run_periodically = (job_info.flags & 0x01) != 0
         task.non_interactive = (job_info.flags & 0x10) != 0
-        
+
         return task
 
     def task_to_job_info(self, task):
         job_info = atsvc.JobInfo()
-        
+
         job_info.command = unicode(task.command)
         job_info.job_time = task.job_time
         job_info.days_of_month = task.days_of_month
         job_info.days_of_week = task.days_of_week
         job_info.flags = 0
-        
+
         if (task.run_periodically):
             job_info.flags |= 0x01
         if (task.non_interactive):
             job_info.flags |= 0x10
-            
+
         return job_info
 
 
@@ -104,49 +104,47 @@ class CronTabWindow(gtk.Window):
 
     def __init__(self, info_callback = None, server = "", username = "", password = "", transport_type = 0, connect_now = False):
         super(CronTabWindow, self).__init__()
-        #Note: Any change to these arguments should probably also be changed in on_connect_item_activate()
+        # Note: Any change to these arguments should probably also be changed
+        # in on_connect_item_activate()
 
-        self.create()        
+        self.create()
         self.pipe_manager = None
         self.set_status("Disconnected.")
         self.update_sensitivity()
-        
-        #It's nice to have this info saved when a user wants to reconnect
+
+        # It's nice to have this info saved when a user wants to reconnect
         self.server_address = server
         self.username = username
         self.transport_type = transport_type
-        
+
         self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
-        
-        #This is used so the parent program can grab the server info after we've connected.
+
+        # This is used so the parent program can grab the server info after we've connected.
         if info_callback != None:
             info_callback(server = self.server_address, username = self.username, transport_type = self.transport_type)
-        
+
     def create(self):
-        
         # main window
 
         accel_group = gtk.AccelGroup()
-        
+
         self.set_title("Scheduled Tasks")
         self.set_default_size(800, 600)
         self.icon_filename = os.path.join(sys.path[0], "images", "crontab.png")
         self.icon_pixbuf = gtk.gdk.pixbuf_new_from_file(self.icon_filename)
         self.set_icon(self.icon_pixbuf)
-        
-    	vbox = gtk.VBox(False, 0)
-    	self.add(vbox)
 
+        vbox = gtk.VBox(False, 0)
+        self.add(vbox)
 
         # menu
-        
+
         self.menubar = gtk.MenuBar()
         vbox.pack_start(self.menubar, False, False, 0)
-        
 
         self.file_item = gtk.MenuItem("_File")
         self.menubar.add(self.file_item)
-        
+
         file_menu = gtk.Menu()
         self.file_item.set_submenu(file_menu)
         
@@ -657,8 +655,8 @@ def ParseArgs(argv):
     arguments = {}
     
     try: #get arguments into a nicer format
-        opts, args = getopt.getopt(argv, "hu:s:p:ct:", ["help", "user=", "server=", "password=", "connect-now", "transport="]) 
-    except getopt.GetoptError:           
+        opts, args = getopt.getopt(argv, "hu:s:p:ct:", ["help", "user=", "server=", "password=", "connect-now", "transport="])
+    except getopt.GetoptError:
         PrintUseage()
         sys.exit(2)
 

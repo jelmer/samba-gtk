@@ -8,15 +8,19 @@ import gtk
 import pango
 
 import samba
-from samba.dcerpc import svcctl
-from samba.dcerpc import misc
+from samba.dcerpc import (
+    misc,
+    svcctl,
+    )
 
-from objects import User
-from objects import Group
-from objects import Service
-from objects import Task
-from objects import RegistryKey
-from objects import RegistryValue
+from sambagtk.objects import (
+    User,
+    Group,
+    Service,
+    Task,
+    RegistryKey,
+    RegistryValue,
+    )
 
 
 class AboutDialog(gtk.AboutDialog):
@@ -31,26 +35,27 @@ class AboutDialog(gtk.AboutDialog):
         self.set_authors(["Sergio Martins <Sergio97@gmail.com>", "Calin Crisan <ccrisan@gmail.com>", "Jelmer Vernooij <jelmer@samba.org>"])
         self.set_comments(description)
         self.set_wrap_license(True)
-        self.set_license(
-            "This program is free software; you can redistribute it and/or modify " +
-            "it under the terms of the GNU General Public License as published by " +
-            "the Free Software Foundation; either version 3 of the License, or " +
-            "(at your option) any later version. \n\n" +
-            "This program is distributed in the hope that it will be useful, " +
-            "but WITHOUT ANY WARRANTY; without even the implied warranty of " +
-            "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the " +
-            "GNU General Public License for more details. \n\n" +
-            "You should have received a copy of the GNU General Public License " +
-            "along with this program. If not, see <http://www.gnu.org/licenses/>."
-        )
+        self.set_license("""
+This program is free software; you can redistribute it and/or modify 
+it under the terms of the GNU General Public License as published by 
+the Free Software Foundation; either version 3 of the License, or 
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of 
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
+GNU General Public License for more details. 
+
+You should have received a copy of the GNU General Public License 
+along with this program. If not, see <http://www.gnu.org/licenses/>.""")
 
 
 class UserEditDialog(gtk.Dialog):
 
-    def __init__(self, pipe_manager, user = None):
+    def __init__(self, pipe_manager, user=None):
         super(UserEditDialog, self).__init__()
 
-        if (user == None):
+        if (user is None):
             self.brand_new = True
             self.user = User("", "", "", 0)
         else:
@@ -285,12 +290,12 @@ class UserEditDialog(gtk.Dialog):
         if (self.password_entry.get_text() != self.confirm_password_entry.get_text()):
             return "The password was not correctly confirmed. Please ensure that the password and confirmation match exactly."
 
-        if (len(self.username_entry.get_text()) == 0):
+        if len(self.username_entry.get_text()) == 0:
             return "Username may not be empty!"
 
-        if (self.brand_new):
+        if self.brand_new:
             for user in self.pipe_manager.user_list:
-                if (user.username == self.username_entry.get_text()):
+                if user.username == self.username_entry.get_text():
                     return "User \"" + user.username + "\" already exists!"
 
         return None
@@ -299,14 +304,16 @@ class UserEditDialog(gtk.Dialog):
         existing_selected = (self.existing_groups_tree_view.get_selection().count_selected_rows() > 0)
         available_selected = (self.available_groups_tree_view.get_selection().count_selected_rows() > 0)
 
-        if (self.password_never_expires_check.get_active() or self.cannot_change_password_check.get_active()):
+        if (self.password_never_expires_check.get_active() or
+            self.cannot_change_password_check.get_active()):
             self.must_change_password_check.set_sensitive(False)
         else:
             self.must_change_password_check.set_sensitive(True)
         self.cannot_change_password_check.set_sensitive(not self.must_change_password_check.get_active())
         self.password_never_expires_check.set_sensitive(not self.must_change_password_check.get_active())
 
-        #It is possible that many of these options are turned on at the same time, even though they shouldn't be
+        # It is possible that many of these options are turned on at the same
+        # time, even though they shouldn't be
         if self.must_change_password_check.get_active():
             self.must_change_password_check.set_sensitive(True)
         if self.password_never_expires_check.get_active():
@@ -320,7 +327,7 @@ class UserEditDialog(gtk.Dialog):
         self.map_homedir_drive_combo.set_sensitive(self.map_homedir_drive_check.get_active())
 
     def user_to_values(self):
-        if (self.user == None):
+        if self.user is None:
             raise Exception("user not set")
 
         self.username_entry.set_text(self.user.username)
@@ -355,7 +362,7 @@ class UserEditDialog(gtk.Dialog):
                 self.available_groups_store.append([group.name])
 
     def values_to_user(self):
-        if (self.user == None):
+        if self.user is None:
             raise Exception("user not set")
 
         self.user.username = self.username_entry.get_text()
@@ -379,14 +386,14 @@ class UserEditDialog(gtk.Dialog):
         del self.user.group_list[:]
 
         iter = self.existing_groups_store.get_iter_first()
-        while (iter != None):
+        while (iter is not None):
             value = self.existing_groups_store.get_value(iter, 0)
             self.user.group_list.append([group for group in self.pipe_manager.group_list if group.name == value][0])
             iter = self.existing_groups_store.iter_next(iter)
 
     def on_add_group_button_clicked(self, widget):
         (model, iter) = self.available_groups_tree_view.get_selection().get_selected()
-        if (iter == None):
+        if (iter is None):
             return
 
         group_name = model.get_value(iter, 0)
@@ -395,7 +402,7 @@ class UserEditDialog(gtk.Dialog):
 
     def on_del_group_button_clicked(self, widget):
         (model, iter) = self.existing_groups_tree_view.get_selection().get_selected()
-        if (iter == None):
+        if (iter is None):
             return
 
         group_name = model.get_value(iter, 0)
@@ -411,7 +418,7 @@ class GroupEditDialog(gtk.Dialog):
     def __init__(self, pipe_manager, group = None):
         super(GroupEditDialog, self).__init__()
 
-        if (group == None):
+        if group is None:
             self.brand_new = True
             self.thegroup = Group("", "", 0)
         else:
@@ -421,7 +428,7 @@ class GroupEditDialog(gtk.Dialog):
         self.pipe_manager = pipe_manager
         self.create()
 
-        if (not self.brand_new):
+        if not self.brand_new:
             self.group_to_values()
 
     def create(self):
@@ -470,18 +477,18 @@ class GroupEditDialog(gtk.Dialog):
 
 
     def check_for_problems(self):
-        if (len(self.name_entry.get_text()) == 0):
+        if len(self.name_entry.get_text()) == 0:
             return "Name may not be empty!"
 
-        if (self.brand_new):
+        if self.brand_new:
             for group in self.pipe_manager.group_list:
-                if (group.name == self.name_entry.get_text()):
+                if group.name == self.name_entry.get_text():
                     return "Choose another group name, this one already exists!"
 
         return None
 
     def group_to_values(self):
-        if (self.thegroup == None):
+        if (self.thegroup is None):
             raise Exception("group not set")
 
         self.name_entry.set_text(self.thegroup.name)
@@ -489,7 +496,7 @@ class GroupEditDialog(gtk.Dialog):
         self.description_entry.set_text(self.thegroup.description)
 
     def values_to_group(self):
-        if (self.thegroup == None):
+        if self.thegroup is None:
             raise Exception("group not set")
 
         self.thegroup.name = self.name_entry.get_text()
@@ -501,7 +508,7 @@ class ServiceEditDialog(gtk.Dialog):
     def __init__(self, service = None):
         super(ServiceEditDialog, self).__init__()
 
-        if (service == None):
+        if (service is None):
             self.brand_new = True
             self.service = Service()
         else:
@@ -720,7 +727,7 @@ class ServiceEditDialog(gtk.Dialog):
         self.confirm_password_entry.set_sensitive(not local_account)
 
 #        profile = self.get_selected_profile()
-#        if (profile == None):
+#        if (profile is None):
 #            self.enable_button.set_sensitive(False)
 #            self.disable_button.set_sensitive(False)
 #        else:
@@ -728,7 +735,7 @@ class ServiceEditDialog(gtk.Dialog):
 #            self.disable_button.set_sensitive(profile[1])
 
     def service_to_values(self):
-        if (self.service == None):
+        if (self.service is None):
             raise Exception("service not set")
 
         self.name_label.set_text(self.service.name)
@@ -741,21 +748,21 @@ class ServiceEditDialog(gtk.Dialog):
         self.startup_type_combo.set_active(temp_dict[self.service.start_type])
         self.start_params_entry.set_text(self.service.start_params)
 
-        if (self.service.account == None):
+        if (self.service.account is None):
             self.local_account_radio.set_active(True)
             self.allow_desktop_interaction_check.set_active(self.service.allow_desktop_interaction)
         else:
             self.this_account_radio.set_active(True)
             self.account_entry.set_text(self.service.account)
 
-            if (self.service.account_password != None):
+            if (self.service.account_password is not None):
                 self.password_entry.set_text(self.service.account_password)
                 self.confirm_password_entry.set_text(self.service.account_password)
 
         #self.refresh_profiles_tree_view()
 
     def values_to_service(self):
-        if (self.service == None):
+        if (self.service is None):
             raise Exception("service not set")
 
         temp_dict = {0:svcctl.SVCCTL_BOOT_START, 1:svcctl.SVCCTL_SYSTEM_START, 2:svcctl.SVCCTL_AUTO_START, 3:svcctl.SVCCTL_DEMAND_START, 4:svcctl.SVCCTL_DISABLED}
@@ -774,7 +781,7 @@ class ServiceEditDialog(gtk.Dialog):
 #        del self.service.hw_profile_list[:]
 #
 #        iter = self.profiles_store.get_iter_first()
-#        while (iter != None):
+#        while (iter is not None):
 #            name = self.profiles_store.get_value(iter, 0)
 #            enabled = self.profiles_store.get_value(iter, 1)
 #            self.service.hw_profile_list.append([name, [False, True][enabled == "Enabled"]])
@@ -792,7 +799,7 @@ class ServiceEditDialog(gtk.Dialog):
 
 #    def get_selected_profile(self):
 #        (model, iter) = self.profiles_tree_view.get_selection().get_selected()
-#        if (iter == None): # no selection
+#        if (iter is None): # no selection
 #            return None
 #        else:
 #            name = model.get_value(iter, 0)
@@ -803,7 +810,7 @@ class ServiceEditDialog(gtk.Dialog):
 
 #    def on_enable_button_click(self, widget):
 #        profile = self.get_selected_profile()
-#        if (profile == None): # no selection
+#        if (profile is None): # no selection
 #            return
 #
 #        profile[1] = True
@@ -811,7 +818,7 @@ class ServiceEditDialog(gtk.Dialog):
 #
 #    def on_disable_button_click(self, widget):
 #        profile = self.get_selected_profile()
-#        if (profile == None): # no selection
+#        if (profile is None): # no selection
 #            return
 #
 #        profile[1] = False
@@ -867,7 +874,7 @@ class ServiceControlDialog(gtk.Dialog):
         self.close_button.connect("clicked", self.on_close_button_clicked)
 
     def get_control_string(self):
-        if (self.control == None):
+        if (self.control is None):
             return "Starting"
         elif (self.control == svcctl.SVCCTL_CONTROL_STOP):
             return "Stopping"
@@ -893,7 +900,7 @@ class ServiceControlDialog(gtk.Dialog):
         self.progress_speed = progress_speed
 
     def on_close_button_clicked(self, widget):
-        if (self.close_callback != None):
+        if (self.close_callback is not None):
             self.close_callback()
 
 
@@ -902,7 +909,7 @@ class TaskEditDialog(gtk.Dialog):
     def __init__(self, task = None):
         super(TaskEditDialog, self).__init__()
 
-        if (task == None):
+        if (task is None):
             self.brand_new = True
             self.task = Task("", -1)
         else:
@@ -1126,14 +1133,14 @@ class TaskEditDialog(gtk.Dialog):
                 if (row[0]):
                     last_active_row = row
                     break
-            if (last_active_row == None):
+            if (last_active_row is None):
                 return "You need to select at least one day of the week, for a weekly schedule."
         elif (index == 2): # monthly schedule
             for row in self.monthly_store:
                 if (row[0]):
                     last_active_row = row
                     break
-            if (last_active_row == None):
+            if (last_active_row is None):
                 return "You need to select at least one day of the month, for a monthly schedule."
 
         return None
@@ -1168,22 +1175,22 @@ class TaskEditDialog(gtk.Dialog):
             first_active_row = None
             for row in self.weekly_store:
                 if (row[0]):
-                    if (first_active_row != None):
+                    if (first_active_row is not None):
                         row[0] = False
                     else:
                         first_active_row = row
-            if (first_active_row == None):
+            if (first_active_row is None):
                 self.weekly_store[0][0] = True
 
             # make sure there's exactly one checked item when working with radios
             first_active_row = None
             for row in self.monthly_store:
                 if (row[0]):
-                    if (first_active_row != None):
+                    if (first_active_row is not None):
                         row[0] = False
                     else:
                         first_active_row = row
-            if (first_active_row == None):
+            if (first_active_row is None):
                 self.monthly_store[0][0] = True
 
         # needed for an immediate visual update
@@ -1191,7 +1198,7 @@ class TaskEditDialog(gtk.Dialog):
         self.monthly_tree_view.queue_draw()
 
     def task_to_values(self):
-        if (self.task == None):
+        if (self.task is None):
             raise Exception("task not set")
 
         self.scheduled_label.set_text(self.task.get_scheduled_description())
@@ -1215,7 +1222,7 @@ class TaskEditDialog(gtk.Dialog):
         self.non_interactive_check.set_active(self.task.non_interactive)
 
     def values_to_task(self):
-        if (self.task == None):
+        if (self.task is None):
             raise Exception("task not set")
 
         self.task.command = self.command_entry.get_text()
@@ -1279,7 +1286,7 @@ class RegValueEditDialog(gtk.Dialog):
     def __init__(self, reg_value, type):
         super(RegValueEditDialog, self).__init__()
 
-        if (reg_value == None):
+        if (reg_value is None):
             self.brand_new = True
             self.reg_value = RegistryValue("", type, [], None)
 
@@ -1469,7 +1476,7 @@ class RegValueEditDialog(gtk.Dialog):
         return None
 
     def reg_value_to_values(self):
-        if (self.reg_value == None):
+        if (self.reg_value is None):
             raise Exception("registry value not set")
 
         self.name_entry.set_text(self.reg_value.name)
@@ -1507,7 +1514,7 @@ class RegValueEditDialog(gtk.Dialog):
             self.multi_string_data_text_view.get_buffer().set_text(text)
 
     def values_to_reg_value(self):
-        if (self.reg_value == None):
+        if (self.reg_value is None):
             raise Exception("registry value not set")
 
         self.reg_value.name = self.name_entry.get_text()
@@ -1651,7 +1658,7 @@ class RegValueEditDialog(gtk.Dialog):
             return
 
         self.disable_signals = True
-        if widget == None:
+        if widget is None:
             widget = self.binary_data_ascii_text_view.get_buffer()
 
         #stuff we need to move the cursor properly later
@@ -1677,7 +1684,7 @@ class RegValueEditDialog(gtk.Dialog):
         if (self.disable_signals):
             return
         self.disable_signals = True
-        if widget == None:
+        if widget is None:
             widget = self.binary_data_ascii_text_view.get_buffer()
 
         #get stuff that we need
@@ -1751,7 +1758,7 @@ class RegValueEditDialog(gtk.Dialog):
         hex_buffer.set_text(RegValueEditDialog.check_hex_string(new_hex)) #set the text
         addr_buffer.set_text(RegValueEditDialog.hex_to_addr(new_hex)) #can't forget to update the address text!
 
-        if (new_end_iter != None):
+        if (new_end_iter is not None):
             widget.delete(start, new_end_iter) #this causes a warning because of bad iterators! Makes no sense
 
         self.disable_signals = False
@@ -1959,7 +1966,7 @@ class RegKeyEditDialog(gtk.Dialog):
     def __init__(self, reg_key):
         super(RegKeyEditDialog, self).__init__()
 
-        if (reg_key == None):
+        if (reg_key is None):
             self.brand_new = True
             self.reg_key = RegistryKey("", None)
 
@@ -2022,13 +2029,13 @@ class RegKeyEditDialog(gtk.Dialog):
         return None
 
     def reg_key_to_values(self):
-        if (self.reg_key == None):
+        if (self.reg_key is None):
             raise Exception("registry key not set")
 
         self.name_entry.set_text(self.reg_key.name)
 
     def values_to_reg_key(self):
-        if (self.reg_key == None):
+        if (self.reg_key is None):
             raise Exception("registry key not set")
 
         self.reg_key.name = self.name_entry.get_text()
@@ -2046,7 +2053,7 @@ class RegRenameDialog(gtk.Dialog):
         self.reg_to_values()
 
     def create(self):
-        self.set_title(["Rename registry key", "Rename registry value"][self.reg_value != None])
+        self.set_title(["Rename registry key", "Rename registry value"][self.reg_value is not None])
         self.set_border_width(5)
 
         self.icon_registry_filename = os.path.join(sys.path[0], "images", "registry.png")
@@ -2095,13 +2102,13 @@ class RegRenameDialog(gtk.Dialog):
         return None
 
     def reg_to_values(self):
-        if (self.reg_key == None):
+        if (self.reg_key is None):
             self.name_entry.set_text(self.reg_value.name)
         else:
             self.name_entry.set_text(self.reg_key.name)
 
     def values_to_reg(self):
-        if (self.reg_key == None):
+        if (self.reg_key is None):
             self.reg_value.name = self.name_entry.get_text()
         else:
             self.reg_key.name = self.name_entry.get_text()
@@ -2201,7 +2208,7 @@ class RegPermissionsDialog(gtk.Dialog):
 
         self.create()
 
-        if users != None:
+        if users is not None:
             for user in users:
                 self.user_store.append((user.username,
                                         user,))
@@ -2366,7 +2373,7 @@ class RegPermissionsDialog(gtk.Dialog):
 
         (iter, user) = self.get_selected_user()
 
-        if (iter != None):
+        if (iter is not None):
             self.permissions_label.set_text("Permissions for " + user.username + ":")
             #TODO: update permissions view on selection changed
         else:
@@ -2379,7 +2386,7 @@ class RegPermissionsDialog(gtk.Dialog):
     def on_remove_item_activate(self, widget):
         (iter, user) = self.get_selected_user()
 
-        if (iter != None):
+        if (iter is not None):
             self.users.remove(user)
             self.user_store.remove(iter)
             #TODO: remove user permissions?
@@ -2394,7 +2401,7 @@ class RegPermissionsDialog(gtk.Dialog):
 
     def get_selected_user(self):
         (model, iter) = self.user_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return (None, None)
         else:
             return (iter, model.get_value(iter, 1))
@@ -2771,27 +2778,27 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
 
     def get_selected_permission(self):
         (model, iter) = self.permissions_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return (None, None)
         else:
             return (iter, model.get_value(iter, 1))
 
     def get_selected_audit(self):
         (model, iter) = self.auditing_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if iter is None: # no selection
             return (None, None)
         else:
             return (iter, model.get_value(iter, 1))
 
     def on_permissions_tree_view_selection_changed(self, widget):
         (iter, permission) = self.get_selected_permission()
-        self.edit_button_permissions.set_sensitive(permission != None)
-        self.remove_button_permissions.set_sensitive(permission != None)
+        self.edit_button_permissions.set_sensitive(permission is not None)
+        self.remove_button_permissions.set_sensitive(permission is not None)
 
     def on_auditing_tree_view_selection_changed(self, widget):
         (iter, audit) = self.get_selected_audit()
-        self.edit_button_auditing.set_sensitive(audit != None)
-        self.remove_button_auditing.set_sensitive(audit != None)
+        self.edit_button_auditing.set_sensitive(audit is not None)
+        self.remove_button_auditing.set_sensitive(audit is not None)
 
     def on_add_permissions_button_clicked(self, widget):
         #TODO: this
@@ -2803,7 +2810,7 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
 
     def on_remove_permissions_button_clicked(self, widget):
         (iter, permission) = self.get_selected_permission()
-        if (iter != None):
+        if (iter is not None):
             self.permissions_store.remove(iter)
 
     def on_replace_permissions_button_clicked(self, widget):
@@ -2820,7 +2827,7 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
 
     def on_remove_auditing_button_clicked(self, widget):
         (iter, audit) = self.get_selected_audit()
-        if (iter != None):
+        if (iter is not None):
             self.auditing_store.remove(iter)
 
     def on_replace_auditing_button_clicked(self, widget):
@@ -2854,10 +2861,10 @@ class RegAdvancedPermissionsDialog(gtk.Dialog):
         response = message_box.run()
         message_box.hide()
 
-        if (response == gtk.RESPONSE_YES):
+        if response == gtk.RESPONSE_YES:
             #TODO: copy auditing from the parent object
             pass
-        elif (response == gtk.RESPONSE_NO):
+        elif response == gtk.RESPONSE_NO:
             #TODO: delete all inherited auditing from the permissions store
             pass
         else:#probably gtk.RESPONSE_DELETE_EVENT (from pressing escape)
@@ -2990,8 +2997,8 @@ class SAMConnectDialog(gtk.Dialog):
 
         self.server_address_entry.set_sensitive(server_required)
 
-    def set_domains(self, domains, domain_index = -1):
-        if (domains != None):
+    def set_domains(self, domains, domain_index=-1):
+        if domains is not None:
             self.server_frame.set_sensitive(False)
             self.transport_frame.set_sensitive(False)
 
@@ -3002,7 +3009,7 @@ class SAMConnectDialog(gtk.Dialog):
             for domain in domains:
                 self.domain_combo_box.append_text(domain)
 
-            if (domain_index != -1):
+            if domain_index != -1:
                 self.domain_combo_box.set_active(domain_index)
         else:
             self.server_frame.set_sensitive(True)
@@ -3013,11 +3020,11 @@ class SAMConnectDialog(gtk.Dialog):
         return self.server_address_entry.get_text().strip()
 
     def get_transport_type(self):
-        if (self.rpc_smb_tcpip_radio_button.get_active()):
+        if self.rpc_smb_tcpip_radio_button.get_active():
             return 0
-        elif (self.rpc_tcpip_radio_button.get_active()):
+        elif self.rpc_tcpip_radio_button.get_active():
             return 1
-        elif (self.localhost_radio_button.get_active()):
+        elif self.localhost_radio_button.get_active():
             return 2
         else:
             return -1
@@ -3146,11 +3153,11 @@ class SvcCtlConnectDialog(gtk.Dialog):
         return self.server_address_entry.get_text().strip()
 
     def get_transport_type(self):
-        if (self.rpc_smb_tcpip_radio_button.get_active()):
+        if self.rpc_smb_tcpip_radio_button.get_active():
             return 0
-        elif (self.rpc_tcpip_radio_button.get_active()):
+        elif self.rpc_tcpip_radio_button.get_active():
             return 1
-        elif (self.localhost_radio_button.get_active()):
+        elif self.localhost_radio_button.get_active():
             return 2
         else:
             return -1
@@ -3278,11 +3285,11 @@ class ATSvcConnectDialog(gtk.Dialog):
         return self.server_address_entry.get_text().strip()
 
     def get_transport_type(self):
-        if (self.rpc_smb_tcpip_radio_button.get_active()):
+        if self.rpc_smb_tcpip_radio_button.get_active():
             return 0
-        elif (self.rpc_tcpip_radio_button.get_active()):
+        elif self.rpc_tcpip_radio_button.get_active():
             return 1
-        elif (self.localhost_radio_button.get_active()):
+        elif self.localhost_radio_button.get_active():
             return 2
         else:
             return -1
@@ -3299,7 +3306,7 @@ class ATSvcConnectDialog(gtk.Dialog):
 
 class WinRegConnectDialog(gtk.Dialog):
 
-    def __init__(self, server, transport_type, username, password = ""):
+    def __init__(self, server, transport_type, username, password=""):
         super(WinRegConnectDialog, self).__init__()
 
         self.server_address = server
@@ -3409,11 +3416,11 @@ class WinRegConnectDialog(gtk.Dialog):
         return self.server_address_entry.get_text().strip()
 
     def get_transport_type(self):
-        if (self.rpc_smb_tcpip_radio_button.get_active()):
+        if self.rpc_smb_tcpip_radio_button.get_active():
             return 0
-        elif (self.rpc_tcpip_radio_button.get_active()):
+        elif self.rpc_tcpip_radio_button.get_active():
             return 1
-        elif (self.localhost_radio_button.get_active()):
+        elif self.localhost_radio_button.get_active():
             return 2
         else:
             return -1
@@ -3426,42 +3433,3 @@ class WinRegConnectDialog(gtk.Dialog):
 
     def on_radio_button_toggled(self, widget):
         self.update_sensitivity()
-
-
-#dialog = RegValueEditDialog(misc.REG_BINARY)
-#dialog.show_all()
-#dialog.update_type_page_after_show()
-#dialog.run()
-#dialog.values_to_reg_value()
-#dialog.hide()
-#
-#value = dialog.reg_value
-#
-##for line in value.get_interpreted_data():
-##    print "[%s]" % line
-#
-#dialog = RegValueEditDialog(value.type, value)
-#dialog.show_all()
-#dialog.update_type_page_after_show()
-#dialog.run()
-
-
-
-
-
-if __name__ == '__main__':
-    user_list = []
-    for i in range(4):
-        user = User("Test_%i" % (i,), "", "", 0)
-        user_list.append(user)
-
-    window = RegAdvancedPermissionsDialog(user_list, None)
-    window.show_all()
-    window.run()
-
-
-
-
-
-
-

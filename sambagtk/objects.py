@@ -1,11 +1,10 @@
 
 import datetime
 
-import gtk
-
-from samba.dcerpc import svcctl
-from samba.dcerpc import winreg
-from samba.dcerpc import misc
+from samba.dcerpc import (
+    misc,
+    svcctl,
+    )
 
 
 class User(object):
@@ -27,8 +26,6 @@ class User(object):
         self.logon_script = ""
         self.homedir_path = ""
         self.map_homedir_drive = -1
-
-        None
 
     def list_view_representation(self):
         return [self.username, self.fullname, self.description, self.rid]
@@ -72,41 +69,33 @@ class Service:
 
     @staticmethod
     def get_state_string(state):
-        if (state == svcctl.SVCCTL_CONTINUE_PENDING):
-            return "Continue pending"
-        elif (state == svcctl.SVCCTL_PAUSE_PENDING):
-            return "Pause pending"
-        elif (state == svcctl.SVCCTL_PAUSED):
-            return "Paused"
-        elif (state == svcctl.SVCCTL_RUNNING):
-            return "Running"
-        elif (state == svcctl.SVCCTL_START_PENDING):
-            return "Start pending"
-        elif (state == svcctl.SVCCTL_STOP_PENDING):
-            return "Stop pending"
-        elif (state == svcctl.SVCCTL_STOPPED):
-            return "Stopped"
+        return {
+            svcctl.SVCCTL_CONTINUE_PENDING: "Continue pending",
+            svcctl.SVCCTL_PAUSE_PENDING: "Pause pending"
+            svcctl.SVCCTL_PAUSED: "Paused",
+            svcctl.SVCCTL_RUNNING: "Running",
+            svcctl.SVCCTL_START_PENDING: "Start pending",
+            svcctl.SVCCTL_STOP_PENDING: "Stop pending",
+            svcctl.SVCCTL_STOPPED: "Stopped"
+            }[state]
 
     @staticmethod
     def get_start_type_string(start_type):
-        if (start_type == svcctl.SVCCTL_BOOT_START):
-            return "Start at boot"
-        elif (start_type == svcctl.SVCCTL_SYSTEM_START):
-            return "Start at system startup"
-        elif (start_type == svcctl.SVCCTL_AUTO_START):
-            return "Start automatically"
-        elif (start_type == svcctl.SVCCTL_DEMAND_START):
-            return "Start manually"
-        elif (start_type == svcctl.SVCCTL_DISABLED):
-            return "Disabled"
-        else:
-            return ""
+        return {
+            svcctl.SVCCTL_BOOT_START: "Start at boot",
+            svcctl.SVCCTL_SYSTEM_START: "Start at system startup",
+            svcctl.SVCCTL_AUTO_START: "Start automatically",
+            svcctl.SVCCTL_DEMAND_START: "Start manually",
+            svcctl.SVCCTL_DISABLED: "Disabled",
+            }.get(start_type, "")
 
     def list_view_representation(self):
-        return [self.name, self.display_name, self.description, Service.get_state_string(self.state), Service.get_start_type_string(self.start_type)]
+        return [self.name, self.display_name, self.description,
+                Service.get_state_string(self.state),
+                Service.get_start_type_string(self.start_type)]
 
 
-class RegistryValue:
+class RegistryValue(object):
 
     def __init__(self, name, type, data, parent):
         self.name = name
@@ -115,7 +104,7 @@ class RegistryValue:
         self.parent = parent
 
     def get_absolute_path(self):
-        if (self.parent == None):
+        if (self.parent is None):
             return self.name
         else:
             return self.parent.get_absolute_path() + "\\" + self.name
@@ -123,7 +112,7 @@ class RegistryValue:
     def get_data_string(self):
         interpreted_data = self.get_interpreted_data()
 
-        if (interpreted_data == None or len(self.data) == 0):
+        if (interpreted_data is None or len(self.data) == 0):
             return "(value not set)"
 
         elif (self.type == misc.REG_SZ or self.type == misc.REG_EXPAND_SZ):
@@ -158,7 +147,7 @@ class RegistryValue:
             return str(interpreted_data)
 
     def get_interpreted_data(self):
-        if (self.data == None):
+        if (self.data is None):
             return None
 
         if (self.type == misc.REG_SZ or self.type == misc.REG_EXPAND_SZ):
@@ -237,7 +226,7 @@ class RegistryValue:
     def set_interpreted_data(self, data):
         del self.data[:]
 
-        if (data == None):
+        if (data is None):
             self.data = None
 
         elif (self.type == misc.REG_SZ or self.type == misc.REG_EXPAND_SZ):
@@ -282,39 +271,39 @@ class RegistryValue:
             self.data = data
 
     def list_view_representation(self):
-        return [self.name, RegistryValue.get_type_string(self.type), self.get_data_string(), self]
+        return [self.name, RegistryValue.get_type_string(self.type),
+                self.get_data_string(), self]
 
     @staticmethod
     def get_type_string(type):
         type_strings = {
-                        misc.REG_SZ:"String",
-                        misc.REG_BINARY:"Binary Data",
-                        misc.REG_EXPAND_SZ:"Expandable String",
-                        misc.REG_DWORD:"32-bit Number (little endian)",
-                        misc.REG_DWORD_BIG_ENDIAN:"32-bit Number (big endian)",
-                        misc.REG_MULTI_SZ:"Multi-String",
-                        misc.REG_QWORD:"64-bit Number (little endian)"
-                        }
+            misc.REG_SZ:"String",
+            misc.REG_BINARY:"Binary Data",
+            misc.REG_EXPAND_SZ:"Expandable String",
+            misc.REG_DWORD:"32-bit Number (little endian)",
+            misc.REG_DWORD_BIG_ENDIAN:"32-bit Number (big endian)",
+            misc.REG_MULTI_SZ:"Multi-String",
+            misc.REG_QWORD:"64-bit Number (little endian)"
+            }
 
         return type_strings[type]
 
 
-class RegistryKey:
+class RegistryKey(object):
 
     def __init__(self, name, parent):
         self.name = name
         self.parent = parent
-
         self.handle = None
 
     def get_absolute_path(self):
-        if (self.parent == None):
+        if (self.parent is None):
             return self.name
         else:
             return self.parent.get_absolute_path() + "\\" + self.name
 
     def get_root_key(self):
-        if self.parent == None:
+        if self.parent is None:
             return self
         else:
             return self.parent.get_root_key()
@@ -323,7 +312,7 @@ class RegistryKey:
         return [self.name, self]
 
 
-class Task:
+class Task(object):
 
     def __init__(self, command, id):
         self.command = command
@@ -438,17 +427,18 @@ class Task:
 
     @staticmethod
     def get_day_of_week_name(day_no):
-        DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday",
+                "Friday", "Saturday", "Sunday"]
 
         return DAYS_OF_WEEK[day_no]
 
     @staticmethod
     def get_day_of_month_name(day_no):
-        if (day_no == 0):
+        if day_no == 0:
             return "1st"
-        elif (day_no == 1):
+        elif day_no == 1:
             return "2nd"
-        elif (day_no == 2):
+        elif day_no == 2:
             return "3rd"
         else:
             return str(day_no + 1) + "th"

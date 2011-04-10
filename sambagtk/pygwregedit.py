@@ -14,16 +14,20 @@ from samba import credentials
 from samba.dcerpc import winreg, security
 from samba.dcerpc import misc
 
-from objects import RegistryKey
-from objects import RegistryValue
+from sambagtk.objects import (
+    RegistryKey,
+    RegistryValue,
+    )
 
-from dialogs import WinRegConnectDialog
-from dialogs import RegValueEditDialog
-from dialogs import RegKeyEditDialog
-from dialogs import RegRenameDialog
-from dialogs import RegSearchDialog
-from dialogs import RegPermissionsDialog
-from dialogs import AboutDialog
+from sambagtk.dialogs import (
+    WinRegConnectDialog,
+    RegValueEditDialog,
+    RegKeyEditDialog,
+    RegRenameDialog,
+    RegSearchDialog,
+    RegPermissionsDialog,
+    AboutDialog,
+    )
 
 
 class WinRegPipeManager(object):
@@ -62,7 +66,7 @@ class WinRegPipeManager(object):
         subkey_list = []
         value_list = []
 
-        update_GUI = (regedit_window != None)
+        update_GUI = (regedit_window is not None)
 
         self.lock.acquire()
         try: #this can cause access denied errors
@@ -89,12 +93,7 @@ class WinRegPipeManager(object):
         while True: #get a list of subkeys
             try:
                 self.lock.acquire()
-                (subkey_name, subkey_class, subkey_changed_time) = self.pipe.EnumKey(key_handle,
-                                                                                     index,
-                                                                                     blank_buff,
-                                                                                     blank_buff,
-                                                                                     None
-                                                                                     )
+                (subkey_name, subkey_class, subkey_changed_time) = self.pipe.EnumKey(key_handle, index, blank_buff, blank_buff, None)
                 self.lock.release() #we want to release the pipe lock before grabbing the gdk lock or else we might cause a deadlock!
 
                 subkey = RegistryKey(subkey_name.name, key)
@@ -138,9 +137,10 @@ class WinRegPipeManager(object):
                 value = RegistryValue(value_name.name, value_type, value_data, key)
                 value_list.append(value)
 
-                #there's no need to update GUI here since there's usually few Values.
-                #Additionally, many values are named "" which is later changed to "(Default)".
-                #So printing '"fetching: "+value.name' might look like a glitch to the user.
+                # there's no need to update GUI here since there's usually few
+                # Values. Additionally, many values are named "" which is
+                # later changed to "(Default)".  So printing '"fetching:
+                # "+value.name' might look like a glitch to the user.
 
                 index += 1
 
@@ -158,7 +158,7 @@ class WinRegPipeManager(object):
             self.lock.release()
 
         default_value_list = [value for value in value_list if value.name == ""]
-        if (len(default_value_list) == 0):
+        if len(default_value_list) == 0:
             value = RegistryValue("(Default)", misc.REG_SZ, [], key)
             value_list.append(value)
         else:
@@ -220,15 +220,12 @@ class WinRegPipeManager(object):
                 (value_name,
                  value_type,
                  value_data,
-                 value_length) = self.pipe.EnumValue(key_handle,
-                                                     index,
-                                                     WinRegPipeManager.winreg_val_name_buf(""),
-                                                     0,
-                                                     [],
-                                                     8192
-                                                     )
+                 value_length) = self.pipe.EnumValue(
+                     key_handle, index,
+                     WinRegPipeManager.winreg_val_name_buf(""), 0, [], 8192)
 
-                value = RegistryValue(value_name.name, value_type, value_data, key)
+                value = RegistryValue(value_name.name, value_type, value_data,
+                    key)
                 value_list.append(value)
 
                 index += 1
@@ -241,7 +238,8 @@ class WinRegPipeManager(object):
 
         self.close_path(path_handles)
 
-        #Every key is supposted to have a default value. If this key doesn't have one, we'll display a blank one
+        # Every key is supposted to have a default value. If this key doesn't
+        # have one, we'll display a blank one
         default_value_list = [value for value in value_list if value.name == ""]
         if (len(default_value_list) == 0):
             value = RegistryValue("(Default)", misc.REG_SZ, [], key)
@@ -256,7 +254,6 @@ class WinRegPipeManager(object):
 
         path_handles = self.open_path(key)
         key_handle = path_handles[-1]
-
 
         key_sec_data = winreg.KeySecurityData()
         key_sec_data.size = 99999999 #TODO: find a better number.
@@ -375,7 +372,7 @@ class WinRegPipeManager(object):
         self.well_known_keys.append(key)
 
     def open_path(self, key):
-        if (key.parent == None):
+        if (key.parent is None):
             return [key.handle]
         else:
             path = self.open_path(key.parent)
@@ -454,7 +451,7 @@ class KeyFetchThread(threading.Thread):
         finally:
             gtk.gdk.threads_leave()
 
-            if (msg != None):
+            if (msg is not None):
                 gtk.gdk.threads_enter()
                 self.regedit_window.set_status(msg)
                 self.regedit_window.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
@@ -487,7 +484,7 @@ class SearchThread(threading.Thread):
         else:
             search_items = self.text.split()
 
-        if self.starting_key_iter == None: #Add root keys, start a normal search
+        if self.starting_key_iter is None: #Add root keys, start a normal search
             #this will be a depth-first traversal of the key tree
             stack = [] #we'll push keys onto this stack
 
@@ -597,8 +594,8 @@ class SearchThread(threading.Thread):
             append_list = []
             gui_lock()
             subkey_iter = model.iter_children(key_iter)
-            if subkey_iter != None: #if the subkeys already exist in the tree view
-                while subkey_iter != None:
+            if subkey_iter is not None: #if the subkeys already exist in the tree view
+                while subkey_iter is not None:
                     append_list.append((model.get_value(subkey_iter, 1), subkey_iter, ))
                     subkey_iter = model.iter_next(subkey_iter)
                 gui_unlock()
@@ -662,7 +659,7 @@ class SearchThread(threading.Thread):
         iter_current_parent = self.starting_key_iter #yes, we consider the current key a parent also
 
         #Here we add all ancestors of self.starting_key_iter (the selected key) to key_parents and iter_parents
-        while iter_current_parent != None:
+        while iter_current_parent is not None:
             #we'll add each child_iter's iter_current_parent to the key_parents list until we get to the root
             iter_parents.append(iter_current_parent)
             iter_current_parent = model.iter_parent(iter_current_parent)
@@ -671,7 +668,7 @@ class SearchThread(threading.Thread):
         for parent_iter in iter_parents:
             iter = model.iter_next(parent_iter) #This will point to the key right after the parent key of our last search result
             append_list = []
-            while (iter != None):
+            while (iter is not None):
                 append_list.append((model.get_value(iter, 1), iter, ))
                 iter = model.iter_next(iter)
             append_list.reverse()
@@ -680,7 +677,7 @@ class SearchThread(threading.Thread):
         #Can't forget to add the starting key's children
         key_iter = model.iter_children(self.starting_key_iter)
         append_list = []
-        while key_iter != None:
+        while key_iter is not None:
             append_list.append((model.get_value(key_iter, 1), key_iter, ))
             key_iter = model.iter_next(key_iter)
         append_list.reverse()
@@ -697,9 +694,11 @@ class SearchThread(threading.Thread):
 
 class RegEditWindow(gtk.Window):
 
-    def __init__(self, info_callback = None, server = "", username = "", password = "", transport_type = 0, connect_now = False):
+    def __init__(self, info_callback=None, server="", username="",
+            password="", transport_type=0, connect_now=False):
         super(RegEditWindow, self).__init__()
-        #Note: Any change to these arguments should probably also be changed in on_connect_item_activate()
+        # Note: Any change to these arguments should probably also be changed
+        # in on_connect_item_activate()
 
         self.create()
         self.pipe_manager = None
@@ -708,15 +707,16 @@ class RegEditWindow(gtk.Window):
         self.ignore_selection_change = False
         self.update_sensitivity()
 
-        #It's nice to have this info saved when a user wants to reconnect
+        # It's nice to have this info saved when a user wants to reconnect
         self.server_address = server
         self.username = username
         self.transport_type = transport_type
 
         self.on_connect_item_activate(None, server, transport_type, username, password, connect_now)
 
-        #This is used so the parent program can grab the server info after we've connected.
-        if info_callback != None:
+        # This is used so the parent program can grab the server info after
+        # we've connected.
+        if info_callback is not None:
             info_callback(server = self.server_address, username = self.username, transport_type = self.transport_type)
 
     def create(self):
@@ -738,8 +738,8 @@ class RegEditWindow(gtk.Window):
 
         self.set_icon(self.icon_pixbuf)
 
-    	vbox = gtk.VBox(False, 0)
-    	self.add(vbox)
+        vbox = gtk.VBox(False, 0)
+        self.add(vbox)
 
         # TODO: assign keyboard shortcuts
 
@@ -1071,7 +1071,7 @@ class RegEditWindow(gtk.Window):
 
         (model, selected_paths) = self.keys_tree_view.get_selection().get_selected_rows()
 
-        if (iter == None):
+        if (iter is None):
             #If iter is None then the tree is empty.
             self.pipe_manager.lock.acquire()
             well_known_keys = self.pipe_manager.well_known_keys
@@ -1087,15 +1087,15 @@ class RegEditWindow(gtk.Window):
             for key in key_list:
                 self.keys_store.append(iter, key.list_view_representation())
 
-        if (iter != None):
+        if (iter is not None):
             #expand the selected row
             self.keys_tree_view.expand_row(self.keys_store.get_path(iter), False)
 
             #Select the key select_me_key. Select_me_key is a key and not an iter, so this isn't as straight forward as it could be
             #but we know it's a child of the key pointed to by 'iter' and an element of 'key_list.
-            if (select_me_key != None):
+            if (select_me_key is not None):
                 child_iter = self.keys_store.iter_children(iter) #get the first (at index 0) child of 'iter'
-                while (child_iter != None): #child_iter will equal none if call iter_children() or iter_next() and there is no next child.
+                while (child_iter is not None): #child_iter will equal none if call iter_children() or iter_next() and there is no next child.
                     key = self.keys_store.get_value(child_iter, 1)
                     if (key.name == select_me_key.name):
                         self.keys_tree_view.get_selection().select_iter(child_iter) #select that key
@@ -1153,7 +1153,7 @@ class RegEditWindow(gtk.Window):
             except Exception:
                 if (len(value_list) > 0):
                     last_iter = self.values_store.get_iter_first()
-                    while (self.values_store.iter_next(last_iter) != None):
+                    while (self.values_store.iter_next(last_iter) is not None):
                         last_iter = self.values_store.iter_next(last_iter)
                     self.values_tree_view.get_selection().select_iter(last_iter)
 
@@ -1167,7 +1167,7 @@ class RegEditWindow(gtk.Window):
             return (None, None)
 
         (model, iter) = self.keys_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return (None, None)
         else:
             return (iter, model.get_value(iter, 1))
@@ -1180,7 +1180,7 @@ class RegEditWindow(gtk.Window):
             return (None, None)
 
         (model, iter) = self.values_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return (None, None)
         else:
             return (iter, model.get_value(iter, 4))
@@ -1194,7 +1194,7 @@ class RegEditWindow(gtk.Window):
 
         model = self.values_tree_view.get_model()
         iter = model.get_iter_first()
-        while iter != None:
+        while iter is not None:
             current_value = model.get_value(iter, 4)
             if (current_value.name == value.name):
                 return iter
@@ -1218,7 +1218,7 @@ class RegEditWindow(gtk.Window):
         current_key_iter = model.get_iter_first() #get iter to the first root node
 
         step = 0 #currently checking this index in key_names
-        while (current_key_iter != None):
+        while (current_key_iter is not None):
             current_key = model.get_value(current_key_iter, 1)
             if current_key.name == key_names[step]:
                 if (step >= len(key_names) - 1): #if this is the last step then we've found the key! (cue audio from Zelda)
@@ -1237,13 +1237,13 @@ class RegEditWindow(gtk.Window):
     def update_sensitivity(self):
         connected = self.connected()
 
-        key_selected = (self.get_selected_registry_key()[1] != None)
-        value_selected = (self.get_selected_registry_value()[1] != None)
+        key_selected = (self.get_selected_registry_key()[1] is not None)
+        value_selected = (self.get_selected_registry_value()[1] is not None)
         value_set = (value_selected and len(self.get_selected_registry_value()[1].data) > 0)
         value_default = (value_selected and self.get_selected_registry_value()[1].name == "(Default)")
         key_focused = self.keys_tree_view.is_focus()
         if (connected):
-            root_key_selected = (key_selected and self.get_selected_registry_key()[1].parent == None)
+            root_key_selected = (key_selected and self.get_selected_registry_key()[1].parent is None)
 
         # sensitiviy
 
@@ -1288,7 +1288,7 @@ class RegEditWindow(gtk.Window):
         self.rename_button.set_tooltip_text("Rename the selected " + ["value", "key"][key_focused])
 
     def run_message_dialog(self, type, buttons, message, parent = None):
-        if (parent == None):
+        if (parent is None):
             parent = self
 
         message_box = gtk.MessageDialog(parent, gtk.DIALOG_MODAL, type, buttons, message)
@@ -1298,10 +1298,10 @@ class RegEditWindow(gtk.Window):
         return response
 
     def run_value_edit_dialog(self, value, type, apply_callback = None):
-        if (type == None):
+        if (type is None):
             type = value.type
 
-        if (value != None):
+        if (value is not None):
             original_type = value.type
             value.type = type
         else:
@@ -1319,11 +1319,11 @@ class RegEditWindow(gtk.Window):
             if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
 
-                if (problem_msg != None):
+                if (problem_msg is not None):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
                 else:
                     dialog.values_to_reg_value()
-                    if (apply_callback != None):
+                    if (apply_callback is not None):
                         dialog.reg_value.type = original_type
                         if (not apply_callback(dialog.reg_value)):
                             response_id = gtk.RESPONSE_NONE
@@ -1351,11 +1351,11 @@ class RegEditWindow(gtk.Window):
             if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
 
-                if (problem_msg != None):
+                if (problem_msg is not None):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
                 else:
                     dialog.values_to_reg_key()
-                    if (apply_callback != None):
+                    if (apply_callback is not None):
                         if (not apply_callback(dialog.reg_key)):
                             response_id = gtk.RESPONSE_NONE
                     if (response_id == gtk.RESPONSE_OK):
@@ -1379,12 +1379,12 @@ class RegEditWindow(gtk.Window):
             if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
 
-                if (problem_msg != None):
+                if (problem_msg is not None):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg)
                 else:
                     dialog.values_to_reg()
-                    if (apply_callback != None):
-                        if (not apply_callback([dialog.reg_value, dialog.reg_key][dialog.reg_key != None])):
+                    if (apply_callback is not None):
+                        if (not apply_callback([dialog.reg_value, dialog.reg_key][dialog.reg_key is not None])):
                             response_id = gtk.RESPONSE_NONE
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
@@ -1394,7 +1394,7 @@ class RegEditWindow(gtk.Window):
                 dialog.hide()
                 return None
 
-        if (dialog.reg_key == None):
+        if (dialog.reg_key is None):
             return dialog.reg_value
         else:
             return dialog.reg_key
@@ -1472,7 +1472,7 @@ class RegEditWindow(gtk.Window):
 
             if (response_id == gtk.RESPONSE_OK): #the search button returns RESPONSE_OK
                 problem_msg = dialog.check_for_problems()
-                if (problem_msg != None):
+                if (problem_msg is not None):
                     self.run_message_dialog(problem_msg[1], gtk.BUTTONS_OK, problem_msg[0])
                 else:
                     dialog.hide()
@@ -1488,11 +1488,11 @@ class RegEditWindow(gtk.Window):
                 dialog.check_match_whole_string.get_active())
 
     def connected(self):
-        return self.pipe_manager != None
+        return self.pipe_manager is not None
 
     def update_value_callback(self, value):
         (iter, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return False
 
         try:
@@ -1522,7 +1522,7 @@ class RegEditWindow(gtk.Window):
 
     def rename_key_callback(self, key):
         (iter, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return False
 
         if (key.name == key.old_name):
@@ -1567,11 +1567,11 @@ class RegEditWindow(gtk.Window):
 
     def rename_value_callback(self, value):
         (iter_key, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return False
 
         (iter_value, selected_value) = self.get_selected_registry_value()
-        if (selected_value == None):
+        if (selected_value is None):
             return False
 
         if (value.name == value.old_name):
@@ -1612,11 +1612,11 @@ class RegEditWindow(gtk.Window):
 
     def new_value(self, type):
         (iter, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return
 
         new_value = self.run_value_edit_dialog(None, type)
-        if (new_value == None):
+        if (new_value is None):
             return
 
         new_value.parent = selected_key
@@ -1656,7 +1656,7 @@ class RegEditWindow(gtk.Window):
         returns True if a key was successfully selected"""
         if not self.connected():
             return
-        if key_iter == None:
+        if key_iter is None:
             return
 
         result = False
@@ -1672,7 +1672,7 @@ class RegEditWindow(gtk.Window):
             #this could happen when we try to highlight a value that isn't in the tree
             print "Problem selecting key:", re.args[1]
 
-        if value_iter != None:
+        if value_iter is not None:
             model = self.values_tree_view.get_model()
             try:
                 path = model.get_path(value_iter)
@@ -1700,7 +1700,7 @@ class RegEditWindow(gtk.Window):
 #            print "Key pressed:", event.keyval
 
     def on_self_delete(self, widget, event):
-        if (self.pipe_manager != None):
+        if (self.pipe_manager is not None):
             self.on_disconnect_item_activate(self.disconnect_item)
 
         gtk.main_quit()
@@ -1717,10 +1717,10 @@ class RegEditWindow(gtk.Window):
         self.refresh_keys_tree_view(None, None)
 
     def on_disconnect_item_activate(self, widget):
-        if self.search_thread != None:
+        if self.search_thread is not None:
             self.search_thread.self_destruct()
             self.search_thread = None
-        if (self.pipe_manager != None):
+        if (self.pipe_manager is not None):
             self.pipe_manager.close()
             self.pipe_manager = None
 
@@ -1756,11 +1756,11 @@ class RegEditWindow(gtk.Window):
 
     def on_new_key_item_activate(self, widget):
         (iter, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return
 
         new_key = self.run_key_edit_dialog(None)
-        if (new_key == None):
+        if (new_key is None):
             return
 
         new_key.parent = selected_key
@@ -1835,14 +1835,14 @@ class RegEditWindow(gtk.Window):
 
         if (key_focused):
             (iter, selected_key) = self.get_selected_registry_key()
-            if (selected_key == None):
+            if (selected_key is None):
                 return
 
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete key '%s'?" % selected_key.name) != gtk.RESPONSE_YES):
                 return
         else:
             (iter, selected_value) = self.get_selected_registry_value()
-            if (selected_value == None):
+            if (selected_value is None):
                 return
 
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete value '%s'?" % selected_value.name) != gtk.RESPONSE_YES):
@@ -1908,13 +1908,13 @@ class RegEditWindow(gtk.Window):
 
         if (key_focused):
             (iter, selected_key) = self.get_selected_registry_key()
-            if (selected_key == None):
+            if (selected_key is None):
                 return
 
             path = selected_key.get_absolute_path()
         else:
             (iter, selected_value) = self.get_selected_registry_value()
-            if (selected_value == None):
+            if (selected_value is None):
                 return
 
             path = selected_value.get_absolute_path()
@@ -1926,9 +1926,9 @@ class RegEditWindow(gtk.Window):
         if not self.connected():
             return
 
-        if self.search_thread == None:
+        if self.search_thread is None:
             result = self.run_search_dialog()
-            if result == None: #The user pressed cancel
+            if result is None: #The user pressed cancel
                 return
 
             self.search_last_options = result
@@ -1948,10 +1948,10 @@ class RegEditWindow(gtk.Window):
     def on_find_next_item_activate(self, widget):
         if not self.connected():
             return
-        if self.search_thread != None:
+        if self.search_thread is not None:
             self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, "Calm down, we're still searching!")
             return
-        if self.search_last_options == None:
+        if self.search_last_options is None:
             self.run_message_dialog(gtk.MESSAGE_INFO, gtk.BUTTONS_OK, "There is no previous search to continue from.")
             self.on_find_item_activate(None)
             return
@@ -1974,11 +1974,11 @@ class RegEditWindow(gtk.Window):
 
         #search the remaining values in this key
         if (search_values):
-            if sel_value_iter != None:
+            if sel_value_iter is not None:
                 value_iter = value_model.iter_next(sel_value_iter) #point to the value after the one we just found
             else:
                 value_iter = value_model.get_iter_first()
-            while (value_iter != None): #this will be none when there is no more values
+            while (value_iter is not None): #this will be none when there is no more values
                 current_value = value_model.get_value(value_iter, 4)
                 for text in search_items:
                     if (current_value.name.find(text) >= 0): #check if it's in the value's name
@@ -1990,11 +1990,11 @@ class RegEditWindow(gtk.Window):
 
         #search the remaining data too
         if (search_data):
-            if sel_value_iter != None:
+            if sel_value_iter is not None:
                 value_iter = value_model.iter_next(sel_value_iter) #point to the value after the one we just found
             else:
                 value_iter = value_model.get_iter_first()
-            while (value_iter != None):
+            while (value_iter is not None):
                 current_value = value_model.get_value(value_iter, 4)
                 for text in search_items: #and check those values for each search string
                     if (current_value.get_data_string().find(text) >= 0): #check if it's in the value's data
@@ -2010,14 +2010,14 @@ class RegEditWindow(gtk.Window):
 
     def on_refresh_item_activate(self, widget):
         (iter, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return
 
         KeyFetchThread(self.pipe_manager, self, selected_key, iter).start()
 
         #deselect any selected values
         (iter, value) = self.get_selected_registry_value()
-        if iter == None:
+        if iter is None:
             return
         selector = self.values_tree_view.get_selection()
         selector.unselect_iter(iter)
@@ -2035,14 +2035,14 @@ class RegEditWindow(gtk.Window):
         if self.ignore_selection_change:
             return
         (iter, selected_key) = self.get_selected_registry_key()
-        if (selected_key == None):
+        if (selected_key is None):
             return
 
         self.set_status("Selected path \'%s\'." % (selected_key.get_absolute_path()))
 
         #deselect any selected values
         (val_iter, value) = self.get_selected_registry_value()
-        if val_iter != None:
+        if val_iter is not None:
             selector = self.values_tree_view.get_selection()
             selector.unselect_iter(val_iter)
 
@@ -2071,7 +2071,7 @@ class RegEditWindow(gtk.Window):
     def on_keys_tree_view_button_press(self, widget, event):
         if (event.type == gtk.gdk._2BUTTON_PRESS): #double click
             (iter, selected_key) = self.get_selected_registry_key()
-            if (selected_key == None):
+            if (selected_key is None):
                 return
 
             expanded = self.keys_tree_view.row_expanded(self.keys_store.get_path(iter))
@@ -2089,7 +2089,7 @@ class RegEditWindow(gtk.Window):
             return
         (iter, selected_value) = self.get_selected_registry_value()
 
-        if (selected_value != None):
+        if (selected_value is not None):
             self.set_status("Selected path \'%s\\%s\'." % (selected_value.get_absolute_path(), selected_value.name))
 
         self.update_sensitivity()
@@ -2097,7 +2097,7 @@ class RegEditWindow(gtk.Window):
     def on_values_tree_view_button_press(self, widget, event):
         if (event.type == gtk.gdk._2BUTTON_PRESS): #double click
             (iter, selected_value) = self.get_selected_registry_value()
-            if (selected_value == None):
+            if (selected_value is None):
                 return
 
             self.on_modify_item_activate(self.modify_item)
@@ -2108,7 +2108,6 @@ class RegEditWindow(gtk.Window):
     def on_tree_views_focus_in(self, widget, event):
         self.update_sensitivity()
 
-#************ END OF CLASS ***************
 
 def PrintUsage():
     print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))

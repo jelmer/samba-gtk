@@ -11,11 +11,13 @@ import gtk
 from samba import credentials
 from samba.dcerpc import atsvc
 
-from objects import Task
+from sambagtk.objects import Task
 
-from dialogs import ATSvcConnectDialog
-from dialogs import TaskEditDialog
-from dialogs import AboutDialog
+from sambagtk.dialogs import (
+    AboutDialog,
+    ATSvcConnectDialog,
+    TaskEditDialog,
+    )
 
 
 class ATSvcPipeManager:
@@ -102,7 +104,7 @@ class ATSvcPipeManager:
 
 class CronTabWindow(gtk.Window):
 
-    def __init__(self, info_callback = None, server = "", username = "", password = "", transport_type = 0, connect_now = False):
+    def __init__(self, info_callback=None, server="", username="", password="", transport_type=0, connect_now=False):
         super(CronTabWindow, self).__init__()
         # Note: Any change to these arguments should probably also be changed
         # in on_connect_item_activate()
@@ -623,10 +625,10 @@ class CronTabWindow(gtk.Window):
 
     def on_about_item_activate(self, widget):
         dialog = AboutDialog(
-                             "PyGWCronTab",
-                             "A tool to remotely manage scheduled tasks.\n Based on Jelmer Vernooij's original Samba-GTK",
-                             self.icon_pixbuf
-                             )
+             "PyGWCronTab",
+             "A tool to remotely manage scheduled tasks.\n Based on Jelmer Vernooij's original Samba-GTK",
+             self.icon_pixbuf
+             )
         dialog.run()
         dialog.hide()
 
@@ -640,9 +642,8 @@ class CronTabWindow(gtk.Window):
     def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
-#************ END OF CLASS ***************
 
-def PrintUseage():
+def PrintUsage():
     print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))
     print "All options are optional. The user will be queried for additional information if needed.\n"
     print "  -s  --server\t\tspecify the server to connect to."
@@ -657,12 +658,12 @@ def ParseArgs(argv):
     try: #get arguments into a nicer format
         opts, args = getopt.getopt(argv, "hu:s:p:ct:", ["help", "user=", "server=", "password=", "connect-now", "transport="])
     except getopt.GetoptError:
-        PrintUseage()
+        PrintUsage()
         sys.exit(2)
 
     for opt, arg in opts:
         if opt in ("-h", "--help"):
-            PrintUseage()
+            PrintUsage()
             sys.exit(0)
         elif opt in ("-s", "--server"):
             arguments.update({"server":arg})

@@ -12,14 +12,17 @@ from samba.dcerpc import samr
 from samba.dcerpc import security
 from samba.dcerpc import lsa
 
-from objects import User
-from objects import Group
+from sambagtk.objects import (
+    User,
+    Group,
+    )
 
-from dialogs import SAMConnectDialog
-from dialogs import UserEditDialog
-from dialogs import GroupEditDialog
-from dialogs import AboutDialog
-
+from sambagtk.dialogs import (
+    SAMConnectDialog,
+    UserEditDialog,
+    GroupEditDialog,
+    AboutDialog,
+    )
 
 class SAMPipeManager(object):
 
@@ -55,7 +58,7 @@ class SAMPipeManager(object):
             self.pipe.Close(self.connect_handle)
 
     def fetch_and_get_domain_names(self):
-        if (self.pipe == None): # not connected
+        if (self.pipe is None): # not connected
             return None
 
         domain_name_list = []
@@ -223,7 +226,7 @@ class SAMPipeManager(object):
                 ace = item
                 break
 
-        if ace == None:
+        if ace is None:
             print "unable to fetch security info for", user.username, "because none exists."
             return user
 
@@ -286,7 +289,7 @@ class SAMPipeManager(object):
         """Converts 'query_info' information into a user type. Values in 'user' will be overwriten by this function. If called with 'None' then a new User structure will be created
 
         returns 'user'"""
-        if (user == None):
+        if (user is None):
             user = User(self.get_lsa_string(query_info.account_name),
                         self.get_lsa_string(query_info.full_name),
                         self.get_lsa_string(query_info.description),
@@ -351,7 +354,7 @@ class SAMPipeManager(object):
         return group_list
 
     def info_to_group(self, query_info, group = None):
-        if (group == None):
+        if (group is None):
             group = Group(self.get_lsa_string(query_info.name),
                           self.get_lsa_string(query_info.description),
                           0)
@@ -730,7 +733,7 @@ class SAMWindow(gtk.Window):
             return None
 
         (model, iter) = self.users_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return None
         else:
             username = model.get_value(iter, 0)
@@ -745,7 +748,7 @@ class SAMWindow(gtk.Window):
             return None
 
         (model, iter) = self.groups_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return None
         else:
             name = model.get_value(iter, 0)
@@ -789,7 +792,7 @@ class SAMWindow(gtk.Window):
         self.delete_button.set_tooltip_text(["Delete the user", "Delete the group"][self.users_groups_notebook_page_num > 0])
 
     def run_message_dialog(self, type, buttons, message, parent = None):
-        if (parent == None):
+        if (parent is None):
             parent = self
 
         message_box = gtk.MessageDialog(parent, gtk.DIALOG_MODAL, type, buttons, message)
@@ -865,7 +868,7 @@ class SAMWindow(gtk.Window):
         dialog = SAMConnectDialog(server_address, transport_type, username, password)
         dialog.show_all()
 
-        if (domains == None):
+        if (domains is None):
             # loop to handle the failures
             while True:
                 if (connect_now):
@@ -1098,13 +1101,13 @@ class SAMWindow(gtk.Window):
 
         #deselect any selected groups and users
         (model, iter) = self.users_tree_view.get_selection().get_selected()
-        if iter == None:
+        if iter is None:
             return
         selector = self.users_tree_view.get_selection()
         selector.unselect_iter(iter)
 
         (model, iter) = self.groups_tree_view.get_selection().get_selected()
-        if iter == None:
+        if iter is None:
             return
         selector = self.groups_tree_view.get_selection()
         selector.unselect_iter(iter)
@@ -1114,7 +1117,7 @@ class SAMWindow(gtk.Window):
     def on_new_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
             new_user = self.run_user_edit_dialog()
-            if (new_user == None):
+            if (new_user is None):
                 self.set_status("User creation canceled.")
                 return
 
@@ -1142,7 +1145,7 @@ class SAMWindow(gtk.Window):
 
         else: # groups tab
             new_group = self.run_group_edit_dialog()
-            if (new_group == None):
+            if (new_group is None):
                 return
 
             try:
@@ -1253,14 +1256,14 @@ class SAMWindow(gtk.Window):
         dialog.hide()
 
     def on_users_tree_view_button_press(self, widget, event):
-        if (self.get_selected_user() == None):
+        if self.get_selected_user() is None:
             return
 
         if (event.type == gtk.gdk._2BUTTON_PRESS):
             self.on_edit_item_activate(self.edit_item)
 
     def on_groups_tree_view_button_press(self, widget, event):
-        if (self.get_selected_group() == None):
+        if self.get_selected_group() is None:
             return
 
         if (event.type == gtk.gdk._2BUTTON_PRESS):
@@ -1274,9 +1277,8 @@ class SAMWindow(gtk.Window):
     def on_update_sensitivity(self, widget):
         self.update_sensitivity()
 
-#************ END OF CLASS ***************
 
-def PrintUseage():
+def PrintUsage():
     print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))
     print "All options are optional. The user will be queried for additional information if needed.\n"
     print "  -s  --server\t\tspecify the server to connect to."
@@ -1292,12 +1294,12 @@ def ParseArgs(argv):
     try: #get arguments into a nicer format
         opts, args = getopt.getopt(argv, "chu:s:p:t:", ["help", "user=", "server=", "password=", "connect-now", "transport="])
     except getopt.GetoptError:
-        PrintUseage()
+        PrintUsage()
         sys.exit(2)
 
     for opt, arg in opts:
         if opt in ("-h", "--help"):
-            PrintUseage()
+            PrintUsage()
             sys.exit(0)
         elif opt in ("-s", "--server"):
             arguments.update({"server":arg})

@@ -18,6 +18,7 @@ import pygwsvcctl
 
 from sambagtk.dialogs import AboutDialog, SAMConnectDialog
 
+
 class SambaUtilities(object):
 
     def __init__(self, connection_args={}, additional_connection_arguments={}):

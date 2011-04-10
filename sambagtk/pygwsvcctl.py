@@ -14,12 +14,13 @@ import pango
 from samba import credentials
 from samba.dcerpc import svcctl
 
-from objects import Service
-
-from dialogs import SvcCtlConnectDialog
-from dialogs import ServiceEditDialog
-from dialogs import ServiceControlDialog
-from dialogs import AboutDialog
+from sambagtk.dialogs import (
+    AboutDialog,
+    SvcCtlConnectDialog,
+    ServiceEditDialog,
+    ServiceControlDialog,
+    )
+from sambagtk.objects import Service
 
 
 class SvcCtlPipeManager(object):
@@ -50,9 +51,9 @@ class SvcCtlPipeManager(object):
         pass # apparently there's no .Close() method for this pipe
 
     def fetch_services(self, svcctl_window):
-        """Feteches a list of services from the server. svcctl_window is used to update the GUI."""
-        #note: this function is designed to be called by a secondary thread only.
-        #      If the main thread calls this then THERE WILL BE A DEADLOCK!
+        """Fetches a list of services from the server. svcctl_window is used to update the GUI."""
+        # Note: this function is designed to be called by a secondary thread only.
+        # If the main thread calls this then THERE WILL BE A DEADLOCK!
         del self.service_list[:]
 
         (buffer, needed, count, resume_handle) = self.pipe.EnumServicesStatusW(self.scm_handle,
@@ -94,7 +95,8 @@ class SvcCtlPipeManager(object):
         self.pipe.ControlService(service.handle, control)
 
     def update_service(self, service):
-        (service_config, needed) = self.pipe.QueryServiceConfigW(service.handle, 8192)
+        (service_config, needed) = self.pipe.QueryServiceConfigW(
+            service.handle, 8192)
         # TODO: this gives a "DCERPC Fault NDR" error
         #TODO: this gives me a "NT_STATUS_RPC_BAD_STUB_DATA" error
         self.pipe.ChangeServiceConfigW(
@@ -138,7 +140,7 @@ class SvcCtlPipeManager(object):
         service.start_type = service_config.start_type
         service.path_to_exe = service_config.executablepath
 
-        if (service_config.startname == "LocalSystem"):
+        if service_config.startname == "LocalSystem":
             service.account = None
         else:
             service.account = service_config.startname
@@ -286,7 +288,7 @@ class ServiceControlThread(threading.Thread):
         try:
             self.pipe_manager.lock.acquire()
 
-            if (self.control == None): # starting
+            if (self.control is None): # starting
                 self.pipe_manager.start_service(self.service)
             else:
                 self.pipe_manager.control_service(self.service, self.control)
@@ -665,7 +667,7 @@ class SvcCtlWindow(gtk.Window):
             return None
 
         (model, iter) = self.services_tree_view.get_selection().get_selected()
-        if (iter == None): # no selection
+        if (iter is None): # no selection
             return None
         else:
             name = model.get_value(iter, 0)
@@ -715,7 +717,7 @@ class SvcCtlWindow(gtk.Window):
 
     def update_captions(self):
         service = self.get_selected_service()
-        if (service == None):
+        if (service is None):
             paused = False
         else:
             paused = (service.state == svcctl.SVCCTL_PAUSED)
@@ -725,7 +727,7 @@ class SvcCtlWindow(gtk.Window):
         self.pause_resume_button.set_label(["Pause", "Resume"][paused])
 
     def run_message_dialog(self, type, buttons, message, parent = None):
-        if (parent == None):
+        if (parent is None):
             parent = self
 
         message_box = gtk.MessageDialog(parent, gtk.DIALOG_MODAL, type, buttons, message)
@@ -912,14 +914,14 @@ class SvcCtlWindow(gtk.Window):
 
     def on_start_item_activate(self, widget):
         start_service = self.get_selected_service()
-        if (start_service == None):
+        if (start_service is None):
             return
 
         self.run_service_control_dialog(start_service, None)
 
     def on_stop_item_activate(self, widget):
         stop_service = self.get_selected_service()
-        if (stop_service == None):
+        if (stop_service is None):
             return
 
         self.run_service_control_dialog(stop_service, svcctl.SVCCTL_CONTROL_STOP)
@@ -927,7 +929,7 @@ class SvcCtlWindow(gtk.Window):
     def on_pause_resume_item_activate(self, widget):
         try:
             pause_resume_service = self.get_selected_service()
-            if (pause_resume_service == None):
+            if (pause_resume_service is None):
                 return
 
             self.pipe_manager.lock.acquire()
@@ -970,7 +972,7 @@ class SvcCtlWindow(gtk.Window):
         dialog.hide()
 
     def on_services_tree_view_button_press(self, widget, event):
-        if (self.get_selected_service() == None):
+        if (self.get_selected_service() is None):
             return
 
         if (event.type == gtk.gdk._2BUTTON_PRESS):
@@ -984,7 +986,7 @@ class SvcCtlWindow(gtk.Window):
 
 #************ END OF CLASS ***************
 
-def PrintUseage():
+def PrintUsage():
     print "Usage: %s [OPTIONS]" % (str(os.path.split(__file__)[-1]))
     print "All options are optional. The user will be queried for additional information if needed.\n"
     print "  -s  --server\t\tspecify the server to connect to."
@@ -999,12 +1001,12 @@ def ParseArgs(argv):
     try: #get arguments into a nicer format
         opts, args = getopt.getopt(argv, "chu:s:p:t:", ["help", "user=", "server=", "password=", "connect-now", "transport="])
     except getopt.GetoptError:
-        PrintUseage()
+        PrintUsage()
         sys.exit(2)
 
     for opt, arg in opts:
         if opt in ("-h", "--help"):
-            PrintUseage()
+            PrintUsage()
             sys.exit(0)
         elif opt in ("-s", "--server"):
             arguments.update({"server":arg})

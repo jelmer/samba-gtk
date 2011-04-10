@@ -40,7 +40,7 @@ protocol_names = {
     epmapper.EPM_PROTOCOL_TCP: "TCP",
     epmapper.EPM_PROTOCOL_NETBIOS: "NetBIOS",
     epmapper.EPM_PROTOCOL_SMB: "SMB",
-    epmapper.EPM_PROTOCOL_PIPE: "PIPE",
+    epmapper.EPM_PROTOCOL_NAMED_PIPE: "PIPE",
     epmapper.EPM_PROTOCOL_UNIX_DS: "Unix",
 }
 
@@ -60,24 +60,25 @@ class EndpointBrowser(gtk.Window):
 
     def add_epm_entry(self, annotation, t):
         bd = t.as_binding_string()
-        store_eps.append((0, annotation, 1, str(bd), 2, t))
+        self._store_eps.append((0, annotation, 1, str(bd), 2, t))
 
         for floor in t.floors:
-            if floor.lhs.protocol == EPM_PROTOCOL_UUID:
+            if floor.lhs.protocol == epmapper.EPM_PROTOCOL_UUID:
                 data = str(floor.get_lhs_data().uuid)
             else:
                 data = floor.get_rhs_data()
 
-            store_eps.append((0, get_protocol_name(floor.lhs.protocol), 1, data, -1))
+            self._store_eps.append((0, get_protocol_name(floor.lhs.protocol), 1, data, -1))
 
     def refresh_eps(self):
-        store_eps.clear()
+        self._store_eps.clear()
 
         handle = None
         num_ents = max_ents = 10
 
         while num_ents == max_ents:
-            (handle, num_ents, ents) = epmapper_pipe.Lookup(inquiry_type=0,
+            (handle, num_ents, ents) = self._epmapper_pipe.Lookup(
+                inquiry_type=0,
                 object=uuid, interface_id=iface, vers_option=0,
                 entry_handle=handle, max_ents=max_ents)
             for ent in ents:
@@ -89,18 +90,18 @@ class EndpointBrowser(gtk.Window):
     def _on_connect_clicked(self, btn):
         self._epmapper_pipe = sambagtk.RpcConnectDialog(epmapper.epmapper)
 
-        mnu_refresh.set_sensitive(True)
+        self._mnu_refresh.set_sensitive(True)
 
-        refresh_eps()
+        self.refresh_eps()
 
         self._mgmt_pipe = mgmt.mgmt(self._epmapper_pipe)
 
     def _on_eps_select(self, selection, model, path, path_currently_selected, data):
         # Do an InqStats call
-        statistics = mgmt_pipe.inq_stats(max_count=MGMT_STATS_ARRAY_MAX_SIZE,
+        statistics = self._mgmt_pipe.inq_stats(max_count=mgmt.MGMT_STATS_ARRAY_MAX_SIZE,
                                          unknown=0)
 
-        if statistics.count != MGMT_STATS_ARRAY_MAX_SIZE:
+        if statistics.count != mgmt.MGMT_STATS_ARRAY_MAX_SIZE:
             raise Exception("Unexpected array size %d" % statistics.count)
 
         self._lbl_calls_in.set_text("%6d" % statistics[mgmt.MGMT_STATS_CALLS_IN])
@@ -111,7 +112,7 @@ class EndpointBrowser(gtk.Window):
         self._store_princ_names.clear()
 
         for i in range(100):
-            princ_name = mgmt_pipe.inq_princ_name(authn_proto=i, princ_name_size=100)
+            princ_name = self._mgmt_pipe.inq_princ_name(authn_proto=i, princ_name_size=100)
             name = gensec_get_name_by_authtype(i)
             if name is not None:
                 protocol = "%u (%s)" % (i, name)
@@ -149,9 +150,9 @@ class EndpointBrowser(gtk.Window):
         mnu_connect = gtk.MenuItem ("_Connect")
         menuitem1_menu.add(mnu_connect)
 
-        mnu_refresh = gtk.MenuItem ("_Refresh")
-        menuitem1_menu.add(mnu_refresh)
-        mnu_refresh.set_sensitive(False)
+        self._mnu_refresh = gtk.MenuItem ("_Refresh")
+        menuitem1_menu.add(self._mnu_refresh)
+        self._mnu_refresh.set_sensitive(False)
 
         quit1 = gtk.ImageMenuItem(gtk.STOCK_QUIT, accel_group)
         menuitem1_menu.add(quit1)
@@ -190,8 +191,8 @@ class EndpointBrowser(gtk.Window):
 
         tree_eps.append_column(curcol)
 
-        store_eps = gtk.TreeStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_POINTER)
-        tree_eps.set_model(store_eps)
+        self._store_eps = gtk.TreeStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_POINTER)
+        tree_eps.set_model(self._store_eps)
 
         scrolledwindow1.add(tree_eps)
 
@@ -261,7 +262,7 @@ class EndpointBrowser(gtk.Window):
         quit1.connect("activate", self._on_quit1_activate)
         about1.connect("activate", self._on_about1_activate)
         mnu_connect.connect ("activate", self._on_connect_clicked)
-        mnu_refresh.connect ("activate", self._on_refresh_clicked)
+        self._mnu_refresh.connect ("activate", self._on_refresh_clicked)
 
         self.add_accel_group (accel_group)
 

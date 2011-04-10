@@ -51,9 +51,9 @@ class SAMPipeManager(object):
         pass
 
     def close(self):
-        if (self.pipe != None):
+        if (self.pipe is not None):
             self.pipe.Close(self.connect_handle)
- 
+
     def fetch_and_get_domain_names(self):
         if (self.pipe == None): # not connected
             return None
@@ -153,7 +153,7 @@ class SAMPipeManager(object):
             info.acct_flags |= samr.ACB_PWNOEXP
         else:
             info.acct_flags &= ~samr.ACB_PWNOEXP
- 
+
         if (user.account_disabled):
             info.acct_flags |= samr.ACB_DISABLED
         else:
@@ -217,12 +217,12 @@ class SAMPipeManager(object):
         ace_list = DACL.aces
 
         ace = None
- 
+
         for item in ace_list:
             if str(item.trustee) == sid:
                 ace = item
                 break
- 
+
         if ace == None:
             print "unable to fetch security info for", user.username, "because none exists."
             return user
@@ -233,7 +233,7 @@ class SAMPipeManager(object):
         else:
             ace_list[0].access_mask |= samr.SAMR_USER_ACCESS_CHANGE_PASSWORD
             ace.access_mask |= samr.SAMR_USER_ACCESS_CHANGE_PASSWORD
- 
+
         self.pipe.SetSecurity(user_handle, security.SECINFO_DACL, secinfo)
         return
 
@@ -313,7 +313,7 @@ class SAMPipeManager(object):
             user.map_homedir_drive = ord(drive[0]) - ord('A')
         else:
             user.map_homedir_drive = -1
- 
+
         return user
 
     def secinfo_to_user(self, secinfo, user):
@@ -337,17 +337,17 @@ class SAMPipeManager(object):
         for rwa in rwa_list:
             group_rid = rwa.rid
             group_to_add = None
- 
+
             for group in self.group_list:
                 if (group.rid == group_rid):
                     group_to_add = group
                     break
-     
-            if (group_to_add != None):
+
+            if (group_to_add is not None):
                 group_list.append(group_to_add)
             else:
                 raise Exception("group not found for rid = %d" % group_rid)
- 
+
         return group_list
 
     def info_to_group(self, query_info, group = None):
@@ -402,7 +402,7 @@ class SAMWindow(gtk.Window):
         self.on_connect_item_activate(None, server, transport_type, username, password, connect_now, domain_index)
 
         #This is used so the parent program can grab the server info after we've connected.
-        if info_callback != None:
+        if info_callback is not None:
             info_callback(server = self.server_address, username = self.username, transport_type = self.transport_type)
 
     def create(self):
@@ -536,15 +536,15 @@ class SAMWindow(gtk.Window):
         self.new_button = gtk.ToolButton(gtk.STOCK_NEW)
         self.new_button.set_is_important(True)
         self.toolbar.insert(self.new_button, 3)
-     
+
         self.edit_button = gtk.ToolButton(gtk.STOCK_EDIT)
         self.edit_button.set_is_important(True)
         self.toolbar.insert(self.edit_button, 4)
-     
+
         self.delete_button = gtk.ToolButton(gtk.STOCK_DELETE)
         self.delete_button.set_is_important(True)
         self.toolbar.insert(self.delete_button, 5)
-     
+
 
         # user list
 
@@ -565,7 +565,7 @@ class SAMWindow(gtk.Window):
         renderer.set_property("pixbuf", gtk.gdk.pixbuf_new_from_file_at_size(self.user_icon_filename, 22, 22))
         column.pack_start(renderer, True)
         self.users_tree_view.append_column(column)
-     
+
         column = gtk.TreeViewColumn()
         column.set_title("Name")
         column.set_resizable(True)
@@ -574,7 +574,7 @@ class SAMWindow(gtk.Window):
         column.pack_start(renderer, True)
         self.users_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 0)
-     
+
         column = gtk.TreeViewColumn()
         column.set_title("Full Name")
         column.set_resizable(True)
@@ -634,7 +634,7 @@ class SAMWindow(gtk.Window):
         column.pack_start(renderer, True)
         self.groups_tree_view.append_column(column)
         column.add_attribute(renderer, "text", 0)
-     
+
         column = gtk.TreeViewColumn()
         column.set_title("Description")
         column.set_resizable(True)
@@ -721,7 +721,7 @@ class SAMWindow(gtk.Window):
         self.groups_store.clear()
         for group in self.pipe_manager.group_list:
             self.groups_store.append(group.list_view_representation())
- 
+
         if (len(paths) > 0):
             self.groups_tree_view.get_selection().select_path(paths[0])
 
@@ -732,7 +732,7 @@ class SAMWindow(gtk.Window):
         (model, iter) = self.users_tree_view.get_selection().get_selected()
         if (iter == None): # no selection
             return None
-        else: 
+        else:
             username = model.get_value(iter, 0)
             user_list = [user for user in self.pipe_manager.user_list if user.username == username]
             if (len(user_list) > 0):
@@ -747,7 +747,7 @@ class SAMWindow(gtk.Window):
         (model, iter) = self.groups_tree_view.get_selection().get_selected()
         if (iter == None): # no selection
             return None
-        else: 
+        else:
             name = model.get_value(iter, 0)
             group_list = [group for group in self.pipe_manager.group_list if group.name == name]
             if (len(group_list) > 0):
@@ -760,9 +760,9 @@ class SAMWindow(gtk.Window):
         self.statusbar.push(0, message)
 
     def update_sensitivity(self):
-        connected = (self.pipe_manager != None)
-        user_selected = (self.get_selected_user() != None)
-        group_selected = (self.get_selected_group() != None)
+        connected = (self.pipe_manager is not None)
+        user_selected = (self.get_selected_user() is not None)
+        group_selected = (self.get_selected_group() is not None)
         selected = [user_selected, group_selected][self.users_groups_notebook_page_num]
 
         self.connect_item.set_sensitive(not connected)
@@ -805,23 +805,23 @@ class SAMWindow(gtk.Window):
         # loop to handle the applies
         while True:
             response_id = dialog.run()
- 
+
             if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
-     
-                if (problem_msg != None):
+
+                if (problem_msg is not None):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_user()
-         
-                    if (apply_callback != None): #seems like there's only a callback when a user is modified, never when creating a new user.
+
+                    if (apply_callback is not None): #seems like there's only a callback when a user is modified, never when creating a new user.
                         apply_callback(dialog.user)
                         dialog.user_to_values()
-             
+
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
-             
+
             else:
                 dialog.hide()
                 return None
@@ -835,23 +835,23 @@ class SAMWindow(gtk.Window):
         # loop to handle the applies
         while True:
             response_id = dialog.run()
- 
+
             if (response_id in [gtk.RESPONSE_OK, gtk.RESPONSE_APPLY]):
                 problem_msg = dialog.check_for_problems()
-     
-                if (problem_msg != None):
+
+                if (problem_msg is not None):
                     self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, problem_msg, dialog)
                 else:
                     dialog.values_to_group()
-         
-                    if (apply_callback != None):
+
+                    if (apply_callback is not None):
                         apply_callback(dialog.thegroup)
                         dialog.group_to_values()
-                              
+
                     if (response_id == gtk.RESPONSE_OK):
                         dialog.hide()
                         break
- 
+
             else:
                 dialog.hide()
                 return None
@@ -873,7 +873,7 @@ class SAMWindow(gtk.Window):
                     response_id = gtk.RESPONSE_OK
                 else:
                     response_id = dialog.run()
-     
+
                 if (response_id != gtk.RESPONSE_OK):
                     dialog.hide()
                     return None
@@ -888,11 +888,11 @@ class SAMWindow(gtk.Window):
                         domain_index = 0
                         self.domain_index = domain_index
                         password = dialog.get_password()
-             
+
                         pipe_manager = SAMPipeManager(server_address, transport_type, username, password)
                         domains = pipe_manager.fetch_and_get_domain_names()
                         break
-         
+
                     except RuntimeError, re:
                         if re.args[1] == 'Logon failure': #user got the password wrong
                             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Failed to connect: Invalid username or password.", dialog)
@@ -911,9 +911,9 @@ class SAMWindow(gtk.Window):
                         else:
                             msg = "Failed to connect: %s." % (re.args[1])
                             print msg
-                            traceback.print_exc()             
+                            traceback.print_exc()
                             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg, dialog)
-             
+
                     except Exception, ex:
                         msg = "Failed to connect: %s." % (str(ex))
                         print msg
@@ -934,7 +934,7 @@ class SAMWindow(gtk.Window):
         return pipe_manager
 
     def connected(self):
-        return self.pipe_manager != None
+        return self.pipe_manager is not None
 
     def update_user_callback(self, user):
         try:
@@ -983,7 +983,7 @@ class SAMWindow(gtk.Window):
         finally:
             self.pipe_manager.fetch_group(group.rid, group) # just to make sure we have the updated group properties
             self.refresh_group_list_view()
- 
+
     def on_key_press(self, widget, event):
         if event.keyval == gtk.keysyms.F5:
             self.on_refresh_item_activate(None)
@@ -995,9 +995,9 @@ class SAMWindow(gtk.Window):
                 self.on_users_tree_view_button_press(None, myev)
             else:
                 self.on_groups_tree_view_button_press(None, myev)
- 
+
     def on_self_delete(self, widget, event):
-        if (self.pipe_manager != None):
+        if (self.pipe_manager is not None):
             self.on_disconnect_item_activate(self.disconnect_item)
 
         gtk.main_quit()
@@ -1010,11 +1010,11 @@ class SAMWindow(gtk.Window):
 
         try:
             self.pipe_manager = self.run_connect_dialog(None, server, transport_type, username, password, connect_now, domain_index)
-            if (self.pipe_manager != None):
+            if (self.pipe_manager is not None):
                 self.pipe_manager.fetch_users_and_groups()
-     
+
                 self.set_status("Connected to %s/%s." % (self.server_address, SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1])))
- 
+
         except RuntimeError, re:
             msg = "Failed to open the selected domain: %s." % (re.args[1])
             self.set_status(msg)
@@ -1034,10 +1034,10 @@ class SAMWindow(gtk.Window):
         self.update_sensitivity()
 
     def on_disconnect_item_activate(self, widget):
-        if (self.pipe_manager != None):
+        if (self.pipe_manager is not None):
             self.pipe_manager.close()
             self.pipe_manager = None
- 
+
         self.users_store.clear()
         self.groups_store.clear()
         self.update_sensitivity()
@@ -1047,9 +1047,9 @@ class SAMWindow(gtk.Window):
     def on_sel_domain_item_activate(self, widget):
         try:
             self.pipe_manager = self.run_connect_dialog(self.pipe_manager, self.server_address, self.transport_type, self.username, domains = self.pipe_manager.fetch_and_get_domain_names())
-            if (self.pipe_manager != None):
+            if self.pipe_manager is not None:
                 self.pipe_manager.fetch_users_and_groups()
-     
+
                 self.set_status("Connected to %s/%s." % (self.server_address, SAMPipeManager.get_lsa_string(self.pipe_manager.domain[1])))
 
         except RuntimeError, re:
@@ -1076,7 +1076,7 @@ class SAMWindow(gtk.Window):
     def on_refresh_item_activate(self, widget):
         try:
             self.pipe_manager.fetch_users_and_groups()
- 
+
         except RuntimeError, re:
             msg = "Failed to refresh SAM info: %s." % (re.args[1])
             self.set_status(msg)
@@ -1090,7 +1090,7 @@ class SAMWindow(gtk.Window):
             print msg
             traceback.print_exc()
             self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
         self.refresh_user_list_view()
         self.refresh_group_list_view()
 
@@ -1117,83 +1117,83 @@ class SAMWindow(gtk.Window):
             if (new_user == None):
                 self.set_status("User creation canceled.")
                 return
- 
+
             try:
                 self.pipe_manager.add_user(new_user)
                 self.pipe_manager.fetch_users_and_groups()
-     
+
                 self.set_status("Successfully created user \'%s\'." % (new_user.username))
- 
+
             except RuntimeError, re:
                 msg = "Failed to create user: %s." % (re.args[1])
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
             except Exception, ex:
                 msg = "Failed to create user: %s." % (str(ex))
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
             self.refresh_user_list_view()
 
         else: # groups tab
             new_group = self.run_group_edit_dialog()
             if (new_group == None):
                 return
- 
+
             try:
                 self.pipe_manager.add_group(new_group)
                 self.pipe_manager.fetch_users_and_groups()
-     
+
                 self.set_status("Successfully created group \'%s\'." % (new_group.name))
-     
+
             except RuntimeError, re:
                 msg = "Failed to create group: %s." % (re.args[1])
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
             except Exception, ex:
                 msg = "Failed to create group: %s." % (str(ex))
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-     
+
             self.refresh_group_list_view()
- 
+
     def on_delete_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
             del_user = self.get_selected_user()
 
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete user '%s'?" % del_user.username) != gtk.RESPONSE_YES):
                 return
- 
+
             try:
                 self.pipe_manager.delete_user(del_user)
                 self.pipe_manager.fetch_users_and_groups()
-     
+
                 self.set_status("Successfully deleted user \'%s\'." % (del_user.username))
- 
+
             except RuntimeError, re:
                 msg = "Failed to delete user: %s." % (re.args[1])
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
             except Exception, ex:
                 msg = "Failed to delete user: %s." % (str(ex))
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
             self.refresh_user_list_view()
 
         else: # groups tab
@@ -1201,11 +1201,11 @@ class SAMWindow(gtk.Window):
 
             if (self.run_message_dialog(gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, "Do you want to delete group '%s'?" % del_group.name) != gtk.RESPONSE_YES):
                 return
- 
+
             try:
                 self.pipe_manager.delete_group(del_group)
                 self.pipe_manager.fetch_users_and_groups()
-     
+
                 self.set_status("Successfully deleted group \'%s\'." % (del_group.name))
 
             except RuntimeError, re:
@@ -1214,22 +1214,22 @@ class SAMWindow(gtk.Window):
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
- 
+
             except Exception, ex:
                 msg = "Failed to delete group: %s." % (str(ex))
                 self.set_status(msg)
                 print msg
                 traceback.print_exc()
                 self.run_message_dialog(gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
-     
-            self.refresh_group_list_view()  
- 
+
+            self.refresh_group_list_view()
+
 
     def on_edit_item_activate(self, widget):
         if (self.users_groups_notebook_page_num == 0): # users tab
             edit_user = self.get_selected_user()
             self.run_user_edit_dialog(edit_user, self.update_user_callback)
- 
+
         else: # groups tab
             edit_group = self.get_selected_group()
             self.run_group_edit_dialog(edit_group, self.update_group_callback)

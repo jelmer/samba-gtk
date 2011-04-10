@@ -9,7 +9,6 @@ import pango
 
 import samba
 from samba.dcerpc import svcctl
-from samba.dcerpc import winreg
 from samba.dcerpc import misc
 
 from objects import User
@@ -43,8 +42,7 @@ class AboutDialog(gtk.AboutDialog):
             "GNU General Public License for more details. \n\n" +
             "You should have received a copy of the GNU General Public License " +
             "along with this program. If not, see <http://www.gnu.org/licenses/>."
-        );
-
+        )
 
 
 class UserEditDialog(gtk.Dialog):

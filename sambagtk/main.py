@@ -16,8 +16,7 @@ import pygwregedit
 import pygwcrontab
 import pygwsvcctl
 
-from dialogs import SAMConnectDialog #we use this to connect all. Simple because it's the most complex of the 4.
-from dialogs import AboutDialog
+from sambagtk.dialogs import AboutDialog, SAMConnectDialog
 
 class SambaUtilities(object):
 
@@ -169,16 +168,16 @@ class SambaUtilities(object):
         self.update_sensitivity()
 
     def sam_initialized(self):
-        return self.sam_window != None
+        return self.sam_window is not None
 
     def regedit_initialized(self):
-        return self.regedit_window != None
+        return self.regedit_window is not None
 
     def svcctl_initialized(self):
-        return self.svcctl_window != None
+        return self.svcctl_window is not None
 
     def crontab_initialized(self):
-        return self.crontab_window != None
+        return self.crontab_window is not None
 
     def update_sensitivity(self):
         sam_connected = self.sam_initialized() and self.sam_window.connected()

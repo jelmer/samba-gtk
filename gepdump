@@ -1,26 +1,26 @@
 #!/usr/bin/python
 #   Unix SMB/CIFS implementation.
 #   GTK+ Endpoint Mapper frontend
-#   
-#   Copyright (C) Jelmer Vernooij 2004
+#
+#   Copyright (C) Jelmer Vernooij 2004-2011
 #
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
 #   the Free Software Foundation; either version 3 of the License, or
 #   (at your option) any later version.
-#   
+#
 #   This program is distributed in the hope that it will be useful,
 #   but WITHOUT ANY WARRANTY; without even the implied warranty of
 #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #   GNU General Public License for more details.
-#   
+#
 #   You should have received a copy of the GNU General Public License
 #   along with this program; if not, write to the Free Software
 #   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #
 
-# 
-# * Show: 
+#
+# * Show:
 # *  - RPC statistics
 # *  - Available interfaces
 # *   - Per interface: available endpoints
@@ -67,7 +67,7 @@ class EndpointBrowser(gtk.Window):
                 data = str(floor.get_lhs_data().uuid)
             else:
                 data = floor.get_rhs_data()
-            
+
             store_eps.append((0, get_protocol_name(floor.lhs.protocol), 1, data, -1))
 
     def refresh_eps(self):
@@ -77,8 +77,8 @@ class EndpointBrowser(gtk.Window):
         num_ents = max_ents = 10
 
         while num_ents == max_ents:
-            (handle, num_ents, ents) = epmapper_pipe.Lookup(inquiry_type=0, 
-                object=uuid, interface_id=iface, vers_option=0, 
+            (handle, num_ents, ents) = epmapper_pipe.Lookup(inquiry_type=0,
+                object=uuid, interface_id=iface, vers_option=0,
                 entry_handle=handle, max_ents=max_ents)
             for ent in ents:
                 self.add_epm_entry(ent.annotation, ent.tower.tower)
@@ -97,7 +97,7 @@ class EndpointBrowser(gtk.Window):
 
     def _on_eps_select(self, selection, model, path, path_currently_selected, data):
         # Do an InqStats call
-        statistics = mgmt_pipe.inq_stats(max_count=MGMT_STATS_ARRAY_MAX_SIZE, 
+        statistics = mgmt_pipe.inq_stats(max_count=MGMT_STATS_ARRAY_MAX_SIZE,
                                          unknown=0)
 
         if statistics.count != MGMT_STATS_ARRAY_MAX_SIZE:
@@ -230,7 +230,7 @@ class EndpointBrowser(gtk.Window):
         table_statistics.attach(gtk.Label("Packets Out: "), 0, 1, 3, 4)
         lbl_pkts_out = gtk.Label("")
         table_statistics.attach(lbl_pkts_out, 1, 2, 3, 4)
-        
+
         frame1 = gtk.Frame("Authentication")
         vbox2.add(frame1)
 
